@@ -20,10 +20,12 @@ if (-not $cmd) { Stop-Here "node.exe tidak ditemukan (perlu Node.js 22.5 atau le
 $node = $cmd.Source
 
 function Get-Board {
-  # node.exe whose command line names THIS folder's server.mjs by absolute path (this script, the deploy and the
-  # launcher all start it that way)
-  $e = $entry.ToLower()
-  @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($e) })
+  # the same test as the deploy and stop-office-board.ps1: this folder's server.mjs by absolute path (this script, the
+  # deploy and the launcher start it that way), or a relative "server.mjs" with this folder's data (a start by hand)
+  $e = $entry.ToLower(); $d = $data.ToLower()
+  @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {
+    $_.CommandLine -and ($_.CommandLine.ToLower().Contains($e) -or ($_.CommandLine.ToLower().Contains(' server.mjs ') -and $_.CommandLine.ToLower().Contains($d)))
+  })
 }
 function Get-Listener {
   @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)

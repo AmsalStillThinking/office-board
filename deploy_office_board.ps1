@@ -94,6 +94,9 @@ $bat = Join-Path $dst "start-office-board.bat"
 # redeploy can recognise a launcher-started instance), refuses a second copy, and shows where to open the board
 $line = 'powershell -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $dst "run-office-board.ps1") + '" -Port ' + $Port
 Set-Content -Path $bat -Value ("@echo off`r`n" + $line + "`r`npause`r`n") -Encoding ascii
+# and its pair: stops only the board started from this folder and says whether the port is free
+$line = 'powershell -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $dst "stop-office-board.ps1") + '" -Port ' + $Port
+Set-Content -Path (Join-Path $dst "stop-office-board.bat") -Value ("@echo off`r`n" + $line + "`r`npause`r`n") -Encoding ascii
 
 foreach ($p in $old) {
   Write-Output ("stopping old instance pid " + $p.ProcessId)
