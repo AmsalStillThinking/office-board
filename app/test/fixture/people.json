@@ -1,0 +1,11 @@
+{
+ "asOf": "fictional test fixture",
+ "people": [
+  {"id": "T01", "name": "Bagas Pratama", "nick": "", "role": "direktur", "keeper": 0},
+  {"id": "T02", "name": "Citra Ayu", "nick": "", "role": "direktur", "keeper": 0},
+  {"id": "T03", "name": "Dewi Kartika", "nick": "", "role": "staf", "keeper": 0},
+  {"id": "T04", "name": "Eko Saputro", "nick": "", "role": "staf", "keeper": 0},
+  {"id": "T05", "name": "Fajar Nugroho", "nick": "", "role": "staf", "keeper": 1},
+  {"id": "T06", "name": "Gita Maharani", "nick": "", "role": "staf", "keeper": 0}
+ ]
+}

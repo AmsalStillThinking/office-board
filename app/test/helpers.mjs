@@ -1,0 +1,76 @@
+// Test harness: an in-process app on a random free port with its own temporary data folder under test/_tmp.
+// The app under test can be swapped with OB_APP_DIR (used by the mutant runner).
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+
+export const HERE = path.dirname(fileURLToPath(import.meta.url));
+export const APP_DIR = process.env.OB_APP_DIR || path.resolve(HERE, '..');
+export const FIXTURE = path.join(HERE, 'fixture');
+export const TMP = path.join(HERE, '_tmp');
+const mod = await import(pathToFileURL(path.join(APP_DIR, 'server.mjs')).href);
+export const R = await import(pathToFileURL(path.join(APP_DIR, 'lib', 'rules.mjs')).href);
+export const MSG = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'lib', 'messages.json'), 'utf8'));
+
+export const at = (iso) => Date.parse(iso);
+
+export function freshDir(tag) {
+  const d = path.join(TMP, `node_${tag}_${process.pid}_${crypto.randomBytes(4).toString('hex')}`);
+  if (path.resolve(d).toLowerCase().includes(path.join('app', 'data').toLowerCase())) throw new Error('refusing a data folder inside app');
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+}
+
+export async function startApp(opts = {}) {
+  const clock = { t: opts.now ?? at('2026-11-18T10:00:00+08:00'), real: opts.real ?? Date.now() };
+  const dataDir = freshDir(opts.tag || 'app');
+  const app = mod.createApp({ dataDir, seedDir: FIXTURE, now: () => clock.t, realNow: () => clock.real, quiet: true, hooks: opts.hooks || {} });
+  const port = await app.listen(0, '127.0.0.1');
+  if (port === 3006) throw new Error('port 3006 is reserved');
+  const pins = new Map();
+  for (const line of fs.readFileSync(path.join(dataDir, 'first-pins.txt'), 'utf8').split(/\r?\n/)) {
+    const m = /^(\S+)\t[^\t]+\t(\d+)$/.exec(line);
+    if (m) pins.set(m[1], m[2]);
+  }
+  const base = `http://127.0.0.1:${port}`;
+  const ctx = { app, port, base, dataDir, clock, pins, db: app.db, sessions: new Map() };
+  ctx.close = async () => { await app.close(); fs.rmSync(dataDir, { recursive: true, force: true }); };
+  // request helper: as(personId) uses that person's session cookie (null = anonymous)
+  ctx.req = async (who, method, url, body, headers = {}) => {
+    const h = { ...headers };
+    if (who && ctx.sessions.has(who)) h.cookie = ctx.sessions.get(who);
+    let payload;
+    if (body instanceof Buffer || typeof body === 'string') payload = body;
+    else if (body !== undefined) { payload = JSON.stringify(body); h['content-type'] = 'application/json'; }
+    const r = await fetch(base + url, { method, headers: h, body: payload });
+    const text = await r.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch { json = null; }
+    return { status: r.status, json, text, headers: r.headers };
+  };
+  ctx.login = async (who, newPin = '135790') => {
+    const r = await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: who, pin: pins.get(who) }) });
+    if (r.status !== 200) throw new Error('login failed for ' + who + ': ' + r.status);
+    const cookie = r.headers.get('set-cookie').split(';')[0];
+    ctx.sessions.set(who, cookie);
+    const c = await ctx.req(who, 'POST', '/api/pin', { pin: newPin });
+    if (c.status !== 200) throw new Error('pin change failed ' + c.status + ' ' + c.text);
+    pins.set(who, newPin);
+    return cookie;
+  };
+  ctx.card = (id) => ctx.db.prepare('SELECT * FROM cards WHERE id = ?').get(id);
+  ctx.rowJson = (id) => JSON.stringify(ctx.card(id));
+  ctx.eventCount = () => ctx.db.prepare('SELECT COUNT(*) AS n FROM events').get().n;
+  ctx.create = async (who, fields) => {
+    const r = await ctx.req(who, 'POST', '/api/cards', { title: 'Tes kartu', owner: who, due: '2026-11-25', source: 'WhatsApp', ...fields });
+    if (r.status !== 201) throw new Error('create failed ' + r.status + ' ' + r.text);
+    return r.json.card.id;
+  };
+  ctx.act = (who, id, action, body = {}) => ctx.req(who, 'POST', `/api/cards/${id}/${action}`, body);
+  ctx.upload = (who, id, buf, name = 'bukti.png', type = 'image/png', purpose = 'bukti') =>
+    ctx.req(who, 'POST', `/api/cards/${id}/files`, buf, { 'content-type': type, 'x-file-name': encodeURIComponent(name), 'x-purpose': purpose });
+  return ctx;
+}
+
+export const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000' + '1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082', 'hex');

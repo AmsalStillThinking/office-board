@@ -1,0 +1,8 @@
+{
+ "note": "fictional test fixture",
+ "routines": [
+  {"title": "Uji rutin akhir bulan", "owner": "T03", "type": "pajak", "hard": 1, "schedule": {"kind": "monthly", "day": 31}, "lead_days": 7, "active": 1, "note": "fixture: seeded active on purpose; must arrive inactive"},
+  {"title": "Uji rutin tanpa pemilik", "owner": null, "type": "laporan", "hard": 0, "schedule": {"kind": "quarterly", "months": [1, 4, 7, 10], "day": 15}, "lead_days": 10, "active": 0, "note": ""},
+  {"title": "Uji rutin tahunan", "owner": "T04", "type": "pajak", "hard": 1, "schedule": {"kind": "yearly", "month": 4, "day": 30}, "lead_days": 30, "active": 0, "note": ""}
+ ]
+}

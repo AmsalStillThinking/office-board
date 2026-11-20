@@ -1,0 +1,33 @@
+{
+ "note": "Routine templates found in LMN's own documents on 19 Nov 2026 (obligations calendar of 30 Jun 2026, onboarding plan of 1 Oct 2026, draft contracts). ALL INACTIVE: a director confirms the owner and the date and switches each one on. Dates are quoted from the documents, not checked against the regulations.",
+ "routines": [
+  {"title": "Setor PPh potong/pungut (PPh 21, 23, 22, 4(2))", "owner": null, "type": "pajak", "hard": 1, "schedule": {"kind": "monthly", "day": 10}, "lead_days": 5, "active": 0,
+   "note": "Dokumen LMN berbeda: kalender 30 Jun 2026 menulis tanggal 10, rencana onboarding 1 Okt 2026 menulis tanggal 15. Pastikan tanggal dan pemilik sebelum diaktifkan."},
+  {"title": "Lapor SPT Masa PPh", "owner": null, "type": "pajak", "hard": 1, "schedule": {"kind": "monthly", "day": 20}, "lead_days": 5, "active": 0,
+   "note": "Pemilik belum ditetapkan ulang sejak Juli 2026."},
+  {"title": "Setor dan lapor PPN", "owner": null, "type": "pajak", "hard": 1, "schedule": {"kind": "monthly", "day": 31}, "lead_days": 7, "active": 0,
+   "note": "Akhir bulan berikutnya. Pemilik belum ditetapkan ulang sejak Juli 2026."},
+  {"title": "Tutup buku bulanan", "owner": "EMP054", "type": "keuangan", "hard": 0, "schedule": {"kind": "monthly", "day": 10}, "lead_days": 7, "active": 0,
+   "note": "Rencana onboarding (draft): paling lambat tanggal 10 bulan berikutnya."},
+  {"title": "Draft SPT ke Direktur", "owner": "EMP047", "type": "pajak", "hard": 0, "schedule": {"kind": "monthly", "day": 15}, "lead_days": 5, "active": 0,
+   "note": "Draft kontrak: 3 hari kerja sebelum tiap tenggat. Atur tanggal mengikuti tenggat pajak yang sudah dipastikan."},
+  {"title": "BPJS Kesehatan", "owner": "EMP015", "type": "sdm", "hard": 1, "schedule": {"kind": "monthly", "day": 10}, "lead_days": 5, "active": 0,
+   "note": "Pemilik menurut pembagian 30 Jun 2026. Kalender menandai tanggal ini perlu dicek."},
+  {"title": "BPJS Ketenagakerjaan", "owner": "EMP015", "type": "sdm", "hard": 1, "schedule": {"kind": "monthly", "day": 15}, "lead_days": 5, "active": 0,
+   "note": "Pemilik menurut pembagian 30 Jun 2026."},
+  {"title": "Laporan SIINas", "owner": null, "type": "laporan", "hard": 1, "schedule": {"kind": "quarterly", "months": [1, 4, 7, 10], "day": 10}, "lead_days": 10, "active": 0,
+   "note": "Pemilik belum ditetapkan ulang sejak Juli 2026."},
+  {"title": "Laporan LKPM", "owner": null, "type": "laporan", "hard": 1, "schedule": {"kind": "quarterly", "months": [1, 4, 7, 10], "day": 15}, "lead_days": 10, "active": 0,
+   "note": "Pemilik belum ditetapkan ulang sejak Juli 2026."},
+  {"title": "SPT Tahunan Badan", "owner": null, "type": "pajak", "hard": 1, "schedule": {"kind": "yearly", "month": 4, "day": 30}, "lead_days": 30, "active": 0,
+   "note": "Pemilik belum ditetapkan ulang sejak Juli 2026."},
+  {"title": "Rekap PPh 21 Desember dan bukti potong A1", "owner": null, "type": "pajak", "hard": 1, "schedule": {"kind": "yearly", "month": 1, "day": 20}, "lead_days": 14, "active": 0,
+   "note": "Pemilik belum ditetapkan ulang sejak Juli 2026."},
+  {"title": "Kalender konten bulan depan", "owner": "EMP042", "type": "konten", "hard": 0, "schedule": {"kind": "monthly", "day": 25}, "lead_days": 5, "active": 0,
+   "note": "Draft kontrak: paling lambat tanggal 25 bulan sebelumnya."},
+  {"title": "Laporan konten bulanan", "owner": "EMP042", "type": "konten", "hard": 0, "schedule": {"kind": "monthly", "day": 5}, "lead_days": 3, "active": 0,
+   "note": "Draft kontrak: paling lambat tanggal 5."},
+  {"title": "Rekap pengadaan dan status perizinan", "owner": "EMP012", "type": "administrasi", "hard": 0, "schedule": {"kind": "monthly", "day": 5}, "lead_days": 3, "active": 0,
+   "note": "Draft kontrak: bulanan; tanggalnya belum ditetapkan di dokumen."}
+ ]
+}
