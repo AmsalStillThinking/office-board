@@ -5,7 +5,10 @@ helpers for real keyboard input, real touch taps and the file chooser."""
 import base64, json, os, shutil, socket, subprocess, time, urllib.request
 import websocket
 
-CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+# Chrome lives in Program Files on the office PC and in Program Files (x86) on some others: take the first that exists.
+CHROME = next((p for p in (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                           r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe") if os.path.exists(p)),
+              r"C:\Program Files\Google\Chrome\Application\chrome.exe")
 HERE = os.path.dirname(os.path.abspath(__file__))
 TMP = os.path.join(HERE, "_tmp")
 
