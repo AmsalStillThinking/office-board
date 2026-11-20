@@ -1,7 +1,9 @@
 # Office Board v1.2: redesign (20 Nov 2026)
 
-Applied to this package only. The live copy on the office PC (D:\apps\office-board) is unchanged until someone runs
-deploy_office_board.ps1 there (HANDOVER section 7). The design came from the canvas "Project Management Redesign".
+Deployed on 20 Nov 2026 13:06 to this PC (BOARD-PC), which is now where the board runs:
+`deploy_office_board.ps1 -Target F:\apps\office-board` (13 of 13 files identical, RESULT: PASS), port 3006, a new
+database. The office PC copy (D:\apps\office-board) is unchanged; see the note at the top of HANDOVER.md.
+The design came from the canvas "Project Management Redesign".
 
 ## Decided by the app's owner on 20 Nov 2026
 - Apply the full design.

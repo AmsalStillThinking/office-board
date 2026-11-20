@@ -1,7 +1,14 @@
 # Office Board (Papan Tugas Kantor): handover to Amsal
 
 > Update 20 Nov 2026: this package now carries v1.2, the redesign (sidebar, Papan Kantor as Daftar/Kanban/Timeline,
-> slide-over task panel, "tugas" instead of "kartu"). Read CHANGES_v1_2_redesign.md. Not deployed yet.
+> slide-over task panel, "tugas" instead of "kartu"). Read CHANGES_v1_2_redesign.md.
+> Since 20 Nov 2026 13:06 v1.2 runs on BOARD-PC, not on the office PC ("jalankan di sini, bukan di sana
+> lagi"): program `F:\apps\office-board`, data `F:\apps\office-board\data`, port 3006; `http://BOARD-PC-LAN-IP:3006`
+> on its Wi-Fi, `http://BOARD-PC-TAILSCALE-IP:3006` over Tailscale. It started on a NEW database: its temporary PINs are in
+> `F:\apps\office-board\data\first-pins.txt`; the office PC's PINs and data were not moved. The copy on the office
+> PC (D:\apps\office-board) was not touched and may still be running: stop it there so nobody uses two boards.
+> After a restart of this PC start it with `F:\apps\office-board\start-office-board.bat` (no autostart, section 8).
+> Sections 2 and 7 still describe the office PC; a deploy here is the same script with `-Target F:\apps\office-board`.
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."
