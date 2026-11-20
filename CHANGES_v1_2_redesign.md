@@ -3,6 +3,8 @@
 Deployed on 20 Nov 2026 13:06 to this PC (BOARD-PC), which is now where the board runs:
 `deploy_office_board.ps1 -Target F:\apps\office-board` (13 of 13 files identical, RESULT: PASS), port 3006, a new
 database. The office PC copy (D:\apps\office-board) is unchanged; see the note at the top of HANDOVER.md.
+Redeployed at 14:46 with the sign-in card (commit 65a8076): 13 of 13 files identical, RESULT: PASS, the data folder
+kept; live_look.py on http://127.0.0.1:3006/ PASS at 390 and 1280 px (13 names, no console error).
 The design came from the canvas "Project Management Redesign".
 
 ## Decided by the app's owner on 20 Nov 2026
