@@ -95,21 +95,23 @@ R12 **Audit.** Every state change writes an `events` row (actor, time, kind, bef
 
 ## 6. Screens (one page, bottom tabs on a phone)
 Papan Saya (Jalan n/3 · Antri · Menunggu · Menunggu konfirmasi; one tap: Mulai, Macet, Kirim bukti) · Papan Kantor
-(lanes per person, colour + word + icon for Segar/Layu/Busuk, never colour alone) · Permintaan Saya (cards I asked
-for: Terima / Minta koreksi) · Kartu baru (title, untuk siapa, tenggat, jenis, tenggat hukum, sumber, catatan,
-lampiran, pribadi) · Kartu (detail, bukti with thumbnails, riwayat) · Pengecualian (direktur) · Review Jumat ·
+(v1.2: one list of open tasks shown as Daftar (paged), Kanban or Timeline instead of lanes per person; colour + word +
+icon for Segar/Layu/Busuk, never colour alone) · Permintaan Saya (tasks I asked for: Terima / Minta koreksi) · Tugas
+baru (title, untuk siapa, tenggat, jenis, tenggat hukum, sumber, catatan, lampiran, pribadi; v1.2: a slide-over panel)
+· Tugas (detail, bukti with thumbnails, riwayat; v1.2: a slide-over panel) · Pengecualian (direktur) · Review Jumat ·
 Angka · Rutin (direktur) · Orang & Pengaturan (direktur) · Cara pakai. A refusal always shows the server's sentence
 in the page (no `alert`).
-"Cara pakai" carries these three SOPs word for word (Indonesian):
-1. **Cek kartu harian.** Setiap hari kerja, sebelum pulang, buka Papan Saya. Untuk tiap kartu pilih satu: masih
-   jalan, macet (tulis menunggu siapa), atau selesai (lampirkan bukti). Paling banyak 3 kartu berjalan sekaligus:
-   selesaikan dulu sebelum mulai yang baru. Kartu yang lewat tenggat terlihat layu, lalu busuk.
+"Cara pakai" carries these three SOPs word for word (Indonesian). Changed 20 Nov 2026 (v1.2, the app owner's decision):
+the app now says "tugas" where it said "kartu", in these three texts too.
+1. **Cek tugas harian.** Setiap hari kerja, sebelum pulang, buka Papan Saya. Untuk tiap tugas pilih satu: masih
+   jalan, macet (tulis menunggu siapa), atau selesai (lampirkan bukti). Paling banyak 3 tugas berjalan sekaligus:
+   selesaikan dulu sebelum mulai yang baru. Tugas yang lewat tenggat terlihat layu, lalu busuk.
 2. **Aturan bukti.** Tanpa bukti, belum selesai. Bukti adalah file, foto, dokumen bertanda tangan, atau tautan ke
    file. Contoh: lapor pajak = bukti penerimaan; pembayaran = bukti transfer; pembelian = nota dan foto barang;
    surat atau kontrak = scan bertanda tangan; laporan = file laporannya. Yang meminta tugas memeriksa bukti: Terima,
    atau Minta koreksi dengan alasannya.
-3. **Review Jumat.** Setiap Jumat, 20 menit. Yang dibahas hanya kartu layu, kartu busuk, kartu macet, dan kartu yang
-   menunggu Direktur. Tiap kartu keluar dengan tanggal baru dan alasannya, pemilik baru, atau dibatalkan. Kartu segar
+3. **Review Jumat.** Setiap Jumat, 20 menit. Yang dibahas hanya tugas layu, tugas busuk, tugas macet, dan tugas yang
+   menunggu Direktur. Tiap tugas keluar dengan tanggal baru dan alasannya, pemilik baru, atau dibatalkan. Tugas segar
    tidak dibahas. Tujuannya melihat apa yang macet dan siapa yang perlu dibantu.
 
 ## 7. Checks (in `test\`; all must end with a clear PASS/FAIL line and a non-zero exit code on failure)

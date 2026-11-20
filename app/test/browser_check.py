@@ -78,7 +78,7 @@ def read_pins(data):
 def spec_sops():
     """The three SOP paragraphs exactly as the spec prints them (markdown bold removed, line breaks joined)."""
     text = open(SPEC, encoding="utf-8").read()
-    start = text.index("1. **Cek kartu harian.**")
+    start = text.index("1. **Cek tugas harian.**")
     end = text.index("## 7.")
     block = text[start:end]
     items = re.split(r"\n(?=\d\. \*\*)", block.strip())
@@ -97,6 +97,8 @@ OVERFLOW_JS = r"""(function(){
   var all=document.body.querySelectorAll('*');
   for(var i=0;i<all.length;i++){ var e=all[i]; var r=e.getBoundingClientRect(); if(r.width===0&&r.height===0) continue;
     if(r.right>cw+1 && !scroller(e)) bad.push((e.id||e.className||e.tagName)+':'+Math.round(r.right)); }
+  // v1.2: the slide-over scrolls itself (overflow-y:auto makes overflow-x auto too), so it is measured on its own
+  var dr=document.querySelector('.dr-body'); if(dr && dr.scrollWidth>dr.clientWidth+1) bad.push('dr-body:'+dr.scrollWidth+'>'+dr.clientWidth);
   return {cw:cw, sw:de.scrollWidth, bad:bad.slice(0,8)};
 })()"""
 
@@ -114,16 +116,19 @@ def page_checks(ch, width, lang, step):
     check("%s %d %s: no horizontal overflow" % (step, width, lang), o["sw"] <= o["cw"] and not o["bad"], o)
     nv = ch.eval("""(function(){var n=document.getElementById('nav'); if(!n || n.hidden) return null; window.scrollTo(0,0);
       var r=n.getBoundingClientRect(), v=document.getElementById('view').getBoundingClientRect();
-      return {navTop:r.top, navBottom:r.bottom, viewTop:v.top, vh:window.innerHeight, pos:getComputedStyle(n).position};})()""")
+      return {navTop:r.top, navBottom:r.bottom, navRight:r.right, viewTop:v.top, viewLeft:v.left, vh:window.innerHeight, pos:getComputedStyle(n).position};})()""")
     if nv:
         if width >= 900:
-            check("%s %d %s: nav sits above the content" % (step, width, lang), nv["navBottom"] <= nv["viewTop"] + 1, nv)
+            # v1.2: on a desktop the nav is the sidebar, left of the content
+            check("%s %d %s: nav sits left of the content" % (step, width, lang), nv["navRight"] <= nv["viewLeft"] + 1, nv)
         else:
             check("%s %d %s: nav fixed at the bottom of the screen" % (step, width, lang), nv["pos"] == "fixed" and abs(nv["navBottom"] - nv["vh"]) <= 1, nv)
     # every tab label fits its button without breaking a word: the widest WORD, measured in the button's own font,
-    # must fit the button's content width (independent of the CSS wrap rule, which can hide a split word)
+    # must fit the button's content width (independent of the CSS wrap rule, which can hide a split word).
+    # v1.2: a button the layout hides (Lainnya on a desktop, whose items the sidebar lists) has no box to measure.
     fit = ch.eval("""(function(){ var out=[]; var c=document.createElement('canvas').getContext('2d');
       Array.prototype.forEach.call(document.querySelectorAll('#nav button'), function(b){
+        if (!b.getClientRects().length) return;
         var cs=getComputedStyle(b); c.font=cs.font; try{ c.letterSpacing=cs.letterSpacing; }catch(e){}
         var avail=b.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
         b.textContent.split(' ').forEach(function(w){ var wd=c.measureText(w).width; if (wd>avail+0.5) out.push(b.id+':'+w+':'+Math.round(wd)+'>'+Math.round(avail)); });
@@ -140,12 +145,17 @@ def page_checks(ch, width, lang, step):
 
 def residue(ch, width, lang, step):
     other = "en" if lang == "id" else "id"
-    text = ch.eval("document.body.innerText")
+    # v1.2: labels drawn in capitals (text-transform) would reach innerText in capitals and slip past a case-sensitive
+    # match, so the text is read with the transform switched off (re.I instead flags English words in fixture data).
+    # The CSP (style-src 'self') refuses an added <style> element; a rule added to the page's own sheet is allowed.
+    text = ch.eval("""(function(){ var sh=document.styleSheets[0], i=sh.insertRule('*{text-transform:none !important}', sh.cssRules.length);
+      var t=document.body.innerText; sh.deleteRule(i); return t; })()""")
     found = []
     for k, v in DICT[other].items():
         if v == DICT[lang].get(k):
             continue
-        if re.search(r"(?<![\w])" + re.escape(v) + r"(?![\w])", text):
+        pat = re.sub(r"\\\{\w+\\\}", ".+?", re.escape(v))  # a {slot} in a template matches any text
+        if re.search(r"(?<![\w])" + pat + r"(?![\w])", text):
             found.append("%s=%r" % (k, v))
     check("%s %d %s: no %s dictionary string on screen" % (step, width, lang, other), not found, found[:6])
     return found
@@ -168,7 +178,7 @@ def shot(ch, width, lang, step, focus=None):
 def wait(ch, expr, what, timeout=10):
     ok = ch.wait_for(expr, timeout)
     if not ok:
-        check("wait: " + what, False, expr)
+        check("wait: " + what, False, (expr, ch.errors[-3:]))  # the page's last console errors say why
     return ok
 
 
@@ -187,20 +197,35 @@ def sign_in(ch, who, pin, new_pin=None):
     return wait(ch, "!!document.querySelector('#nav-my') && !document.querySelector('#nav').hidden", "signed in as " + who)
 
 
+def close_panel(ch):
+    """v1.2: a task and the new-task form open as a panel over the page; a person closes it before going elsewhere."""
+    if ch.eval("!!document.getElementById('drawer-close')"):
+        ch.tap("#drawer-close")
+        wait(ch, "!document.getElementById('drawer-close')", "panel closed")
+
+
 def sign_out(ch):
+    close_panel(ch)
     ch.tap("#logout-btn")
     wait(ch, "!!document.querySelector('.name-btn')", "sign-in page after logout")
 
 
 def nav(ch, tab):
+    close_panel(ch)
     ch.tap("#nav-" + tab)
     ch.pump(0.4)
 
 
 def menu(ch, item):
-    nav(ch, "menu")
-    wait(ch, "!!document.querySelector('#menu-%s')" % item, "menu item " + item)
-    ch.tap("#menu-" + item)
+    close_panel(ch)
+    if ch.eval("window.innerWidth") >= 900:
+        # v1.2: the desktop sidebar lists the Lainnya destinations itself
+        wait(ch, "!!document.querySelector('#more-%s')" % item, "sidebar item " + item)
+        ch.tap("#more-" + item)
+    else:
+        nav(ch, "menu")
+        wait(ch, "!!document.querySelector('#menu-%s')" % item, "menu item " + item)
+        ch.tap("#menu-" + item)
     ch.pump(0.5)
 
 
@@ -261,6 +286,9 @@ def age_look(ch, width, lang, cid, want, step):
     ch.goto_url(ch.base + "/#card/" + cid)
     ensure_lang(ch, lang)
     ok = wait(ch, "!!document.querySelector('#card-detail .badge[data-age]')", "age badge on card %s" % cid)
+    # v1.2: the task opens over Papan Saya; wait for that page as well, so the server restart that follows has no
+    # request of it left to refuse (a refused one is a console error on the next page's check)
+    wait(ch, "!!document.querySelector('#sec-jalan')", "the page under the panel")
     info = ch.eval("""(function(){var b=document.querySelector('#card-detail .badge[data-age]'); if(!b) return null;
       return {age:b.getAttribute('data-age'), text:b.innerText.trim(), svg:!!b.querySelector('svg path'), color:getComputedStyle(b).color, bg:getComputedStyle(b).backgroundColor};})()""")
     check("%s %d %s: card shows %s (data-age)" % (step, width, lang, want), ok and info and info["age"] == want, info)
@@ -411,9 +439,19 @@ def run(width, lang):
         sign_out(ch)
 
         # Dewi accepts
+        # v1.2: her Papan Saya answer is held until she is on Permintaan; it must not paint over that page (it once did,
+        # and the accept tap then found no button)
+        ch.hold_requests("*view=my*")
         sign_in(ch, DEWI, NEWPIN)
         nav(ch, "req")
         wait(ch, "!!document.querySelector('.card[data-id=\"%s\"] .btn-accept')" % R, "accept button")
+        ch.eval("performance.clearResourceTimings()")
+        held = ch.release_requests()
+        check("late page %d %s: the Papan Saya request was held past the move to Permintaan" % (width, lang), held == ["GET"], held)
+        wait(ch, "performance.getEntriesByType('resource').some(function(e){return /view=my/.test(e.name) && e.responseEnd > 0;})", "the late Papan Saya answer arrived")
+        ch.pump(0.5)
+        here = ch.eval("[document.querySelector('#view h1') && document.querySelector('#view h1').textContent, !!document.querySelector('.card[data-id=\"%s\"] .btn-accept')]" % R)
+        check("late page %d %s: Permintaan stays on screen" % (width, lang), here == [DICT[lang]["nav_req"], True], here)
         page_checks(ch, width, lang, "confirm")
         shot(ch, width, lang, "06_confirm", '.card[data-id="%s"]' % R)
         ch.tap('.card[data-id="%s"] .btn-accept' % R)
@@ -424,12 +462,71 @@ def run(width, lang):
         hist = ch.eval("Array.prototype.map.call(document.querySelectorAll('#history li'), function(l){return l.getAttribute('data-kind');})")
         check("history shows every step", hist == ["create", "start", "evidence", "proof", "return", "evidence", "proof", "accept"], hist)
 
-        # office board and help (SOP text, in ID word for word)
+        # office board (v1.2): Daftar by default and paged, then Kanban, Timeline and the task panel
         nav(ch, "office")
-        wait(ch, "!!document.querySelector('.lane')", "office lanes")
+        wait(ch, "!!document.querySelector('#office-view .tr[data-id]')", "office list rows")
+        check("office %d %s: Daftar is the default view" % (width, lang),
+              ch.eval("document.querySelector('#office-view').getAttribute('data-view')==='list' && document.querySelector('#view-list').getAttribute('aria-pressed')==='true'"))
         check("office board: colour + word + icon legend", ch.eval("document.querySelectorAll('.legend .badge svg').length") == 4)
         page_checks(ch, width, lang, "office")
         shot(ch, width, lang, "07_office")
+        # six more open tasks through the API, so the list needs a second page
+        made = ch.eval("""(function(){ var p=[]; for (var i=1;i<=6;i++) p.push(fetch('/api/cards',{method:'POST',credentials:'same-origin',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:'Tes P'+i+' rak', owner:'%s', due:'2026-12-30', source:'WhatsApp'})})
+          .then(function(r){return r.status;})); return Promise.all(p); })()""" % DEWI)
+        check("paging setup: six tasks created", isinstance(made, list) and len(made) == 6 and all(s in (200, 201) for s in made), made)
+        ch.goto_url("about:blank")
+        ch.goto_url(ch.base + "/#office")
+        ensure_lang(ch, lang)
+        wait(ch, "!!document.querySelector('#pg-next')", "pager on the office list")
+        n = ch.eval("fetch('/api/cards?view=office',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){return j.cards.length;})")
+        rows1 = ch.eval("document.querySelectorAll('#office-view .tr[data-id]').length")
+        info1 = ch.eval("document.getElementById('pg-info').textContent")
+        want1 = DICT[lang]["page_info"].replace("{a}", "1").replace("{b}", "10").replace("{n}", str(n))
+        check("paging %d %s: page 1 shows 10 of %s" % (width, lang, n), n > 10 and rows1 == 10 and info1 == want1, (n, rows1, info1))
+        pages = ch.eval("document.querySelectorAll('#office-view .pg[data-page]').length")
+        check("paging %d %s: one button per page" % (width, lang), pages == (n + 9) // 10, pages)
+        check("paging %d %s: Previous is off on page 1" % (width, lang), ch.eval("document.getElementById('pg-prev').disabled") is True)
+        ch.tap("#pg-next")
+        wait(ch, "(document.querySelector('#office-view .pg[aria-current=page]')||{}).textContent==='2'", "page 2")
+        rows2 = ch.eval("document.querySelectorAll('#office-view .tr[data-id]').length")
+        check("paging %d %s: page 2 shows the rest" % (width, lang), rows2 == min(10, n - 10), rows2)
+        page_checks(ch, width, lang, "office-page2")
+        ch.tap('#office-view .chip[data-q="mine"]')
+        wait(ch, "document.querySelector('#office-view .chip[data-q=\"mine\"]').getAttribute('aria-pressed')==='true'", "Milik saya chip on")
+        info = ch.eval("document.getElementById('pg-info').textContent")
+        cur = ch.eval("(document.querySelector('#office-view .pg[aria-current=page]')||{}).textContent")
+        first = DICT[lang]["page_info"].split("{b}")[0].replace("{a}", "1")  # "Menampilkan 1–", never "Menampilkan 11–"
+        check("paging %d %s: a filter change goes back to page 1" % (width, lang), info.startswith(first) and cur in ("1", None), (info, cur))
+        ch.tap('#office-view .chip[data-q="all"]')
+        wait(ch, "document.querySelector('#office-view .chip[data-q=\"all\"]').getAttribute('aria-pressed')==='true'", "Semua chip on")
+        # Kanban: one column per open status
+        ch.tap("#view-kanban")
+        wait(ch, "!!document.querySelector('#office-view[data-view=kanban] .kcol')", "kanban columns")
+        cols = ch.eval("Array.prototype.map.call(document.querySelectorAll('#office-view .kcol'), function(c){return c.getAttribute('data-status');})")
+        check("kanban %d %s: a column per open status" % (width, lang), cols == ["antri", "jalan", "tunggu", "bukti"], cols)
+        check("kanban %d %s: task A sits in Jalan" % (width, lang), ch.eval("!!document.querySelector('.kcol[data-status=jalan] .card[data-id=\"%s\"]')" % A))
+        page_checks(ch, width, lang, "office-kanban")
+        shot(ch, width, lang, "07b_kanban")
+        # Timeline: 18 working days, today marked, a bar per task
+        ch.tap("#view-timeline")
+        wait(ch, "!!document.querySelector('#office-view[data-view=timeline] .tl-bar')", "timeline bars")
+        tl = ch.eval("({days:document.querySelectorAll('.tl-day').length, today:document.querySelectorAll('.tl-day.today').length, barA:!!document.querySelector('.tl-r[data-id=\"%s\"] .tl-bar'), now:!!document.querySelector('.tl-now')})" % A)
+        check("timeline %d %s: 18 working days, today marked, a bar for task A" % (width, lang), tl and tl["days"] == 18 and tl["today"] == 1 and tl["barA"] and tl["now"], tl)
+        page_checks(ch, width, lang, "office-timeline")
+        shot(ch, width, lang, "07c_timeline")
+        ch.tap("#view-list")
+        wait(ch, "document.querySelector('#office-view').getAttribute('data-view')==='list'", "back to Daftar")
+        # the task panel opens over the list; Escape closes it and the focus goes back to the task's title
+        ch.tap('#office-view .tr[data-id="%s"] .title' % A)
+        ok = wait(ch, "!!document.querySelector('#card-detail[data-id=\"%s\"]')" % A, "task A in the panel")
+        check("panel %d %s: opens over the list with the focus on its close button" % (width, lang),
+              ok and ch.eval("!!document.querySelector('#office-view') && (document.activeElement||{}).id==='drawer-close'"))
+        shot(ch, width, lang, "07d_panel")
+        ch.key("Escape", "Escape", 27)
+        check("panel %d %s: Escape closes it" % (width, lang), wait(ch, "!document.getElementById('card-detail')", "panel closed by Escape"))
+        back = ch.eval("(function(){var a=document.activeElement, r=a && a.closest && a.closest('.tr'); return a && a.classList.contains('title') && r ? r.getAttribute('data-id') : null;})()")
+        check("panel %d %s: the focus returns to the task's title" % (width, lang), back == A, back)
         menu(ch, "help")
         wait(ch, "!!document.querySelector('#sop3')", "SOP list")
         if lang == "id":
@@ -457,19 +554,30 @@ def run(width, lang):
             age_look(ch, width, lang, A, want, step)
 
         # exceptions view under NOW3, signed in as the director
+        # v1.2: Dewi's Papan Saya request is held until after she has signed out and the director has signed in on the
+        # same PC, then answered 401 (her session is gone), as seen once in a real run. That late 401 must not sign the
+        # director out. (The "late page" check above covers a late 200.)
         ch.goto_url("about:blank")
+        ch.hold_requests("*view=my*")
         ch.goto_url(srv.base + "/")
         wait(ch, "!!document.querySelector('#logout-btn') && !document.querySelector('#logout-btn').hidden", "still signed in after restart")
         sign_out(ch)
         sign_in(ch, D1, pins[D1], NEWPIN)
         wait(ch, "!!document.querySelector('#exc-waiting')", "director home")
+        ch.eval("performance.clearResourceTimings()")
+        held = ch.answer_held(401, {"error": "unauthenticated"})
+        check("late answer %d %s: Dewi's Papan Saya request was held past her sign-out" % (width, lang), held == ["GET"], held)
+        wait(ch, "performance.getEntriesByType('resource').some(function(e){return /view=my/.test(e.name) && e.responseEnd > 0;})", "the late answer arrived")
+        ch.pump(0.5)
+        late = ch.eval("(function(){var h=document.querySelector('#view h1'), lo=document.getElementById('logout-btn'); return [h && h.textContent, !!document.querySelector('#exc-waiting'), !lo.hidden];})()")
+        check("late answer %d %s: the director stays signed in on Pengecualian" % (width, lang), late == [DICT[lang]["exc"], True, True], late)
         check("FX5 director %d %s: lands on Pengecualian without a tap" % (width, lang), ch.eval("document.querySelector('#view h1').textContent") == DICT[lang]["exc"],
               ch.eval("document.querySelector('#view h1').textContent"))
         tabs = ch.eval("Array.prototype.map.call(document.querySelectorAll('#nav button'), function(b){return b.id;})")
         check("FX5 director %d %s: tab order" % (width, lang), tabs == ["nav-exc", "nav-office", "nav-my", "nav-new", "nav-menu"], tabs)
         nav(ch, "office")
-        wait(ch, "!!document.querySelector('.card[data-id=\"%s\"]')" % C, "presence control card C on the office board")
-        cage = ch.eval("(function(){var b=document.querySelector('.card[data-id=\"%s\"] .badge[data-age]'); return b && b.getAttribute('data-age');})()" % C)
+        wait(ch, "!!document.querySelector('#office-view [data-id=\"%s\"]')" % C, "presence control card C on the office board")
+        cage = ch.eval("(function(){var b=document.querySelector('#office-view [data-id=\"%s\"] .badge[data-age]'); return b && b.getAttribute('data-age');})()" % C)
         check("presence control: card C exists and is Segar", cage == "segar", cage)
         nav(ch, "exc")
         wait(ch, "!!document.querySelector('#exc-waiting')", "exceptions sections")

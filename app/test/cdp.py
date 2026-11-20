@@ -26,6 +26,7 @@ class Chrome:
         self.ws = None
         self.proc = None
         url = None
+        err = None
         os.makedirs(TMP, exist_ok=True)
         for attempt in range(3):
             self.port = free_port()
@@ -46,11 +47,15 @@ class Chrome:
                 except Exception:
                     time.sleep(0.3)
             if url:
-                break
-            self.close()
-        if not url:
-            raise RuntimeError("chrome did not expose a page target (3 attempts)")
-        self.ws = websocket.create_connection(url, timeout=60, suppress_origin=True)
+                try:
+                    self.ws = websocket.create_connection(url, timeout=60, suppress_origin=True)
+                    break
+                except Exception as e:
+                    # a loopback connect on this PC times out or is reset now and then: try again with a fresh Chrome
+                    err, url, self.ws = e, None, None
+            self.close()  # never leave a headless Chrome behind
+        if not self.ws:
+            raise RuntimeError("chrome DevTools not reachable (3 attempts): %r" % (err,))
         self._id = 0
         self.events = []
         self.errors = []
@@ -245,6 +250,19 @@ class Chrome:
         self.paused = []
         for p in held:
             self.send("Fetch.continueRequest", {"requestId": p["requestId"]})
+        self.send("Fetch.disable")
+        self.pump(0.3)
+        return [p.get("request", {}).get("method") for p in held]
+
+    def answer_held(self, status, body):
+        """Answer every held request with this status and JSON body instead of sending it on; returns their methods."""
+        self.pump(0.3)
+        held = list(self.paused)
+        self.paused = []
+        for p in held:
+            self.send("Fetch.fulfillRequest", {"requestId": p["requestId"], "responseCode": status,
+                                               "responseHeaders": [{"name": "Content-Type", "value": "application/json"}],
+                                               "body": base64.b64encode(json.dumps(body).encode()).decode()})
         self.send("Fetch.disable")
         self.pump(0.3)
         return [p.get("request", {}).get("method") for p in held]

@@ -31,7 +31,7 @@ if (max_active, wilt, rot, hard_lead) != (3, 0, 3, 3):
 
 # every UI word this sheet names must exist in the app's Indonesian dictionary, exactly
 values = set(D.values())
-CITED = ["Papan Saya", "Kartu baru", "Mulai", "Macet", "Kirim bukti", "Terima", "Minta koreksi", "Segar", "Layu", "Busuk"]
+CITED = ["Papan Saya", "Tugas baru", "Mulai", "Macet", "Kirim bukti", "Terima", "Minta koreksi", "Segar", "Layu", "Busuk"]
 missing = [w for w in CITED if w not in values]
 if missing:
     sys.exit("words not in the app dictionary: %s" % missing)
@@ -41,11 +41,11 @@ for k in ("motto", "sop1_t", "sop1_b", "sop2_t", "sop2_b", "sop3_t", "sop3_b"):
 
 e = html.escape
 steps = [
-    ("Catat", "Setiap permintaan jadi kartu, termasuk yang datang lewat WhatsApp atau lisan. Tombol: Kartu baru."),
-    ("Sanggupi", "Satu pemilik, satu tenggat. Paling banyak %d kartu berjalan per orang. Tombol: Mulai." % max_active),
+    ("Catat", "Setiap permintaan jadi tugas, termasuk yang datang lewat WhatsApp atau lisan. Tombol: Tugas baru."),
+    ("Sanggupi", "Satu pemilik, satu tenggat. Paling banyak %d tugas berjalan per orang. Tombol: Mulai." % max_active),
     ("Kerjakan", "Tertahan orang lain? Tekan Macet dan tulis menunggu siapa."),
     ("Buktikan", "Lampirkan file, foto, atau tautan, lalu tekan Kirim bukti. Peminta tugas menekan Terima atau Minta koreksi. Diminta koreksi? Lampirkan bukti baru."),
-    ("Tinjau", "Jumat, 20 menit. Hanya kartu layu, busuk, dan macet."),
+    ("Tinjau", "Jumat, 20 menit. Hanya tugas layu, busuk, dan macet."),
 ]
 colours = [
     ("segar", "Segar", "Belum sampai tenggat."),
@@ -116,7 +116,7 @@ for i, (name, text) in enumerate(steps, 1):
 parts.append('</div>\n<h2>Tiga aturan kerja</h2>\n')
 for i, (title, body) in enumerate(sops, 1):
     parts.append('<div class="sop" id="sop%d"><b>%d. %s</b><p>%s</p></div>\n' % (i, i, e(title), e(body)))
-parts.append('<div class="two">\n<div>\n<h2>Arti warna kartu</h2>\n<table>\n')
+parts.append('<div class="two">\n<div>\n<h2>Arti warna tugas</h2>\n<table>\n')
 for cls, word, text in colours:
     parts.append('<tr><td class="pillcell"><span class="pill %s">%s</span></td><td>%s</td></tr>\n' % (cls, e(word), e(text)))
 parts.append('</table>\n<p class="note">Tenggat hukum (pajak, BPJS, laporan wajib): layu sejak %d hari kerja sebelum tenggat, '

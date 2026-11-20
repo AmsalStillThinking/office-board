@@ -8,6 +8,15 @@
   var PENDING_MSG = null; // a refusal to show on the next card page (FX17i: create succeeded, an upload was refused)
   var ARMED = null; // the button whose click is sending the next write request (FX17i)
   var SOURCES = ['WhatsApp', 'Lisan', 'Rapat', 'Email', 'Lainnya'];
+  // v1.2: a task (#card/<id>) and the new-task form (#new) open as a panel over the page they came from (LAST).
+  // RENDERED is the page now in #view, so closing the panel does not reload it; OPENER gets the focus back.
+  // PANEL_BACK: the panel was opened from a page in this tab, so closing it is a history.back() (no extra entry).
+  // PAGE counts the pages drawn into #view; pageGet() drops an answer meant for a page the person has already left.
+  var LAST = null, RENDERED = '', OPENER = null, OPENER_ID = '', PANEL_BACK = false, FOCUS_AFTER = '', layer = null, PAGE = 0;
+  var OFFICE_START = { q: 'all', type: '', owner: '', text: '', page: 1 };
+  var OFFICE = Object.assign({}, OFFICE_START); // Papan Kantor filters survive opening and closing a task
+  var PAGE_SIZE = 10;
+  var AVATAR_BG = ['#112D4E', '#2E5A88', '#3F72AF', '#4D6A92', '#1D4E7A', '#365F91'];
 
   try { var saved = window.localStorage.getItem('ob_lang'); if (saved === 'en' || saved === 'id') LANG = saved; } catch (e) { /* private mode */ }
 
@@ -49,19 +58,29 @@
     ARMED = null;
     if (btn) btn.disabled = true;
     var release = function () { if (btn && btn.getAttribute('data-hold') !== '1') btn.disabled = false; };
+    var me = ME;
     return fetch(url, opts).then(function (r) {
       return r.text().then(function (txt) {
         var data = {};
         try { data = txt ? JSON.parse(txt) : {}; } catch (e) { data = {}; }
         release();
-        if (r.status === 401 && url !== '/api/login') { ME = null; showSignin(); }
         return { ok: r.ok, status: r.status, data: data };
       }, function () {
         // the connection dropped while the answer was arriving: the button must not stay disabled
         release();
         return { ok: false, status: 0, data: { error: 'network', message: t('err_network') } };
       });
-    }, function () { release(); return { ok: false, status: 0, data: { error: 'network', message: t('err_network') } }; });
+    }, function () { release(); return { ok: false, status: 0, data: { error: 'network', message: t('err_network') } }; }).then(function (res) {
+      // sent under a session that has since ended (a shared PC): its answer must not sign out or paint over the next person
+      if (me && ME !== me) return new Promise(function () {});
+      if (res.status === 401 && url !== '/api/login') { ME = null; showSignin(); }
+      return res;
+    });
+  }
+  // a page's own reads: an answer that arrives after the person moved to another page must not paint over it
+  function pageGet(url) {
+    var page = PAGE;
+    return api('GET', url).then(function (r) { return page === PAGE ? r : new Promise(function () {}); });
   }
 
   // A refusal always shows the server's sentence in the page, next to what was tried.
@@ -81,17 +100,84 @@
     var d = new Date(ms + 8 * 3600 * 1000).toISOString();
     return fmtDate(d.slice(0, 10)) + ' ' + d.slice(11, 16);
   }
+  // a dictionary sentence with {name} slots filled in
+  function tf(k, vars) { return t(k).replace(/\{(\w+)\}/g, function (m, n) { return vars && vars[n] !== undefined ? String(vars[n]) : m; }); }
+  function dayOf(ms) { return new Date(ms + 8 * 3600 * 1000).toISOString().slice(0, 10); } // Asia/Makassar date of a stamp
+  function utc(s) { var p = s.split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); }
+  // working days (Monday to Saturday) after a, up to and including b; 0 when b is not after a. Same count as R5.
+  function wdAfter(a, b) { var n = 0, x = utc(a), e = utc(b); while (x < e) { x += 86400000; if (new Date(x).getUTCDay() !== 0) n++; } return n; }
+  function dueText(c) {
+    // a task waiting for confirmation does not age (R5) and is judged at its proof (R4): no countdown for it
+    if (!c.due || !TODAY || c.status === 'selesai' || c.status === 'batal' || c.status === 'bukti') return '';
+    if (c.due === TODAY) return t('due_today');
+    if (TODAY > c.due) { var late = wdAfter(c.due, TODAY); return late ? tf('due_late', { n: late }) : t('due_past'); } // 0: Saturday's due date seen on Sunday
+    if (utc(c.due) - utc(TODAY) === 86400000) return t('due_tomorrow');
+    return tf('due_in', { n: wdAfter(TODAY, c.due) });
+  }
+  function initials(name) {
+    return String(name || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toUpperCase() || '?';
+  }
+  function avatar(id, size) {
+    var i = 0, name = id;
+    for (; i < PEOPLE.length; i++) if (PEOPLE[i].id === id) { name = PEOPLE[i].name; break; }
+    if (i === PEOPLE.length && ME && ME.id === id) name = ME.name;
+    var el = h('span', { cls: 'av' + (size ? ' av-' + size : ''), 'aria-hidden': 'true', text: initials(name) });
+    el.style.background = AVATAR_BG[(i < PEOPLE.length ? i : 0) % AVATAR_BG.length];
+    return el;
+  }
+  // FX13: a person who left is labelled wherever their open tasks show, so a director can reassign them
+  function ownerLabel(id) {
+    for (var i = 0; i < PEOPLE.length; i++) if (PEOPLE[i].id === id) return personName(id) + (PEOPLE[i].active ? '' : ' ' + t('inactive_lane'));
+    return personName(id);
+  }
+  // urgency is computed, never typed in (R5): Busuk, then Layu (legal deadline first), Macet, waiting for me, the rest
+  function deco(c) {
+    c.waitingYou = !!ME && ((c.status === 'tunggu' && c.waiting_on === ME.id) || (c.status === 'bukti' && c.requester === ME.id && c.owner !== ME.id));
+    c.rank = c.age === 'busuk' ? 0 : c.age === 'layu' ? (c.hard ? 1 : 2) : c.macet ? 3 : c.waitingYou ? 4 : c.status === 'bukti' ? 6 : 5;
+    return c;
+  }
+  function byUrgency(a, b) { return a.rank - b.rank || (a.due < b.due ? -1 : a.due > b.due ? 1 : a.id - b.id); }
+  function quickOk(c, q) {
+    if (q === 'att') return c.age === 'layu' || c.age === 'busuk' || !!c.macet;
+    if (q === 'wait') return !!c.waitingYou;
+    if (q === 'mine') return !!ME && c.owner === ME.id;
+    if (q === 'hard') return !!c.hard;
+    return true;
+  }
 
   // ------------------------------------------------------------------ badges: colour + word + icon, never colour alone
+  var CIRCLE = 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18';
+  var ICONS = {
+    segar: 'M5 19c0-8 5-14 15-14 0 10-6 15-14 15M5 19c3-4 6-6 10-8',
+    layu: CIRCLE + 'M12 7v5l3 2',
+    busuk: 'M12 3l9.5 17h-19zM12 10v4.5M12 17.5h.01',
+    macet: CIRCLE + 'M10 9v6M14 9v6',
+    my: 'M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6',
+    office: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+    req: 'M4 13l2.5-8h11L20 13v6H4zM4 13h5l1 2h4l1-2h5',
+    exc: 'M12 3l9.5 17h-19zM12 10v4.5M12 17.5h.01',
+    'new': 'M12 5v14M5 12h14',
+    menu: 'M4 7h16M4 12h16M4 17h16',
+    review: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M9 15l2 2 4-4',
+    nums: 'M5 20V11M12 20V5M19 20v-6',
+    routines: 'M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4',
+    people: 'M9 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .7 3.2 2.5 3.8 5.5',
+    help: CIRCLE + 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01',
+    pin: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3',
+    lock: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3',
+    list: 'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
+    kanban: 'M3 4h5v16H3zM10 4h5v10h-5zM17 4h4v13h-4z',
+    timeline: 'M3 5h10M7 12h12M5 19h8',
+    close: 'M6 6l12 12M18 6L6 18',
+    search: 'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-3.5-3.5'
+  };
   function icon(kind) {
     var s = document.createElementNS(SVGNS, 'svg');
-    s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('aria-hidden', 'true');
+    s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('class', 'ic');
     var p = document.createElementNS(SVGNS, 'path');
     p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'currentColor'); p.setAttribute('stroke-width', '2');
-    if (kind === 'segar') p.setAttribute('d', 'M8 1.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M5 8.2l2 2l4-4.4');
-    else if (kind === 'layu') p.setAttribute('d', 'M8 1.8L15 14.2H1L8 1.8M8 6v4M8 11.6v1');
-    else if (kind === 'busuk') p.setAttribute('d', 'M5 1.5h6l3.5 3.5v6L11 14.5H5L1.5 11V5L5 1.5M5.5 5.5l5 5M10.5 5.5l-5 5');
-    else p.setAttribute('d', 'M3 3h3v10H3zM10 3h3v10h-3z');
+    p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
+    p.setAttribute('d', Object.prototype.hasOwnProperty.call(ICONS, kind) ? ICONS[kind] : ICONS.macet);
     s.appendChild(p);
     return s;
   }
@@ -113,20 +199,50 @@
     var lo = document.getElementById('logout-btn');
     lo.textContent = t('logout'); lo.hidden = !ME;
     document.getElementById('me-name').textContent = ME ? (ME.nick || ME.name) : '';
-    var nav = document.getElementById('nav');
+    var av = document.getElementById('me-avatar');
+    clear(av);
+    if (ME) av.appendChild(avatar(ME.id));
+    document.getElementById('today-line').textContent = ME && TODAY && !ME.must_change_pin ? tf('today_is', { d: fmtDate(TODAY) }) : '';
+    document.getElementById('side-foot').textContent = ME && !ME.must_change_pin ? t('framing') : '';
+    var nav = document.getElementById('nav'), more = document.getElementById('nav-more');
     clear(nav);
-    nav.hidden = !ME || !!ME.must_change_pin;
-    if (!ME) return;
+    clear(more);
+    nav.setAttribute('aria-label', t('menu_label'));
+    more.setAttribute('aria-label', t('nav_menu'));
+    nav.hidden = more.hidden = !ME || !!ME.must_change_pin;
+    if (!ME) { dropLayer(); return; }
+    if (ME.must_change_pin) return;
     // FX5: a director's first tab is Pengecualian (his home); Permintaan Saya moves into Lainnya for him.
+    // v1.2: the same five buttons, in the same order, are the bottom bar on a phone and the sidebar on a desktop.
     var dir = ME.role === 'direktur';
     var tabs = dir ? [['exc', 'exc'], ['office', 'nav_office'], ['my', 'nav_my'], ['new', 'nav_new'], ['menu', 'nav_menu']]
       : [['my', 'nav_my'], ['office', 'nav_office'], ['req', 'nav_req'], ['new', 'nav_new'], ['menu', 'nav_menu']];
     var inTabs = tabs.map(function (x) { return x[0]; });
     var cur = currentRoute().name;
+    if (cur === 'card') cur = LAST ? LAST.name : home(); // a task's panel lights the page under it
+    nav.appendChild(h('p', { cls: 'nav-label', text: t('grp_work') }));
     tabs.forEach(function (tb) {
-      var on = cur === tb[0] || (tb[0] === 'menu' && inTabs.indexOf(cur) < 0 && cur !== 'card');
-      nav.appendChild(h('button', { type: 'button', id: 'nav-' + tb[0], cls: on ? 'on' : '', text: t(tb[1]), onclick: function () { go(tb[0]); } }));
+      var on = cur === tb[0] || (tb[0] === 'menu' && inTabs.indexOf(cur) < 0);
+      nav.appendChild(h('button', { type: 'button', id: 'nav-' + tb[0], cls: on ? 'on' : '', 'aria-current': on ? 'page' : null, onclick: function () { go(tb[0]); } },
+        icon(tb[0]), h('span', { text: t(tb[1]) })));
     });
+    // v1.2: on a desktop the Lainnya destinations are listed in the sidebar (the phone keeps the Lainnya page)
+    more.appendChild(h('p', { cls: 'nav-label', text: t('nav_menu') }));
+    moreItems().forEach(function (it) {
+      var on = cur === it[0];
+      more.appendChild(h('button', { type: 'button', id: 'more-' + it[0], cls: on ? 'on' : '', 'aria-current': on ? 'page' : null, onclick: function () { go(it[0]); } },
+        icon(it[0]), h('span', { text: t(it[1]) })));
+    });
+  }
+  function moreItems() {
+    var dir = ME.role === 'direktur', items = [];
+    if (dir) items.push(['req', 'nav_req']); // FX5: Pengecualian is a director's first tab; his requests live here
+    if (dir || ME.keeper === 1) items.push(['review', 'review']);
+    items.push(['nums', 'nums']);
+    if (dir) { items.push(['routines', 'routines']); items.push(['people', 'people']); }
+    items.push(['help', 'help']);
+    items.push(['pin', 'my_pin']);
+    return items;
   }
 
   function currentRoute() {
@@ -144,19 +260,75 @@
   }
 
   var view;
-  function render() {
+  // keep = true for a navigation (hashchange): the page under a panel is not reloaded when it is already on screen.
+  // Every other caller (an action, a language switch) reloads it, so it shows what the server now says.
+  function render(keep) {
+    var active = document.activeElement; // read before setChrome() rebuilds the nav buttons
     setChrome();
     if (!ME) return showSignin();
     if (ME.must_change_pin) return showChangePin(true);
     var r = currentRoute();
-    clear(view);
-    ROUTES[r.name](r.arg);
-    window.scrollTo(0, 0);
+    var panel = r.name === 'card' || r.name === 'new';
+    var base = panel ? (LAST || { name: home(), arg: '' }) : r;
+    var fresh = !(keep && base.name + '/' + base.arg === RENDERED);
+    var hadPanel = !!layer.firstChild;
+    if (panel && !hadPanel) {
+      OPENER = active && active !== document.body ? active : null;
+      OPENER_ID = OPENER && OPENER.id ? OPENER.id : '';
+      PANEL_BACK = !!keep && !!LAST;
+    }
+    // FX17i: the panel being reloaded after an action must not take a second tap while the new one loads
+    if (panel && hadPanel) Array.prototype.forEach.call(layer.querySelectorAll('button, input, select, textarea'), function (el) { el.disabled = true; });
+    if (!panel) { LAST = r; PANEL_BACK = false; }
+    if (!panel && hadPanel) { clear(layer); document.getElementById('shell').removeAttribute('inert'); }
+    if (fresh) {
+      PAGE++;
+      clear(view);
+      RENDERED = base.name + '/' + base.arg;
+      ROUTES[base.name](base.arg);
+      if (!panel) window.scrollTo(0, 0);
+    }
+    if (panel) { ROUTES[r.name](r.arg); return; }
+    if (hadPanel) { // inert is lifted above, before the focus moves back
+      var o = OPENER;
+      if (o && !o.isConnected && OPENER_ID) o = document.getElementById(OPENER_ID); // a rebuilt nav button
+      OPENER = null;
+      if (o && o.isConnected) o.focus(); else view.focus();
+    }
+  }
+  function dropLayer() {
+    if (layer) clear(layer);
+    document.getElementById('shell').removeAttribute('inert');
+    OPENER = null;
+  }
+  // The slide-over panel. The page under it is inert; Escape or the close button go back to that page.
+  // keepOnScrim: a click beside the panel does not close it (the new-task form would lose what was typed)
+  function openDrawer(id, labelId, headBits, keepOnScrim) {
+    clear(layer);
+    var close = h('button', { type: 'button', id: 'drawer-close', cls: 'icon-btn secondary', 'aria-label': t('close_panel'), onclick: closeDrawer }, icon('close'));
+    var body = h('div', { cls: 'dr-body' });
+    // tabindex -1: a click on plain text inside keeps the focus in the panel, so Escape still reaches it
+    var panel = h('aside', { cls: 'drawer', id: id, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': labelId, tabindex: '-1',
+      onkeydown: function (e) { if (e.key === 'Escape') { e.stopPropagation(); closeDrawer(); } } },
+      h('div', { cls: 'dr-head' }, headBits, close), body);
+    layer.appendChild(h('div', { cls: 'scrim', 'aria-hidden': 'true', onclick: keepOnScrim ? null : closeDrawer }));
+    layer.appendChild(panel);
+    document.getElementById('shell').setAttribute('inert', '');
+    close.focus();
+    return { panel: panel, body: body };
+  }
+  function closeDrawer() {
+    if (PANEL_BACK) { history.back(); return; } // Back after a close must not reopen the task
+    var b = LAST || { name: home(), arg: '' };
+    location.replace('#' + b.name + (b.arg ? '/' + b.arg : ''));
   }
 
   // ------------------------------------------------------------------ sign-in
   function showSignin() {
     ME = null;
+    LAST = null;
+    RENDERED = '';
+    OFFICE = Object.assign({}, OFFICE_START);
     setChrome();
     clear(view);
     var box = h('section', { cls: 'panel', id: 'signin' });
@@ -197,6 +369,8 @@
 
   function showChangePin(forced) {
     setChrome();
+    dropLayer();
+    RENDERED = '';
     clear(view);
     var msg = h('div', { cls: 'msg' });
     var old = forced ? null : h('input', { id: 'old-pin', type: 'password', inputmode: 'numeric', maxlength: '12' });
@@ -284,19 +458,28 @@
 
   function cardItem(c, opts) {
     opts = opts || {};
+    deco(c);
     var el = h('article', { cls: 'card' + (c.age ? ' age-' + c.age : ''), 'data-id': String(c.id), 'data-status': c.status });
+    el.appendChild(h('div', { cls: 'card-top' },
+      h('span', { cls: 'tag', text: t('type_' + c.type) }), h('span', { cls: 'tid', text: '#' + c.id }),
+      h('span', { cls: 'flags' },
+        c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null,
+        c.hard ? h('span', { cls: 'flag', text: t('lbl_hard') }) : null,
+        c.routine_key ? h('span', { cls: 'flag', text: t('lbl_routine') }) : null,
+        c.private ? h('span', { cls: 'flag' }, icon('lock'), h('span', { text: t('lbl_private') })) : null)));
     var title = h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } });
     el.appendChild(title);
+    var due = dueText(c);
     var meta = h('div', { cls: 'meta' },
       ageBadge(c.age), c.macet ? macetBadge() : null, statusBadge(c.status),
-      h('span', { text: t('lbl_due') + ': ' + fmtDate(c.due) }),
-      opts.showOwner !== false ? h('span', { text: t('lbl_owner') + ': ' + personName(c.owner) }) : null,
-      opts.showRequester && c.requester !== c.owner ? h('span', { text: t('lbl_requester') + ': ' + personName(c.requester) }) : null,
+      h('span', { cls: 'due', text: t('lbl_due') + ': ' + fmtDate(c.due) + (due ? ' · ' + due : '') }),
       c.status === 'tunggu' && c.waiting_on ? h('span', { text: t('lbl_waiting_on') + ': ' + personName(c.waiting_on) }) : null,
-      c.status === 'bukti' && c.macet ? h('span', { cls: 'waiting-confirm', text: t('waiting_confirm') + ': ' + personName(c.requester) }) : null,
-      c.hard ? h('span', { text: t('lbl_hard') }) : null,
-      c.private ? h('span', { text: t('lbl_private') }) : null);
+      c.status === 'bukti' && c.macet ? h('span', { cls: 'waiting-confirm', text: t('waiting_confirm') + ': ' + personName(c.requester) }) : null);
     el.appendChild(meta);
+    var who = h('div', { cls: 'card-foot' },
+      opts.showOwner !== false ? h('span', { cls: 'who' }, avatar(c.owner, 'sm'), h('span', { text: ownerLabel(c.owner) })) : null,
+      opts.showRequester && c.requester !== c.owner ? h('span', { text: tf('from_req', { name: personName(c.requester) }) }) : null);
+    if (who.firstChild) el.appendChild(who);
     var acts = h('div', { cls: 'acts' });
     var slot = h('div', { cls: 'msg' });
     var extra = h('div', { cls: 'extra' });
@@ -344,12 +527,31 @@
 
   function loading() { view.appendChild(h('p', { cls: 'muted', text: t('loading') })); }
 
+  // n of max tasks in progress, as segments (the words next to it say the same)
+  function meter(n, max) {
+    var m = h('div', { cls: 'meter' + (n >= max ? ' full' : ''), 'aria-hidden': 'true' });
+    for (var i = 0; i < max; i++) m.appendChild(h('i', { cls: i < n ? 'on' : '' }));
+    return m;
+  }
+  // Catat > Sanggupi > Kerjakan > Buktikan > Selesai, with the current stage marked
+  function stepsBar(status) {
+    var keys = ['step_catat', 'step_sanggupi', 'step_kerjakan', 'step_buktikan', 'st_selesai'];
+    var cur = status === 'antri' ? 1 : status === 'jalan' || status === 'tunggu' ? 2 : status === 'bukti' ? 3 : status === 'selesai' ? 5 : -1;
+    var ol = h('ol', { cls: 'steps', 'aria-label': t('steps_label') });
+    keys.forEach(function (k, i) {
+      ol.appendChild(h('li', { cls: i < cur ? 'done' : i === cur ? 'cur' : '', 'aria-current': i === cur ? 'step' : null }, h('i', {}), h('span', { text: t(k) })));
+    });
+    return ol;
+  }
+
   // ------------------------------------------------------------------ screens
   var ROUTES = {};
   ROUTES.my = function () {
     view.appendChild(h('h1', { text: t('nav_my') }));
     loading();
-    api('GET', '/api/cards?view=my').then(function (r) {
+    pageGet('/api/cards?view=my').then(function (r) {
+      if (!ME) return; // the session ended: api() has shown the sign-in page
+      newDay(r);
       clear(view);
       view.appendChild(h('h1', { text: t('nav_my') }));
       if (!r.ok) return showErr(view, r);
@@ -357,6 +559,7 @@
       var by = function (st) { return cards.filter(function (c) { return c.status === st; }); };
       var jalan = by('jalan');
       view.appendChild(h('h2', { id: 'sec-jalan', text: t('st_jalan') + ' ' + jalan.length + '/' + SETTINGS.maxActive }));
+      view.appendChild(meter(jalan.length, SETTINGS.maxActive));
       view.appendChild(cardList(jalan, { quick: true, showOwner: false, showRequester: true }));
       view.appendChild(h('h2', { id: 'sec-antri', text: t('st_antri') }));
       view.appendChild(cardList(by('antri'), { quick: true, showOwner: false, showRequester: true }));
@@ -367,29 +570,199 @@
     });
   };
 
-  ROUTES.office = function () {
+  // v1.2: Papan Kantor is one list of every open task the viewer may see, shown three ways: Daftar (default, paged),
+  // Kanban (a column per status) and Timeline (working days). The view is in the address (#office/kanban).
+  ROUTES.office = function (arg) {
+    var mode = arg === 'kanban' || arg === 'timeline' ? arg : 'list';
     view.appendChild(h('h1', { text: t('nav_office') }));
-    view.appendChild(legend());
-    api('GET', '/api/cards?view=office').then(function (r) {
+    pageGet('/api/cards?view=office').then(function (r) {
+      if (!ME) return; // the session ended: api() has shown the sign-in page
       if (!r.ok) return showErr(view, r);
-      var lanes = h('div', { cls: 'lanes' });
-      // FX13: a lane for every active person AND for anyone who still owns an open card (left people keep their cards
-      // visible, labelled, so a director can reassign them).
-      PEOPLE.filter(function (p) { return p.active || r.data.cards.some(function (c) { return c.owner === p.id; }); }).forEach(function (p) {
-        var cards = r.data.cards.filter(function (c) { return c.owner === p.id; });
-        var active = cards.filter(function (c) { return c.status === 'jalan'; }).length;
-        var lane = h('section', { cls: 'lane' + (p.active ? '' : ' inactive'), 'data-person': p.id },
-          h('h3', {}, h('span', { text: (p.nick || p.name) + (p.active ? '' : ' ' + t('inactive_lane')) }), h('span', { cls: 'muted', text: t('st_jalan') + ' ' + active + '/' + SETTINGS.maxActive })));
-        lane.appendChild(cardList(cards, { showOwner: false, showRequester: true }));
-        lanes.appendChild(lane);
+      newDay(r);
+      var all = r.data.cards.map(deco);
+      var seg = h('div', { cls: 'seg', role: 'group', 'aria-label': t('view_label') });
+      [['list', 'view_list'], ['kanban', 'view_kanban'], ['timeline', 'view_timeline']].forEach(function (v) {
+        seg.appendChild(h('button', { type: 'button', id: 'view-' + v[0], 'aria-pressed': mode === v[0] ? 'true' : 'false',
+          onclick: function () { FOCUS_AFTER = 'view-' + v[0]; go('office', v[0] === 'list' ? '' : v[0]); } }, icon(v[0]), h('span', { text: t(v[1]) })));
       });
-      view.appendChild(lanes);
+      var chips = h('div', { cls: 'chips', role: 'group', 'aria-label': t('q_label') });
+      var typeSel = h('select', { id: 'f-type' }, h('option', { value: '', text: t('all_types') }));
+      TYPES.forEach(function (x) { typeSel.appendChild(h('option', { value: x, text: t('type_' + x) })); });
+      typeSel.value = OFFICE.type;
+      OFFICE.type = typeSel.value; // a value no longer offered falls back to "all", and so does the filter
+      // FX13: people who left keep their open tasks findable
+      var ownerSel = h('select', { id: 'f-owner' }, h('option', { value: '', text: t('all_people') }));
+      PEOPLE.filter(function (p) { return p.active || all.some(function (c) { return c.owner === p.id; }); }).forEach(function (p) {
+        ownerSel.appendChild(h('option', { value: p.id, text: (p.nick || p.name) + (p.active ? '' : ' ' + t('inactive_lane')) }));
+      });
+      ownerSel.value = OFFICE.owner;
+      OFFICE.owner = ownerSel.value; // e.g. a person who left and no longer owns an open task
+      var search = h('input', { id: 'f-q', type: 'search', maxlength: '100', placeholder: t('search_ph') });
+      search.value = OFFICE.text;
+      var count = h('p', { id: 'office-count', cls: 'muted' });
+      var body = h('div', { id: 'office-body' });
+      var clearBtn = h('button', { type: 'button', id: 'f-clear', cls: 'secondary', text: t('clear_filters'), onclick: function () {
+        OFFICE = Object.assign({}, OFFICE_START);
+        typeSel.value = ''; ownerSel.value = ''; search.value = '';
+        paint();
+        search.focus();
+      } });
+      var refilter = function () { OFFICE.page = 1; paint(); }; // any filter change starts again at page 1
+      typeSel.addEventListener('change', function () { OFFICE.type = typeSel.value; refilter(); });
+      ownerSel.addEventListener('change', function () { OFFICE.owner = ownerSel.value; refilter(); });
+      search.addEventListener('input', function () { OFFICE.text = search.value; refilter(); });
+      view.appendChild(h('section', { id: 'office-view', 'data-view': mode },
+        h('div', { cls: 'toolbar' }, seg, chips,
+          h('div', { cls: 'fields' },
+            h('label', { cls: 'fld', for: 'f-type' }, h('span', { text: t('f_type') }), typeSel),
+            h('label', { cls: 'fld', for: 'f-owner' }, h('span', { text: t('lbl_owner') }), ownerSel),
+            h('label', { cls: 'fld fld-search', for: 'f-q' }, h('span', { cls: 'vh', text: t('f_search') }), icon('search'), search),
+            clearBtn)),
+        count, body, legend()));
+
+      function paint() {
+        clear(chips);
+        [['all', 'q_all'], ['att', 'q_att'], ['wait', 'exc_waiting'], ['mine', 'q_mine'], ['hard', 'lbl_hard']].forEach(function (q) {
+          var n = all.filter(function (c) { return quickOk(c, q[0]); }).length;
+          chips.appendChild(h('button', { type: 'button', cls: 'chip', 'data-q': q[0], 'aria-pressed': OFFICE.q === q[0] ? 'true' : 'false', onclick: function () {
+            OFFICE.q = q[0];
+            refilter();
+            chips.querySelector('[data-q="' + q[0] + '"]').focus();
+          } }, h('span', { text: t(q[1]) }), h('span', { cls: 'n', text: String(n) })));
+        });
+        var text = OFFICE.text.trim().toLowerCase();
+        var rows = all.filter(function (c) {
+          return quickOk(c, OFFICE.q) && (!OFFICE.type || c.type === OFFICE.type) && (!OFFICE.owner || c.owner === OFFICE.owner) &&
+            (!text || (c.title + ' #' + c.id + ' ' + personName(c.owner) + ' ' + personName(c.requester)).toLowerCase().indexOf(text) >= 0);
+        }).sort(byUrgency);
+        clearBtn.hidden = !(OFFICE.q !== 'all' || OFFICE.type || OFFICE.owner || text);
+        count.textContent = tf('count_line', { n: rows.length, m: all.length });
+        clear(body);
+        body.appendChild(mode === 'kanban' ? kanbanView(rows) : mode === 'timeline' ? timelineView(rows) : listView(rows, paint, body));
+      }
+      paint();
+      if (FOCUS_AFTER) { var f = document.getElementById(FOCUS_AFTER); FOCUS_AFTER = ''; if (f) f.focus(); } // the view button just pressed
     });
   };
+  // The server's day moves at midnight; a page left open overnight follows it (due texts, the timeline, the top line).
+  function newDay(r) {
+    if (r.data && r.data.today && r.data.today !== TODAY) { TODAY = r.data.today; setChrome(); }
+  }
+
+  function listView(rows, repaint, body) {
+    var pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    OFFICE.page = Math.min(Math.max(1, OFFICE.page), pages); // a stale page number (the list shrank) is clamped
+    var from = (OFFICE.page - 1) * PAGE_SIZE, part = rows.slice(from, from + PAGE_SIZE);
+    var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t('nav_office') },
+      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'lbl_status', 'lbl_urgency', 'lbl_owner', 'lbl_requester', 'lbl_due'].map(function (k) {
+        return h('div', { role: 'columnheader', text: t(k) });
+      })));
+    part.forEach(function (c) { tbl.appendChild(rowItem(c)); });
+    var wrap = h('div', { cls: 'tlist-wrap' }, h('div', { cls: 'tlist-scroll' }, tbl));
+    if (!rows.length) wrap.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
+    var pager = h('div', { cls: 'pager' }, h('p', { id: 'pg-info', cls: 'muted', text: rows.length ? tf('page_info', { a: from + 1, b: from + part.length, n: rows.length }) : '' }));
+    if (pages > 1) {
+      var to = function (p) {
+        OFFICE.page = p;
+        repaint();
+        var cur = body.querySelector('.pg[aria-current="page"]');
+        if (cur) cur.focus();
+      };
+      var nav = h('nav', { cls: 'pg-btns', 'aria-label': t('pages_label') });
+      nav.appendChild(h('button', { type: 'button', id: 'pg-prev', cls: 'pg secondary', disabled: OFFICE.page <= 1, text: t('page_prev'), onclick: function () { to(OFFICE.page - 1); } }));
+      for (var p = 1; p <= pages; p++) {
+        (function (n) {
+          nav.appendChild(h('button', { type: 'button', cls: 'pg secondary', 'data-page': String(n), 'aria-current': n === OFFICE.page ? 'page' : null,
+            'aria-label': tf('page_n', { n: n }), text: String(n), onclick: function () { to(n); } }));
+        })(p);
+      }
+      nav.appendChild(h('button', { type: 'button', id: 'pg-next', cls: 'pg secondary', disabled: OFFICE.page >= pages, text: t('page_next'), onclick: function () { to(OFFICE.page + 1); } }));
+      pager.appendChild(nav);
+    }
+    wrap.appendChild(pager);
+    return wrap;
+  }
+
+  function rowItem(c) {
+    var flags = [c.hard ? t('lbl_hard') : '', c.routine_key ? t('lbl_routine') : '', c.private ? t('lbl_private') : ''].filter(Boolean);
+    return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status },
+      h('div', { role: 'cell', cls: 'c-task' },
+        h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } }),
+        h('span', { cls: 'sub', text: ['#' + c.id, t('type_' + c.type)].concat(flags).join(' · ') })),
+      h('div', { role: 'cell' }, statusBadge(c.status)),
+      h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
+        c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null),
+      h('div', { role: 'cell', cls: 'c-who' }, avatar(c.owner, 'sm'), h('span', { text: ownerLabel(c.owner) })),
+      h('div', { role: 'cell', text: personName(c.requester) }),
+      h('div', { role: 'cell' }, h('span', { text: fmtDate(c.due) }), h('span', { cls: 'sub', text: dueText(c) })));
+  }
+
+  function kanbanView(rows) {
+    var board = h('div', { cls: 'kanban' });
+    [['antri', 'hint_antri'], ['jalan', 'hint_jalan'], ['tunggu', 'hint_tunggu'], ['bukti', 'hint_bukti']].forEach(function (s) {
+      var cs = rows.filter(function (c) { return c.status === s[0]; });
+      var col = h('section', { cls: 'kcol', 'data-status': s[0], 'aria-labelledby': 'kh-' + s[0] },
+        h('div', { cls: 'kcol-h' }, h('h2', { id: 'kh-' + s[0], text: t('st_' + s[0]) }), h('span', { cls: 'n', text: String(cs.length) })),
+        h('p', { cls: 'kcol-hint', text: tf(s[1], { n: SETTINGS.maxActive }) }));
+      if (!cs.length) col.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
+      cs.forEach(function (c) { col.appendChild(cardItem(c, { showRequester: true })); });
+      board.appendChild(col);
+    });
+    return h('div', { cls: 'kanban-scroll' }, board);
+  }
+
+  function timelineView(rows) {
+    // 18 working days from the Monday of this week (on a Sunday: from tomorrow's Monday)
+    var days = [], x = utc(TODAY), wd = new Date(x).getUTCDay();
+    x = wd === 0 ? x + 86400000 : x - (wd - 1) * 86400000;
+    while (days.length < 18) { if (new Date(x).getUTCDay() !== 0) days.push(new Date(x).toISOString().slice(0, 10)); x += 86400000; }
+    var N = days.length;
+    var at = function (d) { for (var i = 0; i < N; i++) if (days[i] >= d) return i; return N - 1; };
+    var head = h('div', { cls: 'tl-days' });
+    days.forEach(function (d) {
+      head.appendChild(h('div', { cls: 'tl-day' + (d === TODAY ? ' today' : '') }, h('b', { text: String(+d.slice(8, 10)) }), h('span', { text: t('dow_' + new Date(utc(d)).getUTCDay()) })));
+    });
+    var tl = h('div', { cls: 'tl' }, h('div', { cls: 'tl-r tl-h' }, h('div', { cls: 'tl-lab' }, h('b', { text: t('tl_title') })), head));
+    var owners = [];
+    PEOPLE.forEach(function (p) { if (rows.some(function (c) { return c.owner === p.id; })) owners.push(p.id); });
+    rows.forEach(function (c) { if (owners.indexOf(c.owner) < 0) owners.push(c.owner); });
+    owners.forEach(function (o) {
+      var mine = rows.filter(function (c) { return c.owner === o; });
+      tl.appendChild(h('div', { cls: 'tl-r tl-g' }, h('div', { cls: 'tl-lab' }, avatar(o, 'sm'), h('span', { text: ownerLabel(o) + ' · ' + tf('tl_n', { n: mine.length }) })), h('div', { cls: 'tl-track' })));
+      mine.forEach(function (c) {
+        var start = dayOf(c.started_at || c.created_at), end = c.due;
+        if (c.status === 'bukti') { if (c.proof_at && dayOf(c.proof_at) > end) end = dayOf(c.proof_at); } else if (TODAY > end) end = TODAY;
+        // a due date before the window counts as before its first day, so the whole visible bar is late
+        var si = at(start), ei = Math.max(at(end), si), di = c.due < days[0] ? -1 : at(c.due);
+        var cls = c.age === 'busuk' ? 'b-busuk' : c.age === 'layu' ? 'b-layu' : c.status === 'tunggu' ? 'b-tunggu' : c.status === 'bukti' ? 'b-bukti' : c.status === 'antri' ? 'b-antri' : 'b-jalan';
+        var word = c.macet ? t('macet') : c.age ? t('age_' + c.age) : t('st_' + c.status);
+        var bar = h('span', { cls: 'tl-bar ' + cls, title: fmtDate(start) + ' - ' + fmtDate(c.due) },
+          h('span', { cls: 'tl-word', text: (start < days[0] ? '« ' : '') + word + (end > days[N - 1] ? ' »' : '') }));
+        bar.style.left = (si * 100 / N) + '%';
+        bar.style.width = ((ei - si + 1) * 100 / N) + '%';
+        if (c.status !== 'bukti' && TODAY > c.due && ei > di) {
+          var late = h('span', { cls: 'tl-late' });
+          late.style.left = ((di - si + 1) * 100 / (ei - si + 1)) + '%';
+          bar.appendChild(late);
+        }
+        tl.appendChild(h('div', { cls: 'tl-r', 'data-id': String(c.id), 'data-status': c.status },
+          h('div', { cls: 'tl-lab' }, h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } }),
+            h('span', { cls: 'vh', text: word + ', ' + fmtDate(start) + ' - ' + fmtDate(c.due) })), // what the bar shows, for a screen reader
+          h('div', { cls: 'tl-track', 'aria-hidden': 'true' }, bar)));
+      });
+    });
+    if (days.indexOf(TODAY) >= 0) { // no line on a Sunday: today is not a working day in the window
+      var now = h('div', { cls: 'tl-now', 'aria-hidden': 'true' }, h('span', { text: t('tl_today') }));
+      now.style.left = 'calc(220px + (100% - 220px) * ' + ((at(TODAY) + 0.5) / N).toFixed(4) + ')';
+      tl.appendChild(now);
+    }
+    if (!rows.length) tl.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
+    return h('div', { cls: 'tl-wrap' }, h('div', { cls: 'tl-scroll' }, tl), h('p', { cls: 'muted tl-note', text: t('tl_note') }));
+  }
 
   ROUTES.req = function () {
     view.appendChild(h('h1', { text: t('nav_req') }));
-    api('GET', '/api/cards?view=req').then(function (r) {
+    pageGet('/api/cards?view=req').then(function (r) {
       if (!r.ok) return showErr(view, r);
       var cards = r.data.cards;
       var wait = cards.filter(function (c) { return c.status === 'bukti'; });
@@ -402,6 +775,7 @@
   };
 
   ROUTES['new'] = function () {
+    var d = openDrawer('new-panel', 'new-h', h('h2', { id: 'new-h', cls: 'dr-title', text: t('nav_new') }), true);
     var msg = h('div', { cls: 'msg' });
     var title = h('input', { id: 'new-title', type: 'text', maxlength: '200' });
     var owner = peopleSelect('new-owner', null, false);
@@ -415,7 +789,7 @@
     var body = h('textarea', { id: 'new-body', maxlength: '5000' });
     var files = fileField('new-files', true);
     var priv = h('input', { id: 'new-private', type: 'checkbox' });
-    var form = h('form', { id: 'new-form', cls: 'panel', onsubmit: function (ev) {
+    var form = h('form', { id: 'new-form', onsubmit: function (ev) {
       ev.preventDefault();
       // FX17i: the button stays disabled for the whole create + attachments chain; a second tap creates nothing.
       var submit = document.getElementById('new-submit');
@@ -434,11 +808,11 @@
         chain.then(function (allOk) {
           // the card exists either way: open it, and show a refused attachment there (no filled form left to resend)
           if (!allOk) PENDING_MSG = { id: String(id), node: refusal };
-          go('card', String(id));
+          RENDERED = ''; // v1.2: the page under the panel lists the new task when the panel opens on it
+          location.replace('#card/' + id); // the form's history entry becomes the task's: closing goes back to the page
         });
       });
     } },
-      h('h1', { text: t('nav_new') }),
       h('div', { cls: 'grid2' },
         h('div', {}, h('label', { for: 'new-title', text: t('f_title') }), title),
         h('div', {}, h('label', { for: 'new-owner', text: t('f_owner') }), owner),
@@ -451,7 +825,8 @@
       h('label', { cls: 'check', for: 'new-private' }, priv, h('span', { text: t('f_private') })),
       h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'new-submit', text: t('btn_create') })),
       msg);
-    view.appendChild(form);
+    d.body.appendChild(form);
+    title.focus();
   };
 
   // A file field whose visible button and text come from the dictionary (the native control shows the browser's
@@ -509,14 +884,25 @@
   ROUTES.card = function (arg) {
     var id = String(arg).replace(/[^0-9]/g, '');
     api('GET', '/api/cards/' + id).then(function (r) {
-      if (!r.ok) { view.appendChild(h('h1', { text: t('nav_office') })); return showErr(view, r); }
-      var c = r.data.card, can = r.data.can;
+      if (!ME) return; // the session ended: api() has shown the sign-in page; no panel over it
+      var now = currentRoute();
+      if (now.name !== 'card' || now.arg !== arg) return; // v1.2: the panel was closed while the task was loading
+      if (!r.ok) {
+        var e = openDrawer('card-detail', 'card-err', h('h2', { id: 'card-err', cls: 'dr-title', text: t('nav_office') }));
+        return showErr(e.body, r);
+      }
+      var c = deco(r.data.card), can = r.data.can;
       var slot = h('div', { cls: 'msg', id: 'card-msg' });
-      var box = h('section', { cls: 'panel card-detail' + (c.age ? ' age-' + c.age : ''), id: 'card-detail', 'data-id': String(c.id), 'data-status': c.status });
+      var d = openDrawer('card-detail', 'card-title', [h('span', { cls: 'tag', text: t('type_' + c.type) }), h('span', { cls: 'tid', text: '#' + c.id })]);
+      d.panel.setAttribute('data-id', String(c.id));
+      d.panel.setAttribute('data-status', c.status);
+      var box = d.body;
       box.appendChild(h('h1', { id: 'card-title', text: c.title }));
       box.appendChild(h('div', { cls: 'meta row' }, ageBadge(c.age), c.macet ? macetBadge() : null, statusBadge(c.status),
         c.on_time === true ? h('span', { cls: 'badge age-segar', text: t('lbl_on_time') }) : null,
-        c.on_time === false ? h('span', { cls: 'badge age-busuk', text: t('lbl_late') }) : null));
+        c.on_time === false ? h('span', { cls: 'badge age-busuk', text: t('lbl_late') }) : null,
+        c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null));
+      box.appendChild(stepsBar(c.status));
       var dl = h('table', { cls: 'facts' });
       var row = function (k, v) { dl.appendChild(h('tr', {}, h('th', { text: t(k) }), h('td', { text: v }))); };
       row('lbl_owner', personName(c.owner));
@@ -529,8 +915,9 @@
       row('lbl_moved', String(c.moved));
       if (c.private) row('lbl_private', '✓');
       if (c.routine_key) row('lbl_routine', '✓');
-      box.appendChild(h('div', { cls: 'table-wrap' }, dl));
-      if (c.body) box.appendChild(h('p', { cls: 'body', text: c.body }));
+      // v1.2: what can be done comes first; the facts follow it
+      var facts = h('div', { cls: 'table-wrap' }, dl);
+      var bodyText = c.body ? h('p', { cls: 'body', text: c.body }) : null;
 
       var acts = h('div', { cls: 'acts row' });
       var extra = h('div', { cls: 'extra' });
@@ -559,6 +946,8 @@
         while (PENDING_MSG.node.firstChild) slot.appendChild(PENDING_MSG.node.firstChild);
         PENDING_MSG = null;
       }
+      box.appendChild(facts);
+      if (bodyText) box.appendChild(bodyText);
 
       var proofs = r.data.evidence.filter(function (e) { return e.purpose === 'bukti'; });
       var attach = r.data.evidence.filter(function (e) { return e.purpose === 'lampiran'; });
@@ -571,7 +960,6 @@
       var ul = h('ul', { cls: 'ev', id: 'history' });
       r.data.events.forEach(function (e) { ul.appendChild(eventLine(e)); });
       box.appendChild(ul);
-      view.appendChild(box);
     });
   };
 
@@ -616,7 +1004,7 @@
   ROUTES.exc = function () {
     view.appendChild(h('h1', { text: t('exc') }));
     view.appendChild(h('p', { cls: 'muted', text: t('framing') }));
-    api('GET', '/api/exceptions').then(function (r) {
+    pageGet('/api/exceptions').then(function (r) {
       if (!r.ok) return showErr(view, r);
       // FX5: what the director himself is blocking first, then wilting/rotten, then stuck; counts in the headings.
       [['waiting', 'exc_waiting'], ['aged', 'exc_aged'], ['macet', 'exc_macet']].forEach(function (s) {
@@ -633,7 +1021,7 @@
     view.appendChild(h('h1', { text: t('review') }));
     view.appendChild(h('p', { cls: 'muted', text: t('rv_intro') }));
     var msg = h('div', { cls: 'msg', id: 'rv-msg' });
-    api('GET', '/api/review').then(function (r) {
+    pageGet('/api/review').then(function (r) {
       if (!r.ok) return showErr(view, r);
       var d = r.data;
       var isDirector = ME.role === 'direktur';
@@ -693,7 +1081,7 @@
     var out = h('div', {});
     var load = function () {
       clear(out);
-      api('GET', '/api/numbers?from=' + encodeURIComponent(from.value) + '&to=' + encodeURIComponent(to.value)).then(function (r) {
+      pageGet('/api/numbers?from=' + encodeURIComponent(from.value) + '&to=' + encodeURIComponent(to.value)).then(function (r) {
         if (!r.ok) return showErr(out, r);
         var pctTxt = function (p, n, d) { return p === null ? '-' : p + '% (' + n + '/' + d + ')'; };
         var tb = h('table', { id: 'nums-table' }, h('tr', {}, h('th', { text: t('n_person') }), h('th', { text: t('n_on_time') }), h('th', { text: t('n_first') }),
@@ -721,7 +1109,7 @@
 
   ROUTES.routines = function () {
     view.appendChild(h('h1', { text: t('routines') }));
-    api('GET', '/api/routines').then(function (r) {
+    pageGet('/api/routines').then(function (r) {
       if (!r.ok) return showErr(view, r);
       r.data.routines.forEach(function (rt) {
         var msg = h('div', { cls: 'msg' });
@@ -768,7 +1156,7 @@
 
   ROUTES.people = function () {
     view.appendChild(h('h1', { text: t('people') }));
-    api('GET', '/api/people').then(function (r) {
+    pageGet('/api/people').then(function (r) {
       if (!r.ok) return showErr(view, r);
       var st = r.data.settings;
       var smsg = h('div', { cls: 'msg' });
@@ -829,7 +1217,7 @@
       // FX17j: the change log (PIN resets included, so the other director can see them)
       var logBox = h('section', { cls: 'panel', id: 'change-log' }, h('h2', { text: t('change_log') }));
       view.appendChild(logBox);
-      api('GET', '/api/admin-events?limit=50').then(function (x) {
+      pageGet('/api/admin-events?limit=50').then(function (x) {
         if (!x.ok) return showErr(logBox, x);
         if (!x.data.events.length) { logBox.appendChild(h('p', { cls: 'muted', text: t('none') })); return; }
         var ul = h('ul', { cls: 'ev' });
@@ -856,22 +1244,17 @@
 
   ROUTES.menu = function () {
     view.appendChild(h('h1', { text: t('nav_menu') }));
-    var items = [];
-    var dir = ME.role === 'direktur';
-    if (dir) items.push(['req', 'nav_req']); // FX5: Pengecualian is a director's first tab; his requests live here
-    if (dir || ME.keeper === 1) items.push(['review', 'review']);
-    items.push(['nums', 'nums']);
-    if (dir) { items.push(['routines', 'routines']); items.push(['people', 'people']); }
-    items.push(['help', 'help']);
-    items.push(['pin', 'my_pin']);
     var m = h('div', { cls: 'menu' });
-    items.forEach(function (it) { m.appendChild(h('button', { type: 'button', id: 'menu-' + it[0], text: t(it[1]), onclick: function () { go(it[0]); } })); });
+    moreItems().forEach(function (it) {
+      m.appendChild(h('button', { type: 'button', id: 'menu-' + it[0], cls: 'secondary', onclick: function () { go(it[0]); } }, icon(it[0]), h('span', { text: t(it[1]) })));
+    });
     view.appendChild(m);
   };
 
   // ------------------------------------------------------------------ start
   function start() {
     view = document.getElementById('view');
+    layer = document.getElementById('layer');
     // FX17i: remember which button a tap or submit came from; api() disables it while its write is pending.
     document.addEventListener('click', function (e) {
       var b = e.target && e.target.closest ? e.target.closest('button') : null;
@@ -892,7 +1275,7 @@
     document.getElementById('logout-btn').addEventListener('click', function () {
       api('POST', '/api/logout', {}).then(function () { ME = null; location.hash = ''; showSignin(); });
     });
-    window.addEventListener('hashchange', function () { if (ME) render(); });
+    window.addEventListener('hashchange', function () { if (ME) render(true); else dropLayer(); });
     fetch('/i18n.json', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       DICT = d;
       setChrome();

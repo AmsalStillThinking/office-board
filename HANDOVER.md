@@ -1,5 +1,8 @@
 # Office Board (Papan Tugas Kantor): handover to Amsal
 
+> Update 20 Nov 2026: this package now carries v1.2, the redesign (sidebar, Papan Kantor as Daftar/Kanban/Timeline,
+> slide-over task panel, "tugas" instead of "kartu"). Read CHANGES_v1_2_redesign.md. Not deployed yet.
+
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."
 

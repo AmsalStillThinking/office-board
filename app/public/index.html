@@ -9,14 +9,27 @@
 <script src="/app.js" defer></script>
 </head>
 <body>
-<header id="top">
-  <div class="brand"><span id="app-name"></span><span id="motto"></span></div>
-  <div class="who"><span id="me-name"></span>
-    <button type="button" id="lang-btn" class="small"></button>
-    <button type="button" id="logout-btn" class="small" hidden></button>
+<div id="shell">
+  <aside id="side">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"></rect><rect x="10" y="4" width="5" height="10" rx="1.5"></rect><rect x="17" y="4" width="4" height="13" rx="1.5"></rect></svg></span>
+      <span class="brand-txt"><span id="app-name"></span><span id="motto"></span></span>
+    </div>
+    <nav id="nav" hidden></nav>
+    <nav id="nav-more" hidden></nav>
+    <p id="side-foot"></p>
+  </aside>
+  <div id="main">
+    <header id="top">
+      <span id="today-line"></span>
+      <div class="who"><span id="me-avatar" aria-hidden="true"></span><span id="me-name"></span>
+        <button type="button" id="lang-btn" class="small secondary"></button>
+        <button type="button" id="logout-btn" class="small secondary" hidden></button>
+      </div>
+    </header>
+    <main id="view" tabindex="-1"></main>
   </div>
-</header>
-<main id="view" tabindex="-1"></main>
-<nav id="nav" hidden></nav>
+</div>
+<div id="layer"></div>
 </body>
 </html>
