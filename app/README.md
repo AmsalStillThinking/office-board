@@ -22,7 +22,12 @@ Needs Node 24 (uses the built-in `node:sqlite`). No `npm install`: there are no 
 
   It copies the app without the tests and never touches the data folder, proves the copy byte for byte, stops the old
   instance, starts the new one detached on port 3006 and checks it answers. It also writes
-  `D:\apps\office-board\start-office-board.bat` for a manual start.
+  `D:\apps\office-board\start-office-board.bat` for a manual start (after a restart of the PC: double-click it).
+- The .bat runs `run-office-board.ps1` from the program folder: if the board already runs there it says so, if port
+  3006 is held by another program it names it, otherwise it starts the board detached (closing the window does not
+  stop it), waits until it answers and lists the addresses to open (this PC, and every network card's IP). Exit code
+  0 means the board answers. It refuses to run from this source folder (one with `test\`), so no data folder lands
+  here. Another port: `run-office-board.ps1 -Port 3010` (a deploy with `-Port` writes the .bat that way).
 - By hand (same thing the script starts): `node server.mjs --port 3006 --data "D:\apps\office-board\data"`.
   The window prints `LISTENING port=3006 ...` when it is ready. If the port is already taken it says so on the screen
   and in `data\server.log` and exits with code 1. Stop it with Ctrl+C (writes the database cleanly).

@@ -7,7 +7,8 @@
 > on its Wi-Fi, `http://BOARD-PC-TAILSCALE-IP:3006` over Tailscale. It started on a NEW database: its temporary PINs are in
 > `F:\apps\office-board\data\first-pins.txt`; the office PC's PINs and data were not moved. The copy on the office
 > PC (D:\apps\office-board) was not touched and may still be running: stop it there so nobody uses two boards.
-> After a restart of this PC start it with `F:\apps\office-board\start-office-board.bat` (no autostart, section 8).
+> After a restart of this PC start it with `F:\apps\office-board\start-office-board.bat` (no autostart, section 8);
+> it says whether the board already runs, starts it if not, and lists the addresses to open (app\README.md).
 > Sections 2 and 7 still describe the office PC; a deploy here is the same script with `-Target F:\apps\office-board`.
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up

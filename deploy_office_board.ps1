@@ -90,9 +90,10 @@ Write-Output ("installed files identical to the source: " + ($files.Count - $dif
 if ($diff -ne 0) { throw "the copy is not identical to the source: the running copy was not stopped" }
 
 $bat = Join-Path $dst "start-office-board.bat"
-# absolute path to server.mjs, the same form Start-Board uses, so a redeploy can recognise a launcher-started instance
-$line = 'start "office-board" /min /d "' + $dst + '" "' + $node + '" "' + $entry + '" --port ' + $Port + ' --data "' + $data + '"'
-Set-Content -Path $bat -Value ("@echo off`r`n" + $line + "`r`n") -Encoding ascii
+# the launcher runs run-office-board.ps1, which starts server.mjs by absolute path (the same form Start-Board uses, so a
+# redeploy can recognise a launcher-started instance), refuses a second copy, and shows where to open the board
+$line = 'powershell -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $dst "run-office-board.ps1") + '" -Port ' + $Port
+Set-Content -Path $bat -Value ("@echo off`r`n" + $line + "`r`npause`r`n") -Encoding ascii
 
 foreach ($p in $old) {
   Write-Output ("stopping old instance pid " + $p.ProcessId)
