@@ -7,6 +7,8 @@ Redeployed at 14:46 with the sign-in card (commit 65a8076): 13 of 13 files ident
 kept; live_look.py on http://127.0.0.1:3006/ PASS at 390 and 1280 px (13 names, no console error).
 Redeployed at 15:02 with run-office-board.ps1 (commit ce23943): 14 of 14 files identical, RESULT: PASS; the new
 start-office-board.bat, run once, said "sudah berjalan" and listed the addresses.
+Redeployed at 15:30 with stop-office-board.ps1 and stop-office-board.bat (commit c0fe41b): 15 of 15 files identical,
+RESULT: PASS. The stop launcher was not run on the live board; it was checked on a scratch install.
 The design came from the canvas "Project Management Redesign".
 
 ## Decided by the app's owner on 20 Nov 2026
