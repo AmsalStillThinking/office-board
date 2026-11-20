@@ -42,7 +42,13 @@ deploy_office_board.ps1 there (HANDOVER section 7). The design came from the can
 ## Not done (each needs a server change or a decision)
 - Kanban has no Selesai column and the list no evidence count: the office API returns open tasks without them.
 - No counts on the sidebar items.
-- CHECKSUMS.txt is from 19 Nov; make_handover.py rebuilds it.
+
+## Stale, but not in the way
+- CHECKSUMS.txt is from 19 Nov. deploy_office_board.ps1 does not read it; make_handover.py writes a fresh one into
+  the next handover zip.
+- seat_checks/visual_extra.py (a v1.1 seat-review helper, not a test) still waits for the per-person lanes
+  (.lane) that v1.2 removed, so it stops at "office lanes". It was not re-run. live_look.py only opens the sign-in
+  page and was not run either.
 
 ## Checks on 20 Nov 2026 (this PC; Chrome is under Program Files (x86), now found by cdp.py and cdp_print.py)
 browser_check.py follows the new layout (sidebar left of the content on a desktop, the panel closed before moving
