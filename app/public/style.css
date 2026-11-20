@@ -78,11 +78,17 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .pin-show { font-size: 22px; font-weight: 700; letter-spacing: 2px; }
 .empty { padding: 14px 12px; text-align: center; border: 1px dashed #b4c3da; border-radius: 10px; margin: 0; }
 
-#signin { max-width: 560px; }
-.names { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.names button { background: #fff; color: var(--ink); border-color: var(--line-2); justify-content: flex-start; text-align: left; font-weight: 600; overflow-wrap: break-word; }
-.names button:hover { background: var(--soft); }
-.who-picked { font-weight: 700; margin: 4px 0; }
+/* sign-in and the first PIN change: one card in the middle of the page, the sidebar hidden (body.signed-out) */
+.signed-out #side { display: none; }
+.signed-out #top { background: transparent; border-bottom-color: transparent; }
+.signin-card { max-width: 420px; margin: 6vh auto 24px; padding: 24px 28px 26px; background: var(--panel); border: 1px solid var(--line);
+  border-top: 4px solid var(--accent); border-radius: 16px; box-shadow: 0 12px 32px rgba(17, 45, 78, .1); }
+.signin-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.signin-brand strong { font-size: 15px; line-height: 1.2; }
+.signin-brand .brand-txt span { font-size: 12px; color: var(--muted); }
+.signin-card h1 { margin: 0 0 4px; }
+.signin-card > .muted, .signin-card > p { margin: 0 0 6px; font-size: 14px; }
+.signin-card button[type=submit] { width: 100%; margin-top: 20px; }
 
 /* badges: colour + word + icon */
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: 13px; font-weight: 700;
@@ -268,6 +274,7 @@ th { background: var(--bg); font-weight: 600; }
   #top { position: static; padding: 8px 16px; }
   #today-line { font-size: 13px; }
   #view { padding: 14px 16px 110px; }
+  .signin-card { margin-top: 12px; padding: 20px 18px 22px; }
   .fields { margin-left: 0; width: 100%; }
   .fld-search { flex: 1 1 100%; }
   .fld-search input { width: 100%; }

@@ -210,6 +210,7 @@
     nav.setAttribute('aria-label', t('menu_label'));
     more.setAttribute('aria-label', t('nav_menu'));
     nav.hidden = more.hidden = !ME || !!ME.must_change_pin;
+    document.body.classList.toggle('signed-out', nav.hidden); // sign-in and the first PIN change: a card, no sidebar
     if (!ME) { dropLayer(); return; }
     if (ME.must_change_pin) return;
     // FX5: a director's first tab is Pengecualian (his home); Permintaan Saya moves into Lainnya for him.
@@ -324,6 +325,7 @@
   }
 
   // ------------------------------------------------------------------ sign-in
+  // v1.2: one card in the middle of the page (no sidebar while signed out): the name from a list, then the PIN.
   function showSignin() {
     ME = null;
     LAST = null;
@@ -331,40 +333,40 @@
     OFFICE = Object.assign({}, OFFICE_START);
     setChrome();
     clear(view);
-    var box = h('section', { cls: 'panel', id: 'signin' });
-    view.appendChild(h('h1', { text: t('signin_title') }));
-    view.appendChild(h('p', { cls: 'muted', text: t('framing') }));
-    view.appendChild(box);
-    var chosen = null;
-    var names = h('div', { cls: 'names', id: 'names' });
-    var pinBox = h('div', { id: 'pin-box', hidden: true });
     var msg = h('div', { cls: 'msg' });
-    box.appendChild(h('h2', { text: t('pick_name') }));
-    box.appendChild(names);
-    box.appendChild(pinBox);
+    var who = h('select', { id: 'login-name' }, h('option', { value: '', text: t('pick_name') }));
+    var pin = h('input', { id: 'login-pin', type: 'password', inputmode: 'numeric', autocomplete: 'current-password', maxlength: '12' });
+    // a missing name or PIN is said here, in the page's language, and costs no sign-in attempt
+    var missing = function (code, key, field) {
+      clear(msg);
+      msg.appendChild(h('p', { cls: 'err', role: 'alert', 'data-code': code, text: t(key) }));
+      field.focus();
+    };
+    var form = h('form', { id: 'login-form', onsubmit: function (ev) {
+      ev.preventDefault();
+      if (!who.value) return missing('client_no_name', 'login_need_name', who);
+      if (!pin.value) return missing('client_no_pin', 'login_need_pin', pin);
+      api('POST', '/api/login', { id: who.value, pin: pin.value }).then(function (r) {
+        if (!r.ok) return showErr(msg, r);
+        boot();
+      });
+    } },
+      h('label', { for: 'login-name', text: t('name_label') }), who,
+      h('label', { for: 'login-pin', text: t('pin') }), pin,
+      h('button', { type: 'submit', id: 'login-btn', text: t('signin_btn') }),
+      msg);
+    view.appendChild(h('section', { cls: 'signin-card', id: 'signin', 'aria-labelledby': 'signin-h' },
+      h('div', { cls: 'signin-brand' }, document.querySelector('#side .brand-mark').cloneNode(true),
+        h('span', { cls: 'brand-txt' }, h('strong', { text: t('app_name') }), h('span', { text: t('motto') }))),
+      h('h1', { id: 'signin-h', text: t('signin_title') }),
+      h('p', { cls: 'muted', text: t('framing') }),
+      form));
     api('GET', '/api/people-public').then(function (res) {
       (res.data.people || []).forEach(function (p) {
-        names.appendChild(h('button', { type: 'button', cls: 'name-btn', 'data-id': p.id, text: p.nick ? p.name + ' (' + p.nick + ')' : p.name, onclick: function () {
-          chosen = p; names.hidden = true; pinBox.hidden = false;
-          clear(pinBox);
-          var pin = h('input', { id: 'login-pin', type: 'password', inputmode: 'numeric', autocomplete: 'current-password', maxlength: '12' });
-          var form = h('form', { id: 'login-form', onsubmit: function (ev) {
-            ev.preventDefault();
-            api('POST', '/api/login', { id: chosen.id, pin: pin.value }).then(function (r) {
-              if (!r.ok) return showErr(msg, r);
-              boot();
-            });
-          } },
-            h('p', { cls: 'who-picked', text: chosen.name }),
-            h('label', { for: 'login-pin', text: t('pin') }), pin,
-            h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'login-btn', text: t('signin_btn') }),
-              h('button', { type: 'button', cls: 'secondary', text: t('change_name'), onclick: function () { names.hidden = false; pinBox.hidden = true; clear(msg); } })),
-            msg);
-          pinBox.appendChild(form);
-          pin.focus();
-        } }));
+        who.appendChild(h('option', { value: p.id, text: p.nick ? p.name + ' (' + p.nick + ')' : p.name }));
       });
     });
+    who.focus();
   }
 
   function showChangePin(forced) {
@@ -376,7 +378,7 @@
     var old = forced ? null : h('input', { id: 'old-pin', type: 'password', inputmode: 'numeric', maxlength: '12' });
     var p1 = h('input', { id: 'new-pin', type: 'password', inputmode: 'numeric', maxlength: '12', autocomplete: 'new-password' });
     var p2 = h('input', { id: 'new-pin2', type: 'password', inputmode: 'numeric', maxlength: '12', autocomplete: 'new-password' });
-    var form = h('form', { id: 'pin-form', cls: 'panel', onsubmit: function (ev) {
+    var form = h('form', { id: 'pin-form', cls: forced ? 'signin-card' : 'panel', onsubmit: function (ev) {
       ev.preventDefault();
       if (p1.value !== p2.value) { clear(msg); msg.appendChild(h('p', { cls: 'err', role: 'alert', 'data-code': 'client_mismatch', text: t('pin_mismatch') })); return; }
       var body = { pin: p1.value };

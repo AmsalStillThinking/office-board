@@ -17,8 +17,9 @@ for width, height, mobile in ((390, 844, True), (1280, 900, False)):
     ch = Chrome(width, height, mobile=mobile, scale=1)
     try:
         ch.goto_url(URL)
-        got = ch.wait_for("document.querySelectorAll('.name-btn').length > 0", 10)
-        n = ch.eval("document.querySelectorAll('.name-btn').length")
+        # v1.2: the names are the options of the sign-in list (the first option is the prompt)
+        got = ch.wait_for("document.querySelectorAll('#login-name option').length > 1", 10)
+        n = ch.eval("document.querySelectorAll('#login-name option').length - 1")
         cw = ch.eval("document.documentElement.clientWidth")
         sw = ch.eval("document.documentElement.scrollWidth")
         title = ch.eval("document.title")

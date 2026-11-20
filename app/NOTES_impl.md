@@ -55,8 +55,10 @@
   `public/i18n.json`; server refusal sentences come from `lib/messages.json` in the language the client sends in
   `X-Lang`, and are shown in the page next to the button that was pressed (never `alert`). The client dictionary does
   not contain the server sentences, so the browser check can prove the sentence on screen is the server's.
-- Names on the sign-in page are tap-buttons (pick your name), not a dropdown. `GET /api/session` (public, yes/no only)
-  lets the page decide sign-in vs board without provoking a 401 in the console.
+- Names on the sign-in page were tap-buttons (pick your name), not a dropdown. v1.2 (owner's request, 20 Nov 2026):
+  one card with a name list (`#login-name`, a native select) and the PIN field below it at once; a missing name or PIN
+  is refused in the page without a sign-in attempt. `GET /api/session` (public, yes/no only) lets the page decide
+  sign-in vs board without provoking a 401 in the console.
 - FOUND by looking at a screenshot: the native file input shows the browser's own English "Choose File / No file
   chosen" on an Indonesian page, and no dictionary check can see it. Replaced by a visually hidden input plus a
   dictionary-labelled button and file-name line.

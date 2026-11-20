@@ -24,6 +24,11 @@ The design came from the canvas "Project Management Redesign".
   under it is inert; Escape or the close button go back, and the focus returns to what opened the panel.
 - Task cards: type, number and flags on top, urgency chip (word + icon + colour), due date in working days, owner
   initials and "dari <peminta>". The task panel shows the stages Catat > Sanggupi > Kerjakan > Buktikan > Selesai.
+- Sign-in (owner's request, 20 Nov 2026, after the first deploy here): one card in the middle of the page, no sidebar.
+  Field 1 is a list of names ("Pilih nama Anda"), field 2 the PIN, straight away; the old tap-a-name-then-PIN step
+  and its "Bukan Anda?" button are gone. A missing name or PIN is said in the page and sends no sign-in attempt
+  (so it never counts toward the 5-try lock). The forced first PIN change uses the same card. The staff sheet's
+  wording ("Pilih nama Anda, ketik PIN.") already fits, so the SOP texts are unchanged.
 - Two fixes for answers that arrive late (both gaps are in v1.1 too; each was seen once in a full browser run on
   this PC, whose loopback connections stall now and then):
   - A late answer for a page the person has already left painted that page over the one on screen. In the full

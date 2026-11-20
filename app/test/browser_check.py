@@ -182,10 +182,15 @@ def wait(ch, expr, what, timeout=10):
     return ok
 
 
+def choose_name(ch, who):
+    """v1.2: the name comes from a list. A native list cannot be opened and tapped in headless Chrome, so the value is
+    set as a pick would set it; the page reads the list only when Masuk is pressed."""
+    wait(ch, "!!document.querySelector('#login-name option[value=\"%s\"]')" % who, "name option " + who)
+    return ch.eval("(function(){var s=document.getElementById('login-name'); s.value=%s; s.dispatchEvent(new Event('change',{bubbles:true})); return s.value;})()" % json.dumps(who))
+
+
 def sign_in(ch, who, pin, new_pin=None):
-    wait(ch, "!!document.querySelector('.name-btn[data-id=\"%s\"]')" % who, "name button " + who)
-    ch.tap('.name-btn[data-id="%s"]' % who)
-    wait(ch, "!!document.querySelector('#login-pin')", "pin field")
+    choose_name(ch, who)
     ch.tap_and_type("#login-pin", pin)
     ch.tap("#login-btn")
     if new_pin:
@@ -195,6 +200,42 @@ def sign_in(ch, who, pin, new_pin=None):
         ch.tap_and_type("#new-pin2", new_pin)
         ch.tap("#pin-save")
     return wait(ch, "!!document.querySelector('#nav-my') && !document.querySelector('#nav').hidden", "signed in as " + who)
+
+
+def signin_card_checks(ch, width, lang, pins):
+    """v1.2: sign-in is one card: a labelled name list, the PIN field below it straight away, then Masuk. A missing
+    name or PIN is refused in the page without sending a sign-in attempt; a wrong PIN shows the server's sentence."""
+    d = DICT[lang]
+    tag = "signin %d %s" % (width, lang)
+    want = sorted(p["id"] for p in json.load(open(os.path.join(FIXTURE, "people.json"), encoding="utf-8"))["people"])
+    s = ch.eval("""(function(){var s=document.getElementById('login-name'), p=document.getElementById('login-pin');
+      var card=document.querySelector('#signin.signin-card'), lab=document.querySelector('label[for="login-name"]');
+      return {card:!!card && !!s && !!p && card.contains(s) && card.contains(p), tag:s && s.tagName, label:lab && lab.textContent,
+        first:s && [s.options[0].value, s.options[0].textContent],
+        ids:s ? Array.prototype.slice.call(s.options, 1).map(function(o){return o.value;}).sort() : null,
+        pin:p && [p.type, p.getClientRects().length > 0], side:getComputedStyle(document.getElementById('side')).display,
+        focus:document.activeElement && document.activeElement.id};})()""")
+    check(tag + ": one card holds the name list and the PIN field", s["card"] and s["tag"] == "SELECT" and s["pin"] == ["password", True], s)
+    check(tag + ": the list is labelled and starts with the prompt", s["label"] == d["name_label"] and s["first"] == ["", d["pick_name"]], s)
+    check(tag + ": the list holds every person of the fixture", s["ids"] == want, s["ids"])
+    check(tag + ": no sidebar on the sign-in page", s["side"] == "none", s["side"])
+    check(tag + ": the focus starts on the name list", s["focus"] == "login-name", s["focus"])
+    ch.hold_requests("*/api/login*")  # a sign-in attempt that is sent is caught here
+    ch.tap("#login-btn")
+    got = ch.eval("(function(){var e=document.querySelector('#login-form .err'); return [e && e.getAttribute('data-code'), e && e.textContent, document.activeElement.id];})()")
+    check(tag + ": no name chosen is refused in the page, focus on the list", got == ["client_no_name", d["login_need_name"], "login-name"], got)
+    choose_name(ch, DEWI)
+    ch.tap("#login-btn")
+    got = ch.eval("(function(){var e=document.querySelector('#login-form .err'); return [e && e.getAttribute('data-code'), e && e.textContent, document.activeElement.id];})()")
+    check(tag + ": no PIN typed is refused in the page, focus on the PIN", got == ["client_no_pin", d["login_need_pin"], "login-pin"], got)
+    held = ch.release_requests()
+    check(tag + ": neither refusal sent a sign-in attempt", held == [], held)
+    wrong = "135791" if pins[DEWI] != "135791" else "975313"
+    ch.tap_and_type("#login-pin", wrong)
+    ch.tap("#login-btn")
+    wait(ch, "!!document.querySelector('#login-form .err[data-code=\"pin_wrong\"]')", "wrong PIN refused")
+    got = ch.eval("(document.querySelector('#login-form .err')||{}).textContent")
+    check(tag + ": a wrong PIN shows the server's sentence", got == MSG["pin_wrong"][lang], got)
 
 
 def close_panel(ch):
@@ -207,7 +248,7 @@ def close_panel(ch):
 def sign_out(ch):
     close_panel(ch)
     ch.tap("#logout-btn")
-    wait(ch, "!!document.querySelector('.name-btn')", "sign-in page after logout")
+    wait(ch, "document.querySelectorAll('#login-name option').length > 1", "sign-in page after logout")
 
 
 def nav(ch, tab):
@@ -312,12 +353,14 @@ def run(width, lang):
         ch = Chrome(width, 900 if not mobile else 844, mobile=mobile, scale=1)
         ch.base = srv.base
         ch.goto_url(srv.base + "/")
-        wait(ch, "!!document.querySelector('.name-btn')", "sign-in names")
+        wait(ch, "document.querySelectorAll('#login-name option').length > 1", "sign-in names")
         if lang == "en":
             ch.tap("#lang-btn")
             wait(ch, "document.documentElement.lang==='en'", "English chosen on the sign-in page")
+            wait(ch, "document.querySelectorAll('#login-name option').length > 1", "sign-in names in English")
         page_checks(ch, width, lang, "signin")
         shot(ch, width, lang, "01_signin")
+        signin_card_checks(ch, width, lang, pins)
 
         # sign in as Dewi with the forced PIN change
         sign_in(ch, DEWI, pins[DEWI], NEWPIN)
