@@ -9,6 +9,9 @@ Redeployed at 15:02 with run-office-board.ps1 (commit ce23943): 14 of 14 files i
 start-office-board.bat, run once, said "sudah berjalan" and listed the addresses.
 Redeployed at 15:30 with stop-office-board.ps1 and stop-office-board.bat (commit c0fe41b): 15 of 15 files identical,
 RESULT: PASS. The stop launcher was not run on the live board; it was checked on a scratch install.
+21 Nov 2026: the installation was moved by hand from `F:\apps\office-board` to `F:\Office Board` (data folder
+included; both launchers edited to the new path) and runs from there. Deploys here now use
+`-Target "F:\Office Board"`.
 The design came from the canvas "Project Management Redesign".
 
 ## Decided by the app's owner on 20 Nov 2026
