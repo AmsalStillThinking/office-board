@@ -689,7 +689,7 @@ test('dictionaries complete; one language (v1.5): X-Lang changes nothing', T, as
   }
   const dict = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'public', 'i18n.json'), 'utf8'));
   assert.deepEqual(Object.keys(dict), ['id'], 'one client dictionary');
-  for (const w of ['Segar', 'Layu', 'Busuk', 'Bukti', 'Menunggu Anda', 'Papan Saya', 'Papan Kantor', 'Pengecualian', 'Review Jumat', 'To-Do List']) {
+  for (const w of ['On track', 'Due', 'Overdue', 'Bukti', 'Menunggu Anda', 'Papan Saya', 'Papan Kantor', 'Pengecualian', 'Review Jumat', 'To-Do List']) {
     assert.ok(Object.values(dict.id).includes(w), 'required word in the dictionary: ' + w);
   }
   const serverSentences = new Set(Object.values(MSG).map((m) => m.id));

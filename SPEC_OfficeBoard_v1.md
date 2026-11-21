@@ -26,7 +26,8 @@ The process copies LMN's Work Order app for electricians (reference only, do not
 - Phone first (390 px) and desktop (1280 px); no horizontal page scroll; touch targets 40 px or more.
 - v1.5 (21 Nov 2026, the owner): one language only, no EN switch (CHANGES_v1_5.md). Before v1.5:
 - Language: Bahasa Indonesia by default with an EN switch; every piece of UI text from one dictionary; data text
-  (names, titles) set with `textContent`. Required words: Segar / Layu / Busuk, Bukti, Menunggu Anda, Papan Saya,
+  (names, titles) set with `textContent`. Required words: On track / Due / Overdue (Segar / Layu / Busuk until the
+  owner renamed them on 22 Nov 2026; the internal codes are still segar / layu / busuk), Bukti, Menunggu Anda, Papan Saya,
   Papan Kantor, Pengecualian, Review Jumat.
 
 ## 3. Data (SQLite file `office.db` in the data dir; files in `files/`. v1.4: the same tables in PostgreSQL)

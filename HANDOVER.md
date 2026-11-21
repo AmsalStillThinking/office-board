@@ -132,9 +132,10 @@ changing what they say:
    comment counts too). A requester's attachment is not proof. A director cannot close without proof either.
 4. The person who asked accepts the proof or sends it back with a reason. Nobody judges their own proof, a director
    included. After "Minta koreksi", new proof is required before sending again.
-5. Ageing is computed, never edited: Layu from the due date, Busuk from 3 working days late; cards with a legal
-   deadline (tax, BPJS) are Layu 3 working days before. Working days Monday to Saturday, time zone Asia/Makassar.
-   The limits are director settings in the app.
+5. Ageing is computed, never edited: Due from the due date, Overdue from 3 working days late; cards with a legal
+   deadline (tax, BPJS) are Due 3 working days before. Working days Monday to Saturday, time zone Asia/Makassar.
+   The limits are director settings in the app. (Until 22 Nov 2026 the screen called the three states Segar, Layu
+   and Busuk; the owner renamed them to On track, Due and Overdue. The rule is unchanged.)
 6. Macet: waiting on someone, or proof not yet confirmed, for more than 2 working days.
 7. A director's first screen is Pengecualian: "Menunggu Anda" first, then Layu and Busuk, then Macet.
 8. Per-person numbers are visible to directors only; everyone else sees the office total and their own row.

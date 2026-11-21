@@ -31,7 +31,7 @@ if (max_active, wilt, rot, hard_lead) != (3, 0, 3, 3):
 
 # every UI word this sheet names must exist in the app's Indonesian dictionary, exactly
 values = set(D.values())
-CITED = ["Papan Saya", "Tugas baru", "Mulai", "Macet", "Kirim bukti", "Terima", "Minta koreksi", "Segar", "Layu", "Busuk"]
+CITED = ["Papan Saya", "Tugas baru", "Mulai", "Macet", "Kirim bukti", "Terima", "Minta koreksi", "Tambah komentar", "On track", "Due", "Overdue"]
 missing = [w for w in CITED if w not in values]
 if missing:
     sys.exit("words not in the app dictionary: %s" % missing)
@@ -44,13 +44,13 @@ steps = [
     ("Catat", "Setiap permintaan jadi tugas, termasuk yang datang lewat WhatsApp atau lisan. Tombol: Tugas baru."),
     ("Sanggupi", "Satu pemilik, satu tenggat. Paling banyak %d tugas berjalan per orang. Tombol: Mulai." % max_active),
     ("Kerjakan", "Tertahan orang lain? Tekan Macet dan tulis menunggu siapa."),
-    ("Buktikan", "Lampirkan file, foto, atau tautan, lalu tekan Kirim bukti. Peminta tugas menekan Terima atau Minta koreksi. Diminta koreksi? Lampirkan bukti baru."),
-    ("Tinjau", "Jumat, 20 menit. Hanya tugas layu, busuk, dan macet."),
+    ("Buktikan", "Tulis komentar (Tambah komentar) atau lampirkan file, foto, atau tautan, lalu tekan Kirim bukti. Peminta tugas menekan Terima atau Minta koreksi. Diminta koreksi? Tambahkan bukti baru."),
+    ("Tinjau", "Jumat, 20 menit. Hanya tugas due, overdue, dan macet."),
 ]
 colours = [
-    ("segar", "Segar", "Belum sampai tenggat."),
-    ("layu", "Layu", "Sudah hari tenggat, sampai 2 hari kerja lewat."),
-    ("busuk", "Busuk", "Lewat tenggat %d hari kerja atau lebih." % rot),
+    ("segar", "On track", "Belum sampai tenggat."),
+    ("layu", "Due", "Sudah hari tenggat, sampai 2 hari kerja lewat."),
+    ("busuk", "Overdue", "Lewat tenggat %d hari kerja atau lebih." % rot),
     ("macet", "Macet", "Menunggu orang lain, atau bukti belum diperiksa, lebih dari 2 hari kerja."),
 ]
 sops = [(D["sop1_t"], D["sop1_b"]), (D["sop2_t"], D["sop2_b"]), (D["sop3_t"], D["sop3_b"])]
@@ -119,8 +119,8 @@ for i, (title, body) in enumerate(sops, 1):
 parts.append('<div class="two">\n<div>\n<h2>Arti warna tugas</h2>\n<table>\n')
 for cls, word, text in colours:
     parts.append('<tr><td class="pillcell"><span class="pill %s">%s</span></td><td>%s</td></tr>\n' % (cls, e(word), e(text)))
-parts.append('</table>\n<p class="note">Tenggat hukum (pajak, BPJS, laporan wajib): layu sejak %d hari kerja sebelum tenggat, '
-             'busuk sehari setelah tenggat. Hari kerja: Senin sampai Sabtu.</p>\n</div>\n' % hard_lead)
+parts.append('</table>\n<p class="note">Tenggat hukum (pajak, BPJS, laporan wajib): Due sejak %d hari kerja sebelum tenggat, '
+             'Overdue sehari setelah tenggat. Hari kerja: Senin sampai Sabtu.</p>\n</div>\n' % hard_lead)
 parts.append('<div>\n<h2>Cara membuka</h2>\n<div class="open"><ol>\n'
              '<li>Pakai WiFi kantor, di HP atau komputer. Buka <span class="addr" id="addr">%s</span></li>\n'
              '<li>Pilih nama Anda, ketik PIN. PIN pertama dari Direktur; langsung ganti dengan PIN Anda sendiri (6 sampai 12 angka).</li>\n'

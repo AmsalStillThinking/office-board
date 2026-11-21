@@ -775,7 +775,7 @@ def run(width, lang):
         check("exceptions %d %s: no Segar card (C, D) shown" % (width, lang), C not in everything and D not in everything, sets)
         if lang == "id":
             text = ch.eval("document.body.innerText")
-            for w in ("Menunggu Anda", "Pengecualian", "Papan Saya", "Papan Kantor", "Busuk"):
+            for w in ("Menunggu Anda", "Pengecualian", "Papan Saya", "Papan Kantor", "Overdue"):
                 check("required word on screen: " + w, w in text)
         page_checks(ch, width, lang, "exceptions")
         shot(ch, width, lang, "12_exceptions")
