@@ -29,9 +29,9 @@ FILES = [
     (os.path.join("..", "SOP_Papan_Tugas_Kantor.html"), "SOP_Papan_Tugas_Kantor.html"),
 ]
 TREES = [("app", "app"), ("seat_checks", "seat_checks")]
-SKIP_DIRS = {"_tmp", "data", "node_modules", "__pycache__", "backups", "files"}
+SKIP_DIRS = {"_tmp", "data", "__pycache__", "backups", "files"}  # v1.4: node_modules (the pg driver) ships
 SKIP_FILES = {"pack_render_check.py", "_rules.out"}  # the pack check needs a folder outside the package
-FORBIDDEN_NAMES = {"first-pins.txt", "office.db", "office.db-wal", "office.db-shm", "server.log"}
+FORBIDDEN_NAMES = {"first-pins.txt", "office.db", "office.db-wal", "office.db-shm", "server.log", "database.url"}
 FORBIDDEN_EXT = {".db", ".out", ".rc", ".png", ".pdf", ".log", ".tmp"}
 
 entries = []

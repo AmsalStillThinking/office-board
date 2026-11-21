@@ -1,0 +1,8 @@
+{
+  "name": "office-board",
+  "private": true,
+  "description": "Office Board. The one dependency is the PostgreSQL driver; node_modules is committed so the folder still runs with no npm install.",
+  "dependencies": {
+    "pg": "8.23.1"
+  }
+}

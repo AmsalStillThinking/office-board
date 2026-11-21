@@ -81,8 +81,11 @@ pack and research notes, which hold readings of colleagues' contracts. Ask the d
 
 ## 4. How it is built
 
-- Node 24 only (tested on v24.14.1). No `npm install`, no dependencies. Uses the built-in `node:sqlite` (Node prints
-  "ExperimentalWarning: SQLite is an experimental feature"; that line is expected).
+- Node 24 only (tested on v24.14.1) and, from v1.4, PostgreSQL (tested on 18): the tables are in the database named by
+  `data\database.url`, through the `pg` driver in `app\node_modules` (kept with the source: still no `npm install`).
+  `app\lib\pgsync.mjs` runs the driver in a worker thread and waits for each answer, so the server code reads and
+  writes one statement at a time, as it did with `node:sqlite` up to v1.3. The move from `office.db`, the backup and
+  the restore are in `app\README.md`, "PostgreSQL"; the change itself in `CHANGES_v1_4_postgres.md`.
 - `app\server.mjs`: HTTP server, routes, sessions, card actions, uploads, routine creation, daily database snapshot.
   `createApp({...})` can be imported and started on any port; the tests do that.
 - `app\lib\rules.mjs`: the pure rules (working days, ageing, Macet, routine due dates). No I/O; easiest place to test.

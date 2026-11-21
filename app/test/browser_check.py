@@ -34,6 +34,8 @@ def check(name, ok, detail=""):
 class Server:
     def __init__(self, data, now, port=0):
         self.data = data
+        if not os.path.exists(os.path.join(data, "database.url")):  # v1.4: a fresh data folder gets its own test schema
+            subprocess.run(["node", os.path.join(HERE, "pgtest.mjs"), data], check=True, capture_output=True)
         args = ["node", os.path.join(APP, "server.mjs"), "--port", str(port), "--host", "127.0.0.1", "--data", data, "--seed", FIXTURE, "--now", now]
         self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
         self.lines = []

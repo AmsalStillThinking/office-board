@@ -1,9 +1,11 @@
-// Test harness: an in-process app on a random free port with its own temporary data folder under test/_tmp.
-// The app under test can be swapped with OB_APP_DIR (used by the mutant runner).
+// Test harness: an in-process app on a random free port with its own temporary data folder under test/_tmp and its
+// own PostgreSQL schema (test/pgtest.mjs). The app under test can be swapped with OB_APP_DIR (used by the mutant runner).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { writeDbUrl, dropSchema } from './pgtest.mjs';
+import { openPg } from '../lib/pgsync.mjs';
 
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const APP_DIR = process.env.OB_APP_DIR || path.resolve(HERE, '..');
@@ -15,12 +17,21 @@ export const MSG = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'lib', 'message
 
 export const at = (iso) => Date.parse(iso);
 
-export function freshDir(tag) {
+// { db: false }: a folder with no database.url (no database at all).
+export function freshDir(tag, { db = true } = {}) {
   const d = path.join(TMP, `node_${tag}_${process.pid}_${crypto.randomBytes(4).toString('hex')}`);
   if (path.resolve(d).toLowerCase().includes(path.join('app', 'data').toLowerCase())) throw new Error('refusing a data folder inside app');
   fs.mkdirSync(d, { recursive: true });
+  if (db) writeDbUrl(d, tag);
   return d;
 }
+/** Removes a data folder and its schema. */
+export function dropDir(d) { dropSchema(d); fs.rmSync(d, { recursive: true, force: true }); }
+/** A connection of its own to a data folder's database (what node:sqlite on office.db used to be in these tests). */
+export const rawDb = (d) => openPg(fs.readFileSync(path.join(d, 'database.url'), 'utf8').trim());
+/** Does the folder's database have this table (and column)? */
+export const hasColumn = (db, table, column) => !!db.prepare(
+  'SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND (?::text IS NULL OR column_name = ?)').get(table, column ?? null, column ?? null);
 
 export async function startApp(opts = {}) {
   const clock = { t: opts.now ?? at('2026-11-18T10:00:00+08:00'), real: opts.real ?? Date.now() };
@@ -35,7 +46,7 @@ export async function startApp(opts = {}) {
   }
   const base = `http://127.0.0.1:${port}`;
   const ctx = { app, port, base, dataDir, clock, pins, db: app.db, sessions: new Map() };
-  ctx.close = async () => { await app.close(); fs.rmSync(dataDir, { recursive: true, force: true }); };
+  ctx.close = async () => { await app.close(); dropDir(dataDir); };
   // request helper: as(personId) uses that person's session cookie (null = anonymous)
   ctx.req = async (who, method, url, body, headers = {}) => {
     const h = { ...headers };

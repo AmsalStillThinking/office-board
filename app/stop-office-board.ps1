@@ -3,8 +3,8 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File stop-office-board.ps1 [-Port 3006]
 # Stops ONLY node.exe processes started from this folder (never another program on the port), then waits until they
 # are gone and says whether the port is free. Not running: says so. Exit code 0 = no board from this folder runs.
-# A forced stop, as the deploy does: SQLite in WAL mode has every saved change on disk already, and the next start
-# folds the WAL file into the database.
+# A forced stop, as the deploy does: every saved change is already committed in PostgreSQL, and a transaction left
+# half done is rolled back by PostgreSQL itself.
 param([int]$Port = 3006)
 $ErrorActionPreference = "Stop"
 $root  = $PSScriptRoot

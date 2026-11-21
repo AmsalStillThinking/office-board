@@ -4,10 +4,13 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { testPgBase, sweepSchemas } from './pgtest.mjs';
 
 if (process.env.NODE_TEST_CONTEXT) process.exit(0); // picked up by a bare `node --test`: the runner does not nest
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const files = ['rules.test.mjs', 'server.test.mjs', 'fx.test.mjs', 'todo.test.mjs'].map((f) => path.join(HERE, f));
+console.log('test PostgreSQL: ' + testPgBase());
+sweepSchemas(); // the schemas earlier runs left behind
+const files = ['rules.test.mjs', 'server.test.mjs', 'fx.test.mjs', 'todo.test.mjs', 'pg.test.mjs'].map((f) => path.join(HERE, f));
 const out = path.join(HERE, '_tmp', 'node_tests.out');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.rmSync(out, { force: true });

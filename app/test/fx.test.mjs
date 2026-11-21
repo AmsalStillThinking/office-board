@@ -8,8 +8,7 @@ import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { DatabaseSync } from 'node:sqlite';
-import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, R } from './helpers.mjs';
+import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, rawDb, hasColumn, R } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* closed */ } } });
@@ -253,16 +252,16 @@ test('FX3 an existing data folder without the new column still opens', T, async 
   const { createApp } = await import(pathToFileURL(path.join(APP_DIR, 'server.mjs')).href);
   const a1 = createApp({ dataDir, seedDir: FIXTURE, quiet: true });
   await a1.listen(0, '127.0.0.1'); await a1.close();
-  const raw = new DatabaseSync(path.join(dataDir, 'office.db'));
-  const cols = raw.prepare('PRAGMA table_info(routines)').all().map((c) => c.name);
-  if (cols.includes('active_since')) raw.exec('ALTER TABLE routines DROP COLUMN active_since');
+  const raw = rawDb(dataDir);
+  raw.exec('ALTER TABLE routines DROP COLUMN IF EXISTS active_since');
+  assert.equal(hasColumn(raw, 'routines', 'active_since'), false, 'the database now looks like a v1.0 one');
   raw.close();
   const a2 = createApp({ dataDir, seedDir: FIXTURE, quiet: true });
   await a2.listen(0, '127.0.0.1');
-  assert.ok(a2.db.prepare('PRAGMA table_info(routines)').all().some((c) => c.name === 'active_since'), 'column added on open');
+  assert.ok(hasColumn(a2.db, 'routines', 'active_since'), 'column added on open');
   assert.equal(a2.db.prepare('SELECT COUNT(*) AS n FROM routines').get().n, 3, 'nothing dropped');
   await a2.close();
-  fs.rmSync(dataDir, { recursive: true, force: true });
+  dropDir(dataDir);
 });
 
 // ------------------------------------------------------------------ FX4
@@ -335,10 +334,11 @@ test('FX8 offline reset-pin tool', T, async () => {
   assert.equal(ev.actor, null); assert.deepEqual(JSON.parse(ev.detail), { person: DEWI, offline: true });
   const login = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin }) });
   assert.equal(login.status, 200, 'the printed PIN signs in');
-  const empty = freshDir('fx_nodb');
+  const empty = freshDir('fx_nodb', { db: false });
   const nodb = await runNode([tool, '--data', empty, '--list'], 15000);
   assert.equal(nodb.code, 1);
-  assert.ok(!fs.existsSync(path.join(empty, 'office.db')), 'never creates a database');
+  assert.match(nodb.stderr, /database\.url/, 'says what is missing');
+  assert.deepEqual(fs.readdirSync(empty), [], 'never creates a database or anything else');
   fs.rmSync(empty, { recursive: true, force: true });
 });
 
@@ -348,20 +348,26 @@ test('FX9 daily snapshot', T, async () => {
   await a.create(DEWI, {});
   const bdir = path.join(a.dataDir, 'backups');
   const todayReal = R.localDate(a.clock.real);
-  const want = path.join(bdir, `office-${todayReal}.db`);
+  const want = path.join(bdir, `office-${todayReal}.json`);
   if (fs.existsSync(want)) fs.rmSync(want); // the start-up snapshot ran before the card; take a fresh one
   const p = a.app.snapshot();
   assert.equal(path.resolve(p), path.resolve(want));
-  const snap = new DatabaseSync(want, { readOnly: true });
-  assert.equal(snap.prepare('SELECT COUNT(*) AS n FROM cards').get().n, a.db.prepare('SELECT COUNT(*) AS n FROM cards').get().n);
-  snap.close();
+  const snap = JSON.parse(fs.readFileSync(want, 'utf8'));
+  assert.equal(snap.office_board_backup, 1);
+  for (const t of ['people', 'cards', 'events', 'settings', 'sessions']) {
+    assert.deepEqual(snap.tables[t], a.db.prepare(`SELECT * FROM ${t} ORDER BY 1`).all(), t + ': every row, as it is in the database');
+  }
+  assert.ok(snap.tables.cards.length >= 1, 'presence control: the card is in it');
+  assert.ok(!fs.readdirSync(bdir).some((f) => f.endsWith('.tmp')), 'no half-written file left');
   assert.equal(a.app.snapshot(), null, 'a second call the same day creates nothing');
-  for (let d = 1; d <= 16; d++) fs.writeFileSync(path.join(bdir, `office-2026-01-${String(d).padStart(2, '0')}.db`), 'x');
+  for (let d = 1; d <= 16; d++) fs.writeFileSync(path.join(bdir, `office-2026-01-${String(d).padStart(2, '0')}.json`), 'x');
   fs.writeFileSync(path.join(bdir, 'notes.txt'), 'keep me');
+  fs.writeFileSync(path.join(bdir, 'office-2026-01-01.db'), 'sqlite era');
   a.app.snapshot();
-  const dated = fs.readdirSync(bdir).filter((f) => /^office-\d{4}-\d{2}-\d{2}\.db$/.test(f));
+  const dated = fs.readdirSync(bdir).filter((f) => /^office-\d{4}-\d{2}-\d{2}\.json$/.test(f));
   assert.equal(dated.length, 14);
-  assert.ok(dated.includes(`office-${todayReal}.db`), 'the newest is kept');
+  assert.ok(dated.includes(`office-${todayReal}.json`), 'the newest is kept');
+  assert.ok(fs.existsSync(path.join(bdir, 'office-2026-01-01.db')), 'a SQLite-era copy is left alone');
   assert.ok(fs.existsSync(path.join(bdir, 'notes.txt')), 'a stray file is untouched');
 });
 

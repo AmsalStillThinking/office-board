@@ -1,48 +1,55 @@
-// Schema, first seed and PIN hashing. node:sqlite, WAL mode.
-import { DatabaseSync } from 'node:sqlite';
+// Schema, first seed and PIN hashing. PostgreSQL through lib/pgsync.mjs (synchronous, like node:sqlite was).
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { openPg } from './pgsync.mjs';
 import { DEFAULT_SETTINGS, validSchedule, TYPES } from './rules.mjs';
 
+// The tables of v1.3 in PostgreSQL form: ids BIGSERIAL, millisecond times BIGINT, 0/1 flags INTEGER (the JSON keeps
+// 0 and 1). "by" is quoted: it is a reserved word here. Create the database with C collation (README), so that
+// ORDER BY name sorts as SQLite did.
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS people(
   id TEXT PRIMARY KEY, name TEXT NOT NULL, nick TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL CHECK(role IN ('direktur','staf')), keeper INTEGER NOT NULL DEFAULT 0 CHECK(keeper IN (0,1)),
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)), pin_hash TEXT, must_change_pin INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS cards(
-  id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '',
+  id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '',
   requester TEXT NOT NULL REFERENCES people(id), owner TEXT NOT NULL REFERENCES people(id), due TEXT NOT NULL,
   hard INTEGER NOT NULL DEFAULT 0, type TEXT NOT NULL DEFAULT 'umum', source TEXT NOT NULL, private INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL CHECK(status IN ('antri','jalan','tunggu','bukti','selesai','batal')),
-  waiting_on TEXT REFERENCES people(id), waiting_note TEXT, waiting_since INTEGER,
+  waiting_on TEXT REFERENCES people(id), waiting_note TEXT, waiting_since BIGINT,
   koreksi INTEGER NOT NULL DEFAULT 0, moved INTEGER NOT NULL DEFAULT 0, self_closed INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL, started_at INTEGER, proof_at INTEGER, closed_at INTEGER, routine_key TEXT UNIQUE);
+  created_at BIGINT NOT NULL, started_at BIGINT, proof_at BIGINT, closed_at BIGINT, routine_key TEXT UNIQUE);
 CREATE INDEX IF NOT EXISTS cards_owner ON cards(owner, status);
 CREATE INDEX IF NOT EXISTS cards_requester ON cards(requester, status);
 CREATE TABLE IF NOT EXISTS evidence(
-  id INTEGER PRIMARY KEY AUTOINCREMENT, card INTEGER NOT NULL REFERENCES cards(id),
+  id BIGSERIAL PRIMARY KEY, card BIGINT NOT NULL REFERENCES cards(id),
   kind TEXT NOT NULL CHECK(kind IN ('file','link')), purpose TEXT NOT NULL DEFAULT 'bukti' CHECK(purpose IN ('bukti','lampiran')),
-  name TEXT NOT NULL, mime TEXT, size INTEGER, url TEXT, stored TEXT, by TEXT NOT NULL, at INTEGER NOT NULL);
+  name TEXT NOT NULL, mime TEXT, size BIGINT, url TEXT, stored TEXT, "by" TEXT NOT NULL, at BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS evidence_card ON evidence(card);
 CREATE TABLE IF NOT EXISTS events(
-  id INTEGER PRIMARY KEY AUTOINCREMENT, card INTEGER, actor TEXT, at INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '{}');
+  id BIGSERIAL PRIMARY KEY, card BIGINT, actor TEXT, at BIGINT NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '{}');
 CREATE INDEX IF NOT EXISTS events_card ON events(card, id);
-CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;
-CREATE TRIGGER IF NOT EXISTS events_no_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;
-CREATE TRIGGER IF NOT EXISTS cards_no_delete BEFORE DELETE ON cards BEGIN SELECT RAISE(ABORT, 'cards are never deleted'); END;
+CREATE OR REPLACE FUNCTION ob_refuse() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION '%', TG_ARGV[0]; END $f$;
+CREATE OR REPLACE TRIGGER events_no_update BEFORE UPDATE ON events FOR EACH ROW EXECUTE FUNCTION ob_refuse('events are append-only');
+CREATE OR REPLACE TRIGGER events_no_delete BEFORE DELETE ON events FOR EACH ROW EXECUTE FUNCTION ob_refuse('events are append-only');
+CREATE OR REPLACE TRIGGER cards_no_delete BEFORE DELETE ON cards FOR EACH ROW EXECUTE FUNCTION ob_refuse('cards are never deleted');
 CREATE TABLE IF NOT EXISTS routines(
-  id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, owner TEXT REFERENCES people(id), type TEXT NOT NULL DEFAULT 'umum',
+  id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, owner TEXT REFERENCES people(id), type TEXT NOT NULL DEFAULT 'umum',
   hard INTEGER NOT NULL DEFAULT 0, schedule TEXT NOT NULL, lead_days INTEGER NOT NULL DEFAULT 5, active INTEGER NOT NULL DEFAULT 0,
   note TEXT NOT NULL DEFAULT '', requester TEXT REFERENCES people(id));
-CREATE TABLE IF NOT EXISTS reviews(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, chair TEXT NOT NULL, counts TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS reviews(id BIGSERIAL PRIMARY KEY, date TEXT NOT NULL, chair TEXT NOT NULL, counts TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, person TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, person TEXT NOT NULL, created_at BIGINT NOT NULL, expires_at BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS todos(
-  id INTEGER PRIMARY KEY AUTOINCREMENT, person TEXT NOT NULL REFERENCES people(id), text TEXT NOT NULL, due TEXT,
-  done INTEGER NOT NULL DEFAULT 0 CHECK(done IN (0,1)), created_at INTEGER NOT NULL, done_at INTEGER);
+  id BIGSERIAL PRIMARY KEY, person TEXT NOT NULL REFERENCES people(id), text TEXT NOT NULL, due TEXT,
+  done INTEGER NOT NULL DEFAULT 0 CHECK(done IN (0,1)), created_at BIGINT NOT NULL, done_at BIGINT);
 CREATE INDEX IF NOT EXISTS todos_person ON todos(person, done);
 `;
+// Load order for a move or a restore (a table after the ones it refers to), and the tables with an id sequence.
+export const TABLES = ['people', 'cards', 'evidence', 'events', 'routines', 'reviews', 'settings', 'sessions', 'todos'];
+export const SERIAL_TABLES = ['cards', 'evidence', 'events', 'routines', 'reviews', 'todos'];
 
 export function hashPin(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -64,18 +71,23 @@ export function tempPin() {
   return String(crypto.randomInt(0, 100000000)).padStart(8, '0');
 }
 
+/** The connection URL from <data>\database.url (one line). It is never taken from a command line. */
+export function readDbUrl(dataDir) {
+  const file = path.join(dataDir, 'database.url');
+  if (!fs.existsSync(file)) throw new Error(`no database.url in ${dataDir}: put the PostgreSQL connection URL there (README, "PostgreSQL")`);
+  const url = fs.readFileSync(file, 'utf8').trim();
+  if (!/^postgres(ql)?:\/\//.test(url)) throw new Error(`${file} does not hold a postgresql:// URL`);
+  return url;
+}
+
 export function openDb(dataDir) {
   fs.mkdirSync(path.join(dataDir, 'files'), { recursive: true });
-  const db = new DatabaseSync(path.join(dataDir, 'office.db'));
-  db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
+  const db = openPg(readDbUrl(dataDir));
   db.exec(SCHEMA);
-  // Columns added after v1: an existing data folder gains them; nothing is ever dropped.
-  const addColumn = (table, col, decl) => {
-    if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
-  };
-  addColumn('routines', 'active_since', 'TEXT');
+  // Columns added after v1: an existing database gains them; nothing is ever dropped.
+  db.exec('ALTER TABLE routines ADD COLUMN IF NOT EXISTS active_since TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-    db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)').run(k, String(v));
+    db.prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING').run(k, String(v));
   }
   return db;
 }
@@ -84,6 +96,10 @@ export function openDb(dataDir) {
 export function seedIfEmpty(db, dataDir, seedDir, log) {
   const n = db.prepare('SELECT COUNT(*) AS n FROM people').get().n;
   if (n > 0) return null;
+  // An office.db here means the data is still in SQLite: seeding would hand everyone a new PIN (v1.4 move).
+  if (fs.existsSync(path.join(dataDir, 'office.db'))) {
+    throw new Error(`the database is empty but ${dataDir} holds office.db: move it first with tools/load-db.mjs (README, "PostgreSQL")`);
+  }
   const people = JSON.parse(fs.readFileSync(path.join(seedDir, 'people.json'), 'utf8')).people || [];
   let routines = [];
   const rPath = path.join(seedDir, 'routines.json');

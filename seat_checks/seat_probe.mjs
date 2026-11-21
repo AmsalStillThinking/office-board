@@ -13,6 +13,8 @@ process.on('uncaughtException', (e) => {
 const appDir = path.resolve(process.argv[2]);
 const dataDir = path.resolve(process.argv[3]);
 if (fs.existsSync(dataDir)) { console.log('data dir must not exist yet: ' + dataDir); process.exit(2); }
+const { writeDbUrl } = await import('../app/test/pgtest.mjs'); // v1.4: each data folder gets its own test schema
+writeDbUrl(dataDir, 'seat1');
 const { createApp } = await import(pathToFileURL(path.join(appDir, 'server.mjs')).href);
 
 let clock = Date.parse('2026-11-02T01:00:00Z'); // Mon 2 Nov 2026, 09:00 WITA

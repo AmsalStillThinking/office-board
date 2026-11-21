@@ -109,7 +109,7 @@ for name, probe, edits, expect in MUTANTS:
         continue
     ran += 1
     dst = os.path.join(work, name)
-    shutil.copytree(app, dst, ignore=shutil.ignore_patterns("test", "data", "_tmp", "node_modules"))
+    shutil.copytree(app, dst, ignore=shutil.ignore_patterns("test", "data", "_tmp"))  # v1.4: node_modules holds the pg driver
     built = True
     sizes = []
     for rel, old, new, want in edits:

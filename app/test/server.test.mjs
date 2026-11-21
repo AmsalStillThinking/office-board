@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, HERE } from './helpers.mjs';
+import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, HERE } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* already closed */ } } });
@@ -700,18 +700,20 @@ test('dictionaries complete; refusal language follows X-Lang', T, async () => {
   assert.equal(id.json.message, MSG.need_owner.id, 'Bahasa Indonesia by default');
 });
 
-test('SQLite in WAL mode with a checkpoint on clean shutdown', T, async () => {
-  const dataDir = freshDir('wal');
+test('PostgreSQL: saved rows outlive a restart, no SQLite file, the connection closes on shutdown', T, async () => {
+  const dataDir = freshDir('pgclose');
   const { createApp } = await import(new URL('file:///' + path.join(APP_DIR, 'server.mjs').replace(/\\/g, '/')).href);
   const a = createApp({ dataDir, seedDir: FIXTURE, now: () => at('2026-11-18T10:00:00+08:00'), quiet: true });
   await a.listen(0, '127.0.0.1');
-  assert.equal(a.db.prepare('PRAGMA journal_mode').get().journal_mode, 'wal');
   for (let i = 0; i < 20; i++) a.db.prepare("INSERT INTO settings(key, value) VALUES (?, 'x')").run('k' + i);
-  const wal = path.join(dataDir, 'office.db-wal');
-  assert.ok(fs.existsSync(wal) && fs.statSync(wal).size > 0, 'writes go to the WAL first');
   await a.close();
-  assert.ok(!fs.existsSync(wal) || fs.statSync(wal).size === 0, 'WAL checkpointed and truncated on close');
-  fs.rmSync(dataDir, { recursive: true, force: true });
+  assert.throws(() => a.db.prepare('SELECT 1').get(), /closed/, 'the connection is closed');
+  assert.ok(!fs.readdirSync(dataDir).some((f) => f.startsWith('office.db')), 'no SQLite file is made');
+  const b = createApp({ dataDir, seedDir: FIXTURE, now: () => at('2026-11-18T10:00:00+08:00'), quiet: true });
+  await b.listen(0, '127.0.0.1');
+  assert.equal(b.db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'k%'").get().n, 20, 'every saved row is still there');
+  await b.close();
+  dropDir(dataDir);
 });
 
 // ------------------------------------------------------------------ hygiene

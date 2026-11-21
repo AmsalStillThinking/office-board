@@ -1,11 +1,12 @@
-// LMN Office Board v1 ("Papan Tugas Kantor"). Zero-dependency Node 24 server: node:http + node:sqlite.
+// LMN Office Board v1 ("Papan Tugas Kantor"). Node 24 server: node:http + PostgreSQL (the pg driver, lib/pgsync.mjs).
 // Run: node server.mjs --port 3006 --data <dir> [--seed <dir>] [--host 0.0.0.0] [--now <ISO>]  (or env OFFICE_NOW)
+// The database is named by <data>\database.url (README, "PostgreSQL").
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openDb, seedIfEmpty, hashPin, verifyPin, tempPin } from './lib/db.mjs';
+import { openDb, seedIfEmpty, hashPin, verifyPin, tempPin, TABLES } from './lib/db.mjs';
 import * as R from './lib/rules.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -83,7 +84,7 @@ export function createApp(opts) {
   const pubPerson = (p) => ({ id: p.id, name: p.name, nick: p.nick, role: p.role, keeper: p.keeper, active: p.active });
 
   function tx(fn) {
-    db.exec('BEGIN IMMEDIATE');
+    db.exec('BEGIN');
     try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
   }
   function writeEvent(card, actor, kind, detail) {
@@ -163,7 +164,7 @@ export function createApp(opts) {
         const requester = r.requester && getPerson(r.requester) ? r.requester : r.owner;
         tx(() => {
           const info = q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at, routine_key)
-            VALUES (?,?,?,?,?,?,?,?,0,'antri',?,?)`).run(r.title, '', requester, r.owner, due, r.hard, r.type, 'Lainnya', now(), key);
+            VALUES (?,?,?,?,?,?,?,?,0,'antri',?,?) RETURNING id`).run(r.title, '', requester, r.owner, due, r.hard, r.type, 'Lainnya', now(), key);
           writeEvent(Number(info.lastInsertRowid), null, 'create', { routine: r.id, after: { status: 'antri', owner: r.owner, due }, ...(td > due ? { backfilled: true } : {}) });
         });
         created++;
@@ -360,7 +361,7 @@ export function createApp(opts) {
     };
     const id = tx(() => {
       const info = q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,'antri',?)`).run(card.title, card.body, card.requester, card.owner, card.due, card.hard, card.type, card.source, card.private, now());
+        VALUES (?,?,?,?,?,?,?,?,?,'antri',?) RETURNING id`).run(card.title, card.body, card.requester, card.owner, card.due, card.hard, card.type, card.source, card.private, now());
       const cid = Number(info.lastInsertRowid);
       writeEvent(cid, me.id, 'create', { after: { ...card, status: 'antri' } });
       return cid;
@@ -408,7 +409,7 @@ export function createApp(opts) {
     if (!open) refuse(409, 'review_not_open');
     const counts = { before: open.before, after: reviewSets(me).counts };
     const id = tx(() => {
-      const info = q('INSERT INTO reviews(date, chair, counts) VALUES (?,?,?)').run(today(), open.chair, JSON.stringify(counts));
+      const info = q('INSERT INTO reviews(date, chair, counts) VALUES (?,?,?) RETURNING id').run(today(), open.chair, JSON.stringify(counts));
       q("DELETE FROM settings WHERE key = 'review_open'").run();
       writeEvent(null, me.id, 'review_close', { after: { review: Number(info.lastInsertRowid), counts } });
       return Number(info.lastInsertRowid);
@@ -543,7 +544,7 @@ export function createApp(opts) {
     if (!text) refuse(400, 'need_todo_text');
     const due = body.due === undefined || body.due === null || body.due === '' ? null : body.due;
     if (due !== null && !R.isDate(due)) refuse(400, 'bad_input');
-    const info = q('INSERT INTO todos(person, text, due, created_at) VALUES (?,?,?,?)').run(ctx.me.id, text, due, now());
+    const info = q('INSERT INTO todos(person, text, due, created_at) VALUES (?,?,?,?) RETURNING id').run(ctx.me.id, text, due, now());
     send(ctx.res, 201, { todo: getTodo(ctx.me, Number(info.lastInsertRowid)) });
   });
   add('POST', '/api/todos/clear-done', async (ctx) => {
@@ -575,7 +576,7 @@ export function createApp(opts) {
   function cardDetail(ctx, id) {
     const me = ctx.me;
     const c = cardForViewer(ctx, id);
-    const evidence = q('SELECT id, kind, purpose, name, mime, size, url, by, at FROM evidence WHERE card = ? ORDER BY id').all(c.id)
+    const evidence = q('SELECT id, kind, purpose, name, mime, size, url, "by", at FROM evidence WHERE card = ? ORDER BY id').all(c.id)
       .map((e) => (e.kind === 'file' ? { ...e, url: null } : e));
     const events = q('SELECT id, actor, at, kind, detail FROM events WHERE card = ? ORDER BY id').all(c.id).map((e) => ({ ...e, detail: JSON.parse(e.detail) }));
     const out = decorate(c, today(), settings());
@@ -628,7 +629,7 @@ export function createApp(opts) {
     for (let i = 0; i < url.length; i++) { const cc = url.charCodeAt(i); if (cc < 32 || cc === 127) refuse(400, 'need_link'); } // FX17h
     const name = str(body.name, 200) || url.slice(0, 200);
     tx(() => {
-      const info = q('INSERT INTO evidence(card, kind, purpose, name, url, by, at) VALUES (?,?,?,?,?,?,?)').run(c.id, 'link', purpose, name, url, me.id, now());
+      const info = q('INSERT INTO evidence(card, kind, purpose, name, url, "by", at) VALUES (?,?,?,?,?,?,?) RETURNING id').run(c.id, 'link', purpose, name, url, me.id, now());
       writeEvent(c.id, me.id, 'evidence', { after: { evidence: Number(info.lastInsertRowid), kind: 'link', purpose, name } });
     });
   });
@@ -750,7 +751,7 @@ export function createApp(opts) {
           assertEvidenceAllowed(ctx.me, now2, purpose);
           const by = ctx.me.id;
           tx(() => {
-            const info = q('INSERT INTO evidence(card, kind, purpose, name, mime, size, stored, by, at) VALUES (?,?,?,?,?,?,?,?,?)')
+            const info = q('INSERT INTO evidence(card, kind, purpose, name, mime, size, stored, "by", at) VALUES (?,?,?,?,?,?,?,?,?) RETURNING id')
               .run(now2.id, 'file', purpose, name, mime, size, stored, by, now());
             writeEvent(now2.id, by, 'evidence', { after: { evidence: Number(info.lastInsertRowid), kind: 'file', purpose, name, size } });
           });
@@ -941,16 +942,21 @@ export function createApp(opts) {
   server.on('clientError', (err, socket) => { try { socket.destroy(); } catch { /* ignore */ } });
   server.requestTimeout = 5 * 60 * 1000;
 
-  // FX9: one consistent copy of the database per REAL local day (VACUUM INTO), the newest 14 kept. Never throws.
-  const SNAP_RE = /^office-\d{4}-\d{2}-\d{2}\.db$/;
+  // FX9: one consistent copy of the database per REAL local day, the newest 14 kept. Never throws. v1.4: every table
+  // as JSON, read in one REPEATABLE READ transaction; tools/load-db.mjs loads it back into an empty database.
+  const SNAP_RE = /^office-\d{4}-\d{2}-\d{2}\.json$/;
   function snapshot() {
     let made = null;
     try {
       const dir = path.join(dataDir, 'backups');
       fs.mkdirSync(dir, { recursive: true });
-      const file = path.join(dir, `office-${R.localDate(realNow())}.db`);
+      const file = path.join(dir, `office-${R.localDate(realNow())}.json`);
       if (!fs.existsSync(file)) {
-        db.prepare('VACUUM INTO ?').run(file);
+        const tables = {};
+        db.exec('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+        try { for (const t of TABLES) tables[t] = q(`SELECT * FROM ${t} ORDER BY 1`).all(); } finally { db.exec('COMMIT'); }
+        fs.writeFileSync(file + '.tmp', JSON.stringify({ office_board_backup: 1, at: realNow(), tables }));
+        fs.renameSync(file + '.tmp', file); // a crash while writing leaves only the .tmp, never a half file under the real name
         made = file;
         log('snapshot written: ' + file);
       }
@@ -985,7 +991,6 @@ export function createApp(opts) {
         if (timer) clearInterval(timer);
         server.closeAllConnections?.();
         server.close(() => {
-          try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* ignore */ }
           try { db.close(); } catch { /* ignore */ }
           resolve();
         });
@@ -1017,7 +1022,17 @@ async function main() {
     now = () => t;
     console.log('!!!!!!!! CLOCK FIXED AT ' + new Date(t).toISOString() + ' (' + R.localDate(t) + ' WITA). TESTS ONLY. NEVER IN PRODUCTION. !!!!!!!!');
   }
-  const app = createApp({ dataDir, seedDir: args.get('seed'), now });
+  let app;
+  try {
+    app = createApp({ dataDir, seedDir: args.get('seed'), now });
+  } catch (e) {
+    // v1.4: no database (PostgreSQL still down after a minute, no database.url, an office.db not moved yet) is as loud
+    // as a busy port: logged, on stderr, exit code 1.
+    const why = `office-board: could not start: ${(e && e.code) || ''} ${(e && e.message) || e}`;
+    try { fs.appendFileSync(path.join(dataDir, 'server.log'), `${new Date().toISOString()} ${why}\n`); } catch { /* ignore */ }
+    console.error(why);
+    process.exit(1);
+  }
   const host = args.get('host') || '0.0.0.0';
   let actual;
   try {

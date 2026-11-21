@@ -1,11 +1,11 @@
-// Offline PIN reset, for when no director can sign in. Works while the server runs (WAL + busy_timeout).
+// Offline PIN reset, for when no director can sign in. Works while the server runs (its own PostgreSQL connection).
 //   node tools/reset-pin.mjs --data <dir> --list            id and name of every person (no hashes)
 //   node tools/reset-pin.mjs --data <dir> --person <id>     new 8-digit temporary PIN, printed once
-// Refuses a data folder without office.db (never creates one) and an unknown person id (exit 1, nothing changed).
-import fs from 'node:fs';
+// Uses the database named in <dir>\database.url. Refuses a folder without one (creates nothing) and an unknown person
+// id (exit 1, nothing changed).
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import { hashPin, tempPin } from '../lib/db.mjs';
+import { hashPin, tempPin, readDbUrl } from '../lib/db.mjs';
+import { openPg } from '../lib/pgsync.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf('--' + name);
@@ -15,10 +15,8 @@ function fail(msg) { console.error('reset-pin: ' + msg); process.exit(1); }
 
 const data = arg('data');
 if (!data) fail('give --data <data folder>');
-const file = path.join(path.resolve(data), 'office.db');
-if (!fs.existsSync(file)) fail('no office.db in ' + path.resolve(data) + ' (nothing created)');
-const db = new DatabaseSync(file);
-db.exec('PRAGMA busy_timeout=10000;');
+let db;
+try { db = openPg(readDbUrl(path.resolve(data))); db.prepare('SELECT 1 FROM people LIMIT 1').all(); } catch (e) { fail(e.message + ' (nothing created)'); }
 
 if (process.argv.includes('--list')) {
   for (const p of db.prepare('SELECT id, name, role, active FROM people ORDER BY name').all()) {
@@ -33,7 +31,7 @@ if (!id) fail('give --list or --person <id>');
 const person = db.prepare('SELECT id, name, active FROM people WHERE id = ?').get(id);
 if (!person) { db.close(); fail('unknown person id ' + JSON.stringify(id) + ' (nothing changed)'); }
 const pin = tempPin();
-db.exec('BEGIN IMMEDIATE');
+db.exec('BEGIN');
 try {
   db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 1 WHERE id = ?').run(hashPin(pin), person.id);
   db.prepare('DELETE FROM sessions WHERE person = ?').run(person.id);

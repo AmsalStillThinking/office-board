@@ -7,8 +7,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DatabaseSync } from 'node:sqlite';
-import { startApp, at, MSG, APP_DIR, FIXTURE, freshDir } from './helpers.mjs';
+import { startApp, at, MSG, APP_DIR, FIXTURE, freshDir, dropDir, rawDb, hasColumn } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* closed */ } } });
@@ -192,15 +191,14 @@ test('TD8 an existing data folder without the to-do table gains it', T, async ()
   const { createApp } = await import(pathToFileURL(path.join(APP_DIR, 'server.mjs')).href);
   const a1 = createApp({ dataDir, seedDir: FIXTURE, quiet: true });
   await a1.listen(0, '127.0.0.1'); await a1.close();
-  const raw = new DatabaseSync(path.join(dataDir, 'office.db'));
+  const raw = rawDb(dataDir);
   raw.exec('DROP INDEX IF EXISTS todos_person; DROP TABLE IF EXISTS todos;');
-  const hasTable = (db) => !!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'todos'").get();
-  assert.equal(hasTable(raw), false, 'the folder now looks like a v1.2 one');
+  assert.equal(hasColumn(raw, 'todos'), false, 'the database now looks like a v1.2 one');
   raw.close();
   const a2 = createApp({ dataDir, seedDir: FIXTURE, quiet: true });
   const port = await a2.listen(0, '127.0.0.1');
   try {
-    assert.ok(hasTable(a2.db), 'table added on open');
+    assert.ok(hasColumn(a2.db, 'todos'), 'table added on open');
     assert.equal(a2.db.prepare('SELECT COUNT(*) AS n FROM people').get().n, 6, 'nothing dropped, nobody seeded again');
     const pin = fs.readFileSync(path.join(dataDir, 'first-pins.txt'), 'utf8').split(/\r?\n/).map((l) => l.split('\t')).find((p) => p[0] === DEWI)[2];
     const base = `http://127.0.0.1:${port}`;
@@ -211,6 +209,6 @@ test('TD8 an existing data folder without the to-do table gains it', T, async ()
     assert.equal((await post('/api/todos', { text: 'Setelah pembaruan' })).status, 201, 'a to-do can be added on the upgraded folder');
   } finally {
     await a2.close();
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    dropDir(dataDir);
   }
 });

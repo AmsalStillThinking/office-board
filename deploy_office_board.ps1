@@ -7,7 +7,9 @@
 # Order: copy first (the running copy has its code in memory), prove the copy byte for byte, then stop old + start new,
 # then prove the answer comes from a process born after this run began. A failed start is retried once.
 #   ... -Target <scratch folder> -Port <scratch port>   rehearses the whole run away from the real installation
-param([switch]$DryRun, [int]$Port = 3006, [string]$Target = "D:\apps\office-board")
+#   ... -KeepPublic   installs everything except public\ (the screens), which the target keeps as it is
+# v1.4: the target's data\database.url must exist (README, "PostgreSQL"), or nothing is copied or stopped.
+param([switch]$DryRun, [switch]$KeepPublic, [int]$Port = 3006, [string]$Target = "D:\apps\office-board")
 $ErrorActionPreference = "Stop"
 $began = Get-Date
 $src  = Join-Path $PSScriptRoot "app"
@@ -15,12 +17,15 @@ $dst  = $Target
 $data = Join-Path $dst "data"
 $node = (Get-Command node.exe).Source
 $entry = Join-Path $dst "server.mjs"
-$skipDirs = @("test", "data", "_tmp", "node_modules")
+$skipDirs = @("test", "data", "_tmp")
+if ($KeepPublic) { $skipDirs += "public" }
 $skipFiles = @("NOTES_impl.md")
 Write-Output ("source : " + $src)
 Write-Output ("target : " + $dst)
 Write-Output ("node   : " + $node)
 if (-not (Test-Path (Join-Path $src "server.mjs"))) { throw "server.mjs not found in the source folder" }
+if (-not (Test-Path (Join-Path $src "node_modules\pg\package.json"))) { throw "node_modules\pg missing in the source folder" }
+if (-not (Test-Path (Join-Path $data "database.url"))) { throw ("no database.url in " + $data + ": set up PostgreSQL first (README): nothing changed") }
 
 function Get-BoardProcess {
   # An instance of THIS installation: node.exe whose command line names the target's server.mjs by absolute path
@@ -77,7 +82,9 @@ if ($DryRun) { $files | ForEach-Object { Write-Output ("  " + $_) }; Write-Outpu
 
 New-Item -ItemType Directory -Force $dst | Out-Null
 New-Item -ItemType Directory -Force $data | Out-Null
-robocopy $src $dst /E /R:2 /W:1 /XD $skipDirs /XF $skipFiles /NFL /NDL /NJH /NJS /NP | Out-Null
+# /XD by FULL path: a bare name skips that name at every depth (node_modules\pg-types\test would be left out)
+$skipPaths = @($skipDirs | ForEach-Object { Join-Path $src $_ })
+robocopy $src $dst /E /R:2 /W:1 /XD $skipPaths /XF $skipFiles /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw ("robocopy failed with code " + $LASTEXITCODE + ": the running copy was not stopped") }
 $diff = 0
 foreach ($rel in $files) {

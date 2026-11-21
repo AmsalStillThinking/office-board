@@ -5,8 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { spawnSync } from 'node:child_process';
-import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
+import { writeDbUrl } from '../app/test/pgtest.mjs'; // v1.4: each data folder gets its own test schema
 
 process.on('uncaughtException', (e) => {
   console.log('BAD  [crash] probe crashed: ' + ((e && e.stack) || e).toString().split('\n').slice(0, 3).join(' | '));
@@ -16,6 +16,7 @@ process.on('uncaughtException', (e) => {
 const appDir = path.resolve(process.argv[2]);
 const dataDir = path.resolve(process.argv[3]);
 if (fs.existsSync(dataDir)) { console.log('data dir must not exist yet: ' + dataDir); process.exit(2); }
+writeDbUrl(dataDir, 'seat2');
 const { createApp } = await import(pathToFileURL(path.join(appDir, 'server.mjs')).href);
 
 let clock = 0;
@@ -89,12 +90,12 @@ async function signIn(id, newPin) {
 
 // ---------------------------------------------------------------- FX9 snapshot at start (real date)
 const realDate = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
-const snap = path.join(dataDir, 'backups', 'office-' + realDate + '.db');
+const snap = path.join(dataDir, 'backups', 'office-' + realDate + '.json');
 let snapOk = false, snapPeople = -1;
 if (fs.existsSync(snap)) {
-  try { const d = new DatabaseSync(snap, { readOnly: true }); snapPeople = d.prepare('SELECT COUNT(*) AS n FROM people').get().n; d.close(); snapOk = true; } catch { snapOk = false; }
+  try { snapPeople = JSON.parse(fs.readFileSync(snap, 'utf8')).tables.people.length; snapOk = true; } catch { snapOk = false; }
 }
-check('FX9', 'a dated snapshot exists after start and opens as a database with the 13 people', snapOk && snapPeople === 13, [fs.existsSync(snap), snapPeople]);
+check('FX9', 'a dated snapshot exists after start and holds the 13 people', snapOk && snapPeople === 13, [fs.existsSync(snap), snapPeople]);
 
 // ---------------------------------------------------------------- FX17a /api/me with a temporary PIN
 await signIn(A);
@@ -239,7 +240,7 @@ const toolPin = ((t.stdout || '').match(/\b\d{8}\b/) || [])[0];
 const viaTool = await login(D2, toolPin || 'x');
 check('FX8', 'the offline tool prints a temporary PIN that signs in and must be changed', t.status === 0 && viaTool.res.status === 200 && viaTool.res.json.must_change_pin === 1, [t.status, viaTool.res.status]);
 t = spawnSync(process.execPath, [tool, '--data', path.join(dataDir, 'tidak-ada'), '--person', D2], { encoding: 'utf8', env });
-check('FX8', 'the tool refuses a folder with no database and creates none', fs.existsSync(tool) && t.status !== 0 && !fs.existsSync(path.join(dataDir, 'tidak-ada', 'office.db')), t.status);
+check('FX8', 'the tool refuses a folder with no database and creates none', fs.existsSync(tool) && t.status !== 0 && !fs.existsSync(path.join(dataDir, 'tidak-ada')), t.status);
 
 // ---------------------------------------------------------------- FX17j change log
 r = await call(A, 'GET', '/api/admin-events?limit=50');
@@ -250,6 +251,7 @@ check('FX17j', 'a director sees the PIN resets in the change log', r.status === 
 
 // ---------------------------------------------------------------- FX16 a busy port is a loud failure
 const tmp2 = dataDir + '_busy';
+writeDbUrl(tmp2, 'seat2busy');
 t = spawnSync(process.execPath, [path.join(appDir, 'server.mjs'), '--port', String(port), '--host', '127.0.0.1', '--data', tmp2, '--seed', path.join(appDir, 'seed')], { encoding: 'utf8', env, timeout: 30000 });
 check('FX16', 'starting on a port that is in use exits with code 1 and says so', t.status === 1 && /EADDRINUSE|in use|sudah dipakai/i.test((t.stderr || '') + (t.stdout || '')), [t.status, ((t.stderr || '') + (t.stdout || '')).slice(0, 160)]);
 

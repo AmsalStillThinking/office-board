@@ -18,6 +18,12 @@ const SERVER_TESTS = path.join(HERE, 'server.test.mjs');
 const RULE_TESTS = path.join(HERE, 'rules.test.mjs');
 const FX_TESTS = path.join(HERE, 'fx.test.mjs');
 const TODO_TESTS = path.join(HERE, 'todo.test.mjs');
+const PG_TESTS = path.join(HERE, 'pg.test.mjs');
+const PG1 = 'PG1 the move from office.db keeps every row, id, session and PIN';
+const PG2 = 'PG2 a daily backup restores into an empty database; --dry-run writes nothing';
+const PG3 = 'PG3 nothing is seeded while an office.db is in the data folder; the start fails loudly';
+const PG4 = 'PG4 the start waits for a PostgreSQL that comes up late';
+const PG5 = 'PG5 a dropped connection is reopened, but never in the middle of a transaction';
 
 const MUTANTS = [
   { name: 'limit_off_by_one', file: 'server.mjs', test: SERVER_TESTS, check: 'R2 limit_active at the fourth start',
@@ -102,7 +108,7 @@ const MUTANTS = [
   { name: 'todo_empty_text_saved', file: 'server.mjs', test: TODO_TESTS, check: 'TD4 refusals write nothing',
     edits: [["if (!text) refuse(400, 'need_todo_text');", '/* planted: an empty to-do is saved */']] },
   { name: 'todo_writes_event', file: 'server.mjs', test: TODO_TESTS, check: 'TD5 to-dos write no events and stay out of the change log',
-    edits: [["VALUES (?,?,?,?)').run(ctx.me.id, text, due, now());", "VALUES (?,?,?,?)').run(ctx.me.id, text, due, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
+    edits: [["VALUES (?,?,?,?) RETURNING id').run(ctx.me.id, text, due, now());", "VALUES (?,?,?,?) RETURNING id').run(ctx.me.id, text, due, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
   { name: 'todo_tick_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
     edits: [['  async function todoTick(ctx, id) {' + NL + '    const body = await readJson(ctx);', '  async function todoTick(ctx, id) {' + NL + '    const body = await readJsonRaw(ctx);']] },
   { name: 'todo_delete_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
@@ -115,6 +121,28 @@ const MUTANTS = [
     edits: [['AND done = 0 ORDER BY due IS NULL, due, id', 'AND done = 0 ORDER BY due IS NULL, id']] },
   { name: 'todo_done_by_id', file: 'server.mjs', test: TODO_TESTS, check: 'TD3 tick, untick, delete and clear the finished ones',
     edits: [['AND done = 1 ORDER BY done_at DESC, id DESC', 'AND done = 1 ORDER BY id DESC']] },
+  // v1.4 PostgreSQL
+  { name: 'pg_seed_guard_removed', file: path.join('lib', 'db.mjs'), test: PG_TESTS, check: PG3,
+    edits: [["if (fs.existsSync(path.join(dataDir, 'office.db'))) {", 'if (false) {']] },
+  { name: 'pg_load_into_full_db', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG1,
+    edits: [['if (busy.length) fail(', 'if (false) fail(']] },
+  { name: 'pg_load_no_setval', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG1,
+    edits: [['for (const t of SERIAL_TABLES) db.prepare(', 'for (const t of []) db.prepare(']] },
+  { name: 'pg_load_resets_pins_unchecked', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG1,
+    edits: [['.run(...keys.map((k) => row[k]));', ".run(...keys.map((k) => (k === 'must_change_pin' ? 1 : row[k])));"],
+      ['if (want !== got) throw', 'if (false) throw']] },
+  { name: 'pg_load_resets_pins', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG1,
+    edits: [['.run(...keys.map((k) => row[k]));', ".run(...keys.map((k) => (k === 'must_change_pin' ? 1 : row[k])));"]] },
+  { name: 'pg_dry_run_commits', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG2,
+    edits: [["db.exec(dryRun ? 'ROLLBACK' : 'COMMIT');", "db.exec('COMMIT');"]] },
+  { name: 'pg_no_start_wait', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG4,
+    edits: [["if (Date.now() > until || !['ECONNREFUSED', '57P03'].includes(e.code)) throw e;", 'throw e;']] },
+  { name: 'pg_no_reconnect', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG5,
+    edits: [["c.on('error', () => { if (client === c) client = null; });", "c.on('error', () => {});"]] },
+  { name: 'pg_reconnect_inside_tx', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG5,
+    edits: [["if (inTx && !verb.startsWith('ROLLBACK')) throw", 'if (false) throw']] },
+  { name: 'backup_skips_a_table', file: 'server.mjs', test: FX_TESTS, check: 'FX9 daily snapshot',
+    edits: [['for (const t of TABLES) tables[t] =', 'for (const t of TABLES.slice(1)) tables[t] =']] },
 ];
 
 function count(hay, needle) { let n = 0, i = 0; while ((i = hay.indexOf(needle, i)) >= 0) { n++; i += needle.length; } return n; }

@@ -11,6 +11,8 @@ The process copies LMN's Work Order app for electricians (reference only, do not
 `D:\Downloads\LMN - PT Logam Murni Nusantara\HR & Recruitment\Employee Perf & Management\Work Order Module\README.md`).
 
 ## 2. Stack and layout
+- v1.4 (21 Nov 2026, the owner's decision): the data is in PostgreSQL, through one npm dependency, the `pg` driver,
+  kept with the source in `node_modules` (`CHANGES_v1_4_postgres.md`). Before v1.4:
 - Node 24, ZERO npm dependencies: `node:http`, `node:sqlite`, `node:crypto`, `node:fs`. One process. Vanilla HTML/CSS/JS
   client, no build step, no external resources (no CDN, no web fonts). Same family as CastNow v2 (`D:\apps\casting-app`,
   read-only reference).
@@ -26,7 +28,7 @@ The process copies LMN's Work Order app for electricians (reference only, do not
   (names, titles) set with `textContent`. Required words: Segar / Layu / Busuk, Bukti, Menunggu Anda, Papan Saya,
   Papan Kantor, Pengecualian, Review Jumat.
 
-## 3. Data (SQLite file `office.db` in the data dir; files in `files/`)
+## 3. Data (SQLite file `office.db` in the data dir; files in `files/`. v1.4: the same tables in PostgreSQL)
 people(id, name, nick, role 'direktur'|'staf', keeper 0/1, active 0/1, pin_hash, must_change_pin) ·
 cards(id, title, body, requester, owner, due (date), hard 0/1, type, source, private 0/1, status, waiting_on,
 waiting_note, koreksi (count), moved (count), self_closed 0/1, created_at, started_at, proof_at, closed_at, routine_key)
