@@ -46,10 +46,12 @@ async function sourceBoard() {
   assert.equal((await a.req(DEWI, 'POST', '/api/todos', { text: 'Catatan saya' })).status, 201);
   return { a, firstEko, cookie: a.sessions.get(DEWI), rows: allRows(a.db) };
 }
-function writeSqlite(file, rows) {
+// v1.3 schema; withoutTodos: the shape of a folder from before To-Do Saya (the live one on 21 Nov 2026).
+function writeSqlite(file, rows, { withoutTodos = false } = {}) {
   const sq = new DatabaseSync(file);
   sq.exec(fs.readFileSync(path.join(FIXTURE, 'sqlite-v13-schema.sql'), 'utf8'));
-  for (const t of TABLES) for (const row of rows[t]) {
+  if (withoutTodos) sq.exec('DROP INDEX todos_person; DROP TABLE todos;');
+  for (const t of TABLES.filter((x) => !(withoutTodos && x === 'todos'))) for (const row of rows[t]) {
     const k = Object.keys(row);
     sq.prepare(`INSERT INTO ${t}(${k.map((c) => `"${c}"`).join(', ')}) VALUES (${k.map(() => '?').join(', ')})`).run(...k.map((c) => row[c]));
   }
@@ -78,6 +80,15 @@ test('PG1 the move from office.db keeps every row, id, session and PIN', T, asyn
   assert.match(again.stderr, /not empty/);
   assert.equal(JSON.stringify(allRows(raw)), before, 'a second load changes nothing');
   raw.close();
+  // An office.db from before To-Do Saya has no todos table: everything else moves, the to-do list starts empty.
+  const v12 = freshDir('pg_move12');
+  writeSqlite(path.join(v12, 'office.db'), rows, { withoutTodos: true });
+  const r12 = await runNode([LOAD, '--data', v12, '--from', path.join(v12, 'office.db')]);
+  assert.equal(r12.code, 0, r12.stderr);
+  const raw12 = rawDb(v12);
+  assert.deepEqual(allRows(raw12), { ...rows, todos: [] }, 'v1.2 shape: every other table row for row, no to-dos');
+  raw12.close();
+  dropDir(v12);
 
   const b = createApp({ dataDir: data, seedDir: FIXTURE, quiet: true });
   const port = await b.listen(0, '127.0.0.1');
@@ -141,7 +152,7 @@ test('PG3 nothing is seeded while an office.db is in the data folder; the start 
   dropDir(data);
 });
 
-test('PG4 the start waits for a PostgreSQL that comes up late', T, async () => {
+test('PG4 the start waits for a PostgreSQL that comes up late; a later outage fails fast and recovers', T, async () => {
   const data = freshDir('pg_late');
   const real = new URL(fs.readFileSync(path.join(data, 'database.url'), 'utf8').trim());
   const free = net.createServer();
@@ -158,17 +169,30 @@ test('PG4 the start waits for a PostgreSQL that comes up late', T, async () => {
   // Nothing listens on that port for 3 seconds, then a relay to the real PostgreSQL does.
   await new Promise((r) => setTimeout(r, 3000));
   assert.ok(!/LISTENING/.test(out), 'not up before the database is');
+  const socks = new Set();
   const relay = net.createServer((c) => {
     const u = net.connect(Number(real.port), real.hostname);
+    socks.add(c); socks.add(u);
     c.pipe(u); u.pipe(c);
     c.on('error', () => u.destroy()); u.on('error', () => c.destroy());
   });
-  await new Promise((r) => relay.listen(port, '127.0.0.1', r));
+  const listen = () => new Promise((r) => relay.listen(port, '127.0.0.1', r));
+  await listen();
   try {
     const until = Date.now() + 30000;
     while (!/LISTENING/.test(out) && Date.now() < until && p.exitCode === null) await new Promise((r) => setTimeout(r, 200));
     assert.match(out, /LISTENING/, 'up once the database answers: ' + out.slice(0, 300));
     assert.ok(fs.existsSync(path.join(data, 'first-pins.txt')), 'and seeded the empty database');
+    const base = 'http://127.0.0.1:' + /LISTENING port=(\d+)/.exec(out)[1];
+    // The database goes away while the board runs: a request that needs it fails at once, it does not wait a minute.
+    await new Promise((r) => { relay.close(r); for (const s of socks) s.destroy(); });
+    await new Promise((r) => setTimeout(r, 300));
+    const t0 = Date.now();
+    const down = await login(base, DEWI, '00000000');
+    assert.equal(down.status, 500, 'refused while the database is gone');
+    assert.ok(Date.now() - t0 < 15000, `answered in ${Date.now() - t0} ms, not after the start-up wait`);
+    await listen();
+    assert.equal((await login(base, DEWI, '00000000')).status, 401, 'back: the next request reconnects (a wrong PIN, checked)');
   } finally {
     p.kill();
     await closed;
@@ -191,6 +215,8 @@ test('PG5 a dropped connection is reopened, but never in the middle of a transac
   try {
     cut();
     assert.equal(db.prepare('SELECT 1 AS one').get().one, 1, 'outside a transaction the next statement reconnects');
+    assert.throws(() => db.prepare('SELECT pg_terminate_backend(pg_backend_pid())').get(), 'killed in the middle of a statement');
+    assert.equal(db.prepare('SELECT 1 AS one').get().one, 1, 'and the very next statement reconnects');
     db.exec('BEGIN');
     db.prepare('INSERT INTO t(n) VALUES (?)').run(1);
     cut();
@@ -203,5 +229,19 @@ test('PG5 a dropped connection is reopened, but never in the middle of a transac
   } finally {
     db.close(); killer.close();
     dropDir(data);
+  }
+});
+
+test('PG6 a NUL character in text is dropped, not a 500 (PostgreSQL text cannot hold it)', T, async () => {
+  const a = await startApp({ tag: 'pg_nul' });
+  try {
+    await a.login(DEWI);
+    const id = await a.create(DEWI, { title: 'Tes' + String.fromCharCode(0) + 'kartu' });
+    assert.equal(a.card(id).title, 'Teskartu');
+    const link = await a.act(DEWI, id, 'link', { url: 'https://drive.example/2', name: 'a' + String.fromCharCode(0) + 'b' });
+    assert.equal(link.status, 200, link.text);
+    assert.equal(a.db.prepare('SELECT name FROM evidence WHERE card = ?').get(id).name, 'ab');
+  } finally {
+    await a.close();
   }
 });

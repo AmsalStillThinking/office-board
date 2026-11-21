@@ -22,8 +22,9 @@ const PG_TESTS = path.join(HERE, 'pg.test.mjs');
 const PG1 = 'PG1 the move from office.db keeps every row, id, session and PIN';
 const PG2 = 'PG2 a daily backup restores into an empty database; --dry-run writes nothing';
 const PG3 = 'PG3 nothing is seeded while an office.db is in the data folder; the start fails loudly';
-const PG4 = 'PG4 the start waits for a PostgreSQL that comes up late';
+const PG4 = 'PG4 the start waits for a PostgreSQL that comes up late; a later outage fails fast and recovers';
 const PG5 = 'PG5 a dropped connection is reopened, but never in the middle of a transaction';
+const PG6 = 'PG6 a NUL character in text is dropped, not a 500 (PostgreSQL text cannot hold it)';
 
 const MUTANTS = [
   { name: 'limit_off_by_one', file: 'server.mjs', test: SERVER_TESTS, check: 'R2 limit_active at the fourth start',
@@ -138,7 +139,14 @@ const MUTANTS = [
   { name: 'pg_no_start_wait', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG4,
     edits: [["if (Date.now() > until || !['ECONNREFUSED', '57P03'].includes(e.code)) throw e;", 'throw e;']] },
   { name: 'pg_no_reconnect', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG5,
-    edits: [["c.on('error', () => { if (client === c) client = null; });", "c.on('error', () => {});"]] },
+    edits: [["const drop = () => { if (client === c) client = null; };", 'const drop = () => {};'],
+      ['if (lost(e)) { if (client === c) client = null;', 'if (lost(e)) {']] },
+  { name: 'pg_dead_client_reused', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG5,
+    edits: [['if (lost(e)) { if (client === c) client = null;', 'if (false) {'], ["c.on('end', drop);", '']] },
+  { name: 'pg_reconnect_waits_a_minute', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG4,
+    edits: [['const until = Date.now() + (started ? 0 : START_WAIT_MS);', 'const until = Date.now() + START_WAIT_MS;']] },
+  { name: 'pg_nul_kept', file: path.join('lib', 'pgsync.mjs'), test: PG_TESTS, check: PG6,
+    edits: [["p.includes(NUL) ? p.replaceAll(NUL, '') : p", 'p']] },
   { name: 'pg_reconnect_inside_tx', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG5,
     edits: [["if (inTx && !verb.startsWith('ROLLBACK')) throw", 'if (false) throw']] },
   { name: 'backup_skips_a_table', file: 'server.mjs', test: FX_TESTS, check: 'FX9 daily snapshot',

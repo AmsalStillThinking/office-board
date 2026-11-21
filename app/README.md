@@ -30,7 +30,7 @@ it sits in the data folder, which the deploy never copies, and it is never put o
 ```
 ```sql
 CREATE ROLE office_board LOGIN PASSWORD 'PASSWORD';
-CREATE DATABASE office_board OWNER office_board TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';
+CREATE DATABASE office_board OWNER office_board TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER libc LC_COLLATE 'C' LC_CTYPE 'C';
 ```
 
 The C collation makes names sort as they did in SQLite. The board creates its tables itself at the first start.

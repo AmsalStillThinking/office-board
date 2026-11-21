@@ -11,6 +11,9 @@ function numbered(sql) {
   let n = 0;
   return sql.split("'").map((part, i) => (i % 2 ? part : part.replace(/\?/g, () => '$' + ++n))).join("'");
 }
+// PostgreSQL TEXT cannot hold a NUL character (SQLite could): it is dropped rather than failing the request.
+const NUL = String.fromCharCode(0);
+const clean = (params) => params.map((p) => (typeof p === 'string' && p.includes(NUL) ? p.replaceAll(NUL, '') : p));
 
 export function openPg(url) {
   const signal = new Int32Array(new SharedArrayBuffer(4));
@@ -41,10 +44,10 @@ export function openPg(url) {
     prepare(sql) {
       const text = numbered(sql);
       return {
-        get: (...params) => call({ sql: text, params }).rows[0],
-        all: (...params) => call({ sql: text, params }).rows,
+        get: (...params) => call({ sql: text, params: clean(params) }).rows[0],
+        all: (...params) => call({ sql: text, params: clean(params) }).rows,
         // lastInsertRowid needs the INSERT to say RETURNING id.
-        run: (...params) => { const r = call({ sql: text, params }); return { changes: r.rowCount, lastInsertRowid: r.rows[0]?.id }; },
+        run: (...params) => { const r = call({ sql: text, params: clean(params) }); return { changes: r.rowCount, lastInsertRowid: r.rows[0]?.id }; },
       };
     },
     exec(sql) { call({ sql, simple: true }); },

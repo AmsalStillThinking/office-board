@@ -2,6 +2,7 @@
 //   an office.db (the SQLite file of v1.3 and before: the v1.4 move), or
 //   a daily backup data\backups\office-YYYY-MM-DD.json (a restore).
 // Every row is copied as it is: ids, sessions and every person's PIN hash, so everyone keeps the PIN they chose.
+// (One exception: a NUL character in a text, which PostgreSQL cannot store, is dropped by lib/pgsync.mjs.)
 // One transaction: on any error nothing is written. Refuses a database that already holds data. Before committing it
 // checks the row count of every table and that every person's PIN hash and must_change_pin are identical.
 //   node tools/load-db.mjs --data <dir> --from <office.db | backup.json> [--dry-run]
