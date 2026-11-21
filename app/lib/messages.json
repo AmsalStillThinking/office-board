@@ -2,6 +2,7 @@
  "need_owner": {"id": "Tugas harus punya satu pemilik yang aktif.", "en": "A task needs one active owner."},
  "need_due": {"id": "Tugas harus punya tenggat (tanggal).", "en": "A task needs a due date."},
  "need_title": {"id": "Judul tugas wajib diisi.", "en": "The task needs a title."},
+ "need_todo_text": {"id": "Tulis to-do-nya dulu.", "en": "Write the to-do first."},
  "bad_source": {"id": "Sumber harus WhatsApp, Lisan, Rapat, Email, atau Lainnya.", "en": "Source must be WhatsApp, Lisan, Rapat, Email or Lainnya."},
  "limit_active": {"id": "Sudah ada {n} tugas berjalan. Selesaikan dulu sebelum mulai yang baru.", "en": "There are already {n} tasks in progress. Finish one before starting a new one."},
  "need_proof": {"id": "Tanpa bukti, belum selesai. Lampirkan file atau tautan dulu.", "en": "No proof, not done. Attach a file or a link first."},

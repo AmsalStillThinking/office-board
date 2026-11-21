@@ -16,6 +16,9 @@
 > Since 21 Nov 2026 the app is called "Office Board" on screen in both languages, and the staff sheet sends people
 > to `http://BOARD-PC-LAN-IP:3006`. That address comes from the router (DHCP), so reserve it there, or the sheet goes
 > stale the day the PC gets another one.
+> v1.3 (21 Nov 2026, branch feat/todo-list) adds To-Do Saya: each person's own to-do list, which nobody else sees,
+> a director included. That is a who-sees-what choice (section 5), made by the app's owner: tell the director before
+> it is deployed. Read CHANGES_v1_3_todo.md.
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."

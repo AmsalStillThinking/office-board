@@ -164,6 +164,7 @@
     people: 'M9 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .7 3.2 2.5 3.8 5.5',
     help: CIRCLE + 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01',
     pin: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3',
+    todo: 'M4 4h16v16H4zM8 12l3 3 5-6',
     lock: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3',
     list: 'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
     kanban: 'M3 4h5v16H3zM10 4h5v10h-5zM17 4h4v13h-4z',
@@ -237,6 +238,7 @@
   }
   function moreItems() {
     var dir = ME.role === 'direktur', items = [];
+    items.push(['todo', 'todo']); // v1.3: everyone's own to-do list, first in Lainnya
     if (dir) items.push(['req', 'nav_req']); // FX5: Pengecualian is a director's first tab; his requests live here
     if (dir || ME.keeper === 1) items.push(['review', 'review']);
     items.push(['nums', 'nums']);
@@ -1230,6 +1232,77 @@
         logBox.appendChild(ul);
       });
     });
+  };
+
+  // v1.3: To-Do Saya, the person's own list. Not a tugas: no owner, no proof, no ageing, and nobody else sees it.
+  // Every read goes through pageGet and nothing is kept outside the page, so the next person on a shared PC sees only
+  // their own list.
+  ROUTES.todo = function () {
+    view.appendChild(h('h1', { text: t('todo') }));
+    view.appendChild(h('p', { cls: 'muted', id: 'todo-note', text: t('todo_note') }));
+    var msg = h('div', { cls: 'msg' });
+    var text = h('input', { id: 'todo-text', type: 'text', maxlength: '200', autocomplete: 'off' });
+    var due = h('input', { id: 'todo-due', type: 'date' });
+    var lists = h('div', { id: 'todo-lists' });
+    var item = function (td) {
+      var box = h('input', { type: 'checkbox', id: 'todo-box-' + td.id, checked: td.done === 1 });
+      var slot = h('div', { cls: 'msg' });
+      // a tick is not a button, so the double-tap guard (ARMED) does not cover it: the box waits for its answer
+      box.addEventListener('change', function () {
+        box.disabled = true;
+        api('POST', '/api/todos/' + td.id, { done: box.checked }).then(function (x) {
+          if (!x.ok) { box.disabled = false; box.checked = !box.checked; return showErr(slot, x); }
+          load(box.id); // drawn again from the server's answer; the focus stays on this item's box
+        });
+      });
+      var late = !td.done && td.due && TODAY && td.due < TODAY;
+      var hint = td.done ? '' : dueText({ due: td.due, status: 'antri' }); // the board's own working-day words
+      return h('li', { cls: 'todo' + (late ? ' late' : ''), 'data-id': String(td.id), 'data-done': String(td.done) },
+        h('label', { cls: 'check', for: box.id }, box, h('span', { cls: 'todo-t', text: td.text })),
+        td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') }) : null,
+        h('button', { type: 'button', cls: 'secondary small todo-del', 'aria-label': tf('todo_del_label', { text: td.text }), text: t('todo_del'), onclick: function () {
+          api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-text'); });
+        } }),
+        slot);
+    };
+    // focusId: the control to focus once the lists are drawn again
+    var load = function (focusId) {
+      pageGet('/api/todos').then(function (r) {
+        if (!ME) return; // the session ended: api() has shown the sign-in page
+        clear(lists);
+        if (!r.ok) return showErr(lists, r);
+        newDay(r);
+        var open = r.data.open, done = r.data.done;
+        lists.appendChild(open.length ? h('ul', { cls: 'todos', id: 'todo-open' }, open.map(item)) : h('p', { cls: 'muted empty', id: 'todo-empty', text: t('todo_empty') }));
+        if (done.length) {
+          var cmsg = h('div', { cls: 'msg' });
+          lists.appendChild(h('h2', { id: 'todo-done-h', text: t('st_selesai') + ' (' + done.length + ')' }));
+          lists.appendChild(h('ul', { cls: 'todos', id: 'todo-done' }, done.map(item)));
+          lists.appendChild(h('button', { type: 'button', id: 'todo-clear', cls: 'secondary', text: t('todo_clear'), onclick: function () {
+            api('POST', '/api/todos/clear-done', {}).then(function (x) { if (!x.ok) return showErr(cmsg, x); load('todo-text'); });
+          } }));
+          lists.appendChild(cmsg);
+        }
+        var f = focusId && document.getElementById(focusId);
+        if (f) f.focus();
+      });
+    };
+    view.appendChild(h('form', { id: 'todo-form', cls: 'panel', onsubmit: function (ev) {
+      ev.preventDefault();
+      api('POST', '/api/todos', { text: text.value, due: due.value }).then(function (x) {
+        if (!x.ok) { showErr(msg, x); text.focus(); return; }
+        clear(msg);
+        text.value = ''; due.value = '';
+        load('todo-text'); // ready for the next one
+      });
+    } },
+      h('div', { cls: 'grid2' },
+        h('div', {}, h('label', { for: 'todo-text', text: t('todo_text') }), text),
+        h('div', {}, h('label', { for: 'todo-due', text: t('todo_due') }), due)),
+      h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'todo-add', text: t('todo_add') })),
+      msg));
+    view.appendChild(lists);
+    load();
   };
 
   ROUTES.help = function () {

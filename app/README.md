@@ -58,7 +58,8 @@ who owns a running routine cannot be switched off until the routine has another 
 ## The data folder is as sensitive as the PINs
 
 Anyone holding a copy of `data\` can try 6-digit PINs against the stored hashes offline, read every card including the
-private ones, and open every uploaded file. Keep the folder and its backups where only the directors can reach them.
+private ones, read every person's own To-Do Saya list (which in the app only that person sees, a director included),
+and open every uploaded file. Keep the folder and its backups where only the directors can reach them.
 `first-pins.txt` is plain text: hand the PINs out, then delete it.
 
 ## Back up

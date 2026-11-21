@@ -17,6 +17,7 @@ const COPY = ['server.mjs', 'lib', 'public', 'tools'];
 const SERVER_TESTS = path.join(HERE, 'server.test.mjs');
 const RULE_TESTS = path.join(HERE, 'rules.test.mjs');
 const FX_TESTS = path.join(HERE, 'fx.test.mjs');
+const TODO_TESTS = path.join(HERE, 'todo.test.mjs');
 
 const MUTANTS = [
   { name: 'limit_off_by_one', file: 'server.mjs', test: SERVER_TESTS, check: 'R2 limit_active at the fourth start',
@@ -89,6 +90,21 @@ const MUTANTS = [
   { name: 'staff_may_cancel', file: 'server.mjs', test: SERVER_TESTS, check: 'R11 role matrix byte-identical',
     edits: [["ACTIONS.set('cancel', (me, c, body) => {" + NL + "    if (!isDir(me)) refuse(403, 'forbidden');",
       "ACTIONS.set('cancel', (me, c, body) => {" + NL + "    if (!isDir(me) && me.id !== c.owner) refuse(403, 'forbidden');"]] },
+  // ---- v1.3 To-Do Saya: only its person sees or changes a to-do, and it writes no events
+  { name: 'todo_list_leaks', file: 'server.mjs', test: TODO_TESTS, check: 'TD1 a to-do is seen by its person only',
+    edits: [['FROM todos WHERE person = ? AND done = 0 ORDER BY', 'FROM todos WHERE (person = ? OR 1 = 1) AND done = 0 ORDER BY']] },
+  { name: 'todo_tick_any_person', file: 'server.mjs', test: TODO_TESTS, check: 'TD2 nobody else can tick or delete a to-do',
+    edits: [["COALESCE(done_at, ?) END WHERE id = ? AND person = ?')", "COALESCE(done_at, ?) END WHERE id = ? AND (person = ? OR 1 = 1)')"]] },
+  { name: 'todo_delete_any_person', file: 'server.mjs', test: TODO_TESTS, check: 'TD2 nobody else can tick or delete a to-do',
+    edits: [["q('DELETE FROM todos WHERE id = ? AND person = ?')", "q('DELETE FROM todos WHERE id = ? AND (person = ? OR 1 = 1)')"]] },
+  { name: 'todo_clear_takes_all', file: 'server.mjs', test: TODO_TESTS, check: 'TD3 tick, untick, delete and clear the finished ones',
+    edits: [["q('DELETE FROM todos WHERE person = ? AND done = 1')", "q('DELETE FROM todos WHERE (person = ? OR 1 = 1) AND done = 1')"]] },
+  { name: 'todo_empty_text_saved', file: 'server.mjs', test: TODO_TESTS, check: 'TD4 refusals write nothing',
+    edits: [["if (!text) refuse(400, 'need_todo_text');", '/* planted: an empty to-do is saved */']] },
+  { name: 'todo_writes_event', file: 'server.mjs', test: TODO_TESTS, check: 'TD5 to-dos write no events and stay out of the change log',
+    edits: [["VALUES (?,?,?,?)').run(ctx.me.id, text, due, now());", "VALUES (?,?,?,?)').run(ctx.me.id, text, due, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
+  { name: 'todo_tick_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a tick whose body arrives after sign-out is refused',
+    edits: [['  async function todoTick(ctx, id) {' + NL + '    const body = await readJson(ctx);', '  async function todoTick(ctx, id) {' + NL + '    const body = await readJsonRaw(ctx);']] },
 ];
 
 function count(hay, needle) { let n = 0, i = 0; while ((i = hay.indexOf(needle, i)) >= 0) { n++; i += needle.length; } return n; }

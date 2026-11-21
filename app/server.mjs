@@ -524,6 +524,47 @@ export function createApp(opts) {
     send(ctx.res, 200, { settings: settings() });
   });
 
+  // ------------------------------------------------------------------ v1.3: To-Do Saya, the person's own to-do list
+  // Seen and changed by that person only, a director included: every statement names the person. Not a tugas (no
+  // proof, no limit, no ageing) and no events rows, because the change log shows card-less events to the directors.
+  const TODO_COLS = 'id, text, due, done, created_at, done_at';
+  const getTodo = (me, id) => q(`SELECT ${TODO_COLS} FROM todos WHERE id = ? AND person = ?`).get(id, me.id);
+  add('GET', '/api/todos', (ctx) => {
+    const me = ctx.me;
+    send(ctx.res, 200, {
+      open: q(`SELECT ${TODO_COLS} FROM todos WHERE person = ? AND done = 0 ORDER BY due IS NULL, due, id`).all(me.id),
+      done: q(`SELECT ${TODO_COLS} FROM todos WHERE person = ? AND done = 1 ORDER BY done_at DESC, id DESC`).all(me.id),
+      today: today(),
+    });
+  });
+  add('POST', '/api/todos', async (ctx) => {
+    const body = await readJson(ctx);
+    const text = str(body.text, 200);
+    if (!text) refuse(400, 'need_todo_text');
+    const due = body.due === undefined || body.due === null || body.due === '' ? null : body.due;
+    if (due !== null && !R.isDate(due)) refuse(400, 'bad_input');
+    const info = q('INSERT INTO todos(person, text, due, created_at) VALUES (?,?,?,?)').run(ctx.me.id, text, due, now());
+    send(ctx.res, 201, { todo: getTodo(ctx.me, Number(info.lastInsertRowid)) });
+  });
+  add('POST', '/api/todos/clear-done', async (ctx) => {
+    await readJson(ctx); // the body first: the session is checked again once it is in (FX11)
+    send(ctx.res, 200, { deleted: q('DELETE FROM todos WHERE person = ? AND done = 1').run(ctx.me.id).changes });
+  });
+  async function todoTick(ctx, id) {
+    const body = await readJson(ctx);
+    if (typeof body.done !== 'boolean') refuse(400, 'bad_input');
+    // ticking again keeps the first time; unticking clears it. Someone else's to-do does not exist for this person.
+    const info = q('UPDATE todos SET done = ?, done_at = CASE WHEN ? = 1 THEN COALESCE(done_at, ?) END WHERE id = ? AND person = ?')
+      .run(body.done ? 1 : 0, body.done ? 1 : 0, now(), id, ctx.me.id);
+    if (info.changes !== 1) refuse(404, 'not_found');
+    send(ctx.res, 200, { todo: getTodo(ctx.me, id) });
+  }
+  async function todoDelete(ctx, id) {
+    await readJson(ctx);
+    if (q('DELETE FROM todos WHERE id = ? AND person = ?').run(id, ctx.me.id).changes !== 1) refuse(404, 'not_found');
+    send(ctx.res, 200, { ok: true });
+  }
+
   // ------------------------------------------------------------------ parametric routes (numeric / fixed-charset ids)
   function cardForViewer(ctx, id) {
     const c = getCard(id);
@@ -845,6 +886,8 @@ export function createApp(opts) {
     ['POST', /^\/api\/routines\/(\d{1,12})$/, (ctx, m) => routineUpdate(ctx, Number(m[1]))],
     ['POST', /^\/api\/people\/([A-Za-z0-9_-]{1,40})\/reset-pin$/, (ctx, m) => resetPin(ctx, m[1])],
     ['POST', /^\/api\/people\/([A-Za-z0-9_-]{1,40})$/, (ctx, m) => personUpdate(ctx, m[1])],
+    ['POST', /^\/api\/todos\/(\d{1,12})$/, (ctx, m) => todoTick(ctx, Number(m[1]))],
+    ['POST', /^\/api\/todos\/(\d{1,12})\/delete$/, (ctx, m) => todoDelete(ctx, Number(m[1]))],
   ];
 
   // ------------------------------------------------------------------ dispatcher

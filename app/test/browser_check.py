@@ -150,19 +150,34 @@ def residue(ch, width, lang, step):
     # The CSP (style-src 'self') refuses an added <style> element; a rule added to the page's own sheet is allowed.
     text = ch.eval("""(function(){ var sh=document.styleSheets[0], i=sh.insertRule('*{text-transform:none !important}', sh.cssRules.length);
       var t=document.body.innerText; sh.deleteRule(i); return t; })()""")
+    found = leftovers(text, lang)
+    check("%s %d %s: no %s dictionary string on screen" % (step, width, lang, other), not found, found[:6])
+    return found
+
+
+def leftovers(text, lang):
+    """The other language's dictionary strings found in a screen's text (a pure function, so it can be checked alone)."""
+    other = "en" if lang == "id" else "id"
     found = []
     # the app name is the same in both languages on purpose ("Office Board", owner, 21 Nov 2026), so it is taken out of
     # the screen text before the scan: otherwise it matches the English "Office Board" tab label and the English
-    # "Office" (nums_total) on every Indonesian page. Nothing else is excused, so an English word put into the
-    # Indonesian dictionary under another key is still caught.
+    # "Office" (nums_total) on every Indonesian page. Nothing else is excused but the loanword below, so an English word
+    # put into the Indonesian dictionary under another key is still caught.
     text = text.replace(DICT[lang]["app_name"], " ")
+    # v1.3: Indonesian screens use the loanword "To-Do" (To-Do Saya), whose hyphen makes the English "To" (n_to) and
+    # "Do" (step_kerjakan) whole words. It is cut out as well, except for an English string that itself holds it
+    # ("My To-Dos"), which is still matched against the uncut text; "To" or "Do" anywhere else is still caught.
+    loan = ["To-Do", "To-do", "to-do"] if lang == "id" else []
+    cut = text
+    for s in loan:
+        cut = cut.replace(s, " ")
     for k, v in DICT[other].items():
         if v == DICT[lang].get(k):
             continue
+        hay = text if any(s in v for s in loan) else cut
         pat = re.sub(r"\\\{\w+\\\}", ".+?", re.escape(v))  # a {slot} in a template matches any text
-        if re.search(r"(?<![\w])" + pat + r"(?![\w])", text):
+        if re.search(r"(?<![\w])" + pat + r"(?![\w])", hay):
             found.append("%s=%r" % (k, v))
-    check("%s %d %s: no %s dictionary string on screen" % (step, width, lang, other), not found, found[:6])
     return found
 
 
@@ -342,6 +357,76 @@ def age_look(ch, width, lang, cid, want, step):
     check("%s %d %s: %s has an icon" % (step, width, lang, want), info and info["svg"], info)
     shot(ch, width, lang, step)
     return info
+
+
+def todo_rows(ch, which):
+    return ch.eval("Array.prototype.map.call(document.querySelectorAll('#todo-%s li'), function(l){var d=l.querySelector('.due');"
+                   " return [l.querySelector('.todo-t').textContent, l.classList.contains('late'), d ? d.textContent : null];})" % which)
+
+
+def todo_flow(ch, width, lang):
+    """v1.3 To-Do Saya, Dewi's own list: an empty add shows the server's sentence; two items are added with real keys
+    (one late with a date, one undated by Enter); a tick with a real tap moves one under Selesai and keeps the focus on
+    its box; two taps while a tick is out send ONE request; Hapus yang selesai and Hapus remove. "Tes T2" is left
+    open for the director's check (he must not see it)."""
+    d = DICT[lang]
+    tag = "todo %d %s" % (width, lang)
+    menu(ch, "todo")
+    ok = wait(ch, "!!document.querySelector('#todo-form') && !!document.querySelector('#todo-lists > *')", "to-do page")
+    check(tag + ": opens from Lainnya under its own title", ok and ch.eval("document.querySelector('#view h1').textContent") == d["todo"],
+          ch.eval("(document.querySelector('#view h1')||{}).textContent"))
+    check(tag + ": the page says only you see it", ch.eval("(document.getElementById('todo-note')||{}).textContent") == d["todo_note"])
+    check(tag + ": an empty list says so", ch.eval("(document.getElementById('todo-empty')||{}).textContent") == d["todo_empty"])
+    check(tag + ": the text box keeps no form history", ch.eval("document.getElementById('todo-text').getAttribute('autocomplete')") == "off")
+    ch.tap("#todo-add")
+    wait(ch, "!!document.querySelector('#todo-form .err')", "refusal of an empty to-do")
+    e = err_text(ch, "#todo-form")
+    check(tag + ": an empty to-do shows the server's sentence", e and e[0] == MSG["need_todo_text"][lang] and e[1] == "need_todo_text", e)
+    ch.tap_and_type("#todo-text", "Tes T1 telepon vendor")
+    check(tag + ": type a date", ch.type_date("#todo-due", "2026-11-16"), ch.eval("document.querySelector('#todo-due').value"))
+    ch.tap("#todo-add")
+    wait(ch, "document.querySelectorAll('#todo-open li').length === 1", "first to-do listed")
+    after = ch.eval("[document.activeElement.id, document.getElementById('todo-text').value, document.getElementById('todo-due').value, !!document.querySelector('#todo-form .err')]")
+    check(tag + ": after an add the focus is back in the emptied text box and the refusal is gone", after == ["todo-text", "", "", False], after)
+    ch.type_keys("Tes T2 cetak formulir")
+    ch.key("Enter", "Enter", 13, "\r")
+    wait(ch, "document.querySelectorAll('#todo-open li').length === 2", "second to-do listed (Enter)")
+    rows = todo_rows(ch, "open")
+    late = "16/11/2026 · " + d["due_late"].replace("{n}", "2")  # Monday 16 Nov seen on Wednesday 18 Nov
+    check(tag + ": the dated item first, late, in the board's working-day words; then the undated one", rows == [["Tes T1 telepon vendor", True, late], ["Tes T2 cetak formulir", False, None]], rows)
+    ids = ch.eval("Array.prototype.map.call(document.querySelectorAll('#todo-open li'), function(l){return l.getAttribute('data-id');})")
+    t1, t2 = ids[0], ids[1]
+    # a real tap on the item's label ticks it
+    ch.tap('label[for="todo-box-%s"]' % t1)
+    wait(ch, "!!document.querySelector('#todo-done li[data-id=\"%s\"]')" % t1, "ticked to-do under Selesai")
+    st = ch.eval("[(document.getElementById('todo-done-h')||{}).textContent, document.activeElement.id, document.getElementById('todo-box-%s').checked, document.getElementById('todo-box-%s').disabled]" % (t1, t1))
+    check(tag + ": a tick moves it under Selesai (1), the focus stays on its box, enabled again", st == [d["st_selesai"] + " (1)", "todo-box-" + t1, True, False], st)
+    page_checks(ch, width, lang, "todo")
+    shot(ch, width, lang, "08b_todo")
+    # two taps 50 ms apart while the first tick is held in the browser: the box waits for its answer
+    xy = ch._center('label[for="todo-box-%s"]' % t2)
+    ch.hold_requests("*/api/todos/*")
+    ch.tap_xy(xy[0], xy[1])
+    time.sleep(0.05)
+    ch.tap_xy(xy[0], xy[1])
+    held = ch.release_requests()
+    check(tag + ": two taps on a box while its tick is out send ONE request", held == ["POST"], held)
+    wait(ch, "!!document.querySelector('#todo-done li[data-id=\"%s\"]')" % t2, "T2 ticked")
+    check(tag + ": and it is ticked, not ticked and unticked", ch.eval("(document.getElementById('todo-done-h')||{}).textContent") == d["st_selesai"] + " (2)")
+    ch.tap('label[for="todo-box-%s"]' % t2)  # untick: back to the open list
+    wait(ch, "!!document.querySelector('#todo-open li[data-id=\"%s\"]')" % t2, "T2 unticked")
+    ch.tap("#todo-clear")
+    wait(ch, "!document.getElementById('todo-done-h')", "finished ones deleted")
+    check(tag + ": Hapus yang selesai removes the ticked one only", todo_rows(ch, "open") == [["Tes T2 cetak formulir", False, None]] and not ch.eval("!!document.getElementById('todo-done')"), todo_rows(ch, "open"))
+    ch.tap_and_type("#todo-text", "Tes T3 salah ketik")
+    ch.key("Enter", "Enter", 13, "\r")
+    wait(ch, "document.querySelectorAll('#todo-open li').length === 2", "third to-do listed")
+    t3 = ch.eval("(function(){var l=Array.prototype.filter.call(document.querySelectorAll('#todo-open li'), function(x){return x.querySelector('.todo-t').textContent==='Tes T3 salah ketik';}); return l.length ? l[0].getAttribute('data-id') : null;})()")
+    lbl = ch.eval("document.querySelector('#todo-open li[data-id=\"%s\"] .todo-del').getAttribute('aria-label')" % t3)
+    check(tag + ": Hapus names its item for a screen reader", lbl == d["todo_del_label"].replace("{text}", "Tes T3 salah ketik"), lbl)
+    ch.tap('#todo-open li[data-id="%s"] .todo-del' % t3)
+    wait(ch, "!document.querySelector('#todo-open li[data-id=\"%s\"]')" % t3, "deleted to-do gone")
+    check(tag + ": Hapus removes it; Tes T2 stays (the director's check)", todo_rows(ch, "open") == [["Tes T2 cetak formulir", False, None]], todo_rows(ch, "open"))
 
 
 # ------------------------------------------------------------------ one full run
@@ -590,6 +675,7 @@ def run(width, lang):
         check("FX2 staff %d %s: office row then only my own row" % (width, lang), rows == ["_total", DEWI], rows)
         check("FX2 staff %d %s: the note says why" % (width, lang), ch.eval("(document.querySelector('#nums-note')||{}).textContent") == DICT[lang]["nums_note"])
         page_checks(ch, width, lang, "nums-staff")
+        todo_flow(ch, width, lang)
 
         # three ageing looks under three fixed clocks (restart the server on the same data folder)
         age_look(ch, width, lang, A, "segar", "09_age_segar")
@@ -666,6 +752,13 @@ def run(width, lang):
                 check("FX17j %d %s: change log shown" % (width, lang), ok)
             page_checks(ch, width, lang, step)
             shot(ch, width, lang, step)
+        # v1.3: Dewi's open "Tes T2" is hers alone: the director's own To-Do Saya is empty
+        menu(ch, "todo")
+        ok = wait(ch, "!!document.querySelector('#todo-lists > *')", "the director's to-do page")
+        seen = ch.eval("[!!document.getElementById('todo-empty'), document.body.innerText.indexOf('Tes T2') >= 0]")
+        check("todo %d %s: the director does not see Dewi's to-do" % (width, lang), ok and seen == [True, False], seen)
+        page_checks(ch, width, lang, "todo-director")
+        shot(ch, width, lang, "17_todo_director")
     finally:
         if ch:
             ch.close()

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 if (process.env.NODE_TEST_CONTEXT) process.exit(0); // picked up by a bare `node --test`: the runner does not nest
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const files = ['rules.test.mjs', 'server.test.mjs', 'fx.test.mjs'].map((f) => path.join(HERE, f));
+const files = ['rules.test.mjs', 'server.test.mjs', 'fx.test.mjs', 'todo.test.mjs'].map((f) => path.join(HERE, f));
 const out = path.join(HERE, '_tmp', 'node_tests.out');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.rmSync(out, { force: true });

@@ -99,8 +99,10 @@ Papan Saya (Jalan n/3 · Antri · Menunggu · Menunggu konfirmasi; one tap: Mula
 icon for Segar/Layu/Busuk, never colour alone) · Permintaan Saya (tasks I asked for: Terima / Minta koreksi) · Tugas
 baru (title, untuk siapa, tenggat, jenis, tenggat hukum, sumber, catatan, lampiran, pribadi; v1.2: a slide-over panel)
 · Tugas (detail, bukti with thumbnails, riwayat; v1.2: a slide-over panel) · Pengecualian (direktur) · Review Jumat ·
-Angka · Rutin (direktur) · Orang & Pengaturan (direktur) · Cara pakai. A refusal always shows the server's sentence
-in the page (no `alert`).
+Angka · Rutin (direktur) · Orang & Pengaturan (direktur) · Cara pakai · To-Do Saya (v1.3, the app owner's decision
+on 21 Nov 2026: a person's own to-dos, each with an optional date; seen and changed by that person only, a director
+included; not a tugas, so no proof, no limit, no ageing and no history; under Lainnya). A refusal always shows the
+server's sentence in the page (no `alert`).
 "Cara pakai" carries these three SOPs word for word (Indonesian). Changed 20 Nov 2026 (v1.2, the app owner's decision):
 the app now says "tugas" where it said "kartu", in these three texts too.
 1. **Cek tugas harian.** Setiap hari kerja, sebelum pulang, buka Papan Saya. Untuk tiap tugas pilih satu: masih
