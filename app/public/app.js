@@ -1229,13 +1229,12 @@
   // v1.3: To-Do Saya, the person's own list. Not a tugas: no owner, no proof, no ageing; no page shows it to anyone
   // else. Every read goes through pageGet and nothing is kept outside the page, so the next person on a shared PC sees
   // only their own list.
+  // Since 21 Nov 2026 (v1.5.1): the page shows the list only; the add form opens in a dialog from the button at the
+  // top right.
   ROUTES.todo = function () {
-    view.appendChild(h('h1', { text: t('todo') }));
-    view.appendChild(h('p', { cls: 'muted', id: 'todo-note', text: t('todo_note') }));
-    var msg = h('div', { cls: 'msg' });
-    var text = h('input', { id: 'todo-text', type: 'text', maxlength: '200', autocomplete: 'off' });
-    var desc = h('textarea', { id: 'todo-desc', rows: '2', maxlength: '1000' });
-    var due = h('input', { id: 'todo-due', type: 'date' });
+    var opener = h('button', { type: 'button', id: 'todo-new', onclick: function () { openTodoForm(function () { load('todo-new'); }); } },
+      icon('new'), h('span', { text: t('todo_new') }));
+    view.appendChild(h('div', { cls: 'page-head' }, h('h1', { text: t('todo') }), opener));
     var lists = h('div', { id: 'todo-lists' });
     // a field the person is in (typing, or on another box): an answer that lands later must not take the focus from it
     var busy = function (a) { return !!a && a.isConnected && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName); };
@@ -1261,7 +1260,7 @@
         td.description ? h('p', { cls: 'todo-d muted', text: td.description }) : null,
         td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') }) : null,
         h('button', { type: 'button', cls: 'secondary small todo-del', 'aria-label': tf('todo_del_label', { text: td.text }), text: t('todo_del'), onclick: function () {
-          api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-text'); });
+          api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-new'); });
         } }),
         slot);
     };
@@ -1282,7 +1281,7 @@
           lists.appendChild(h('h2', { id: 'todo-done-h', text: t('st_selesai') + ' (' + done.length + ')' }));
           lists.appendChild(h('ul', { cls: 'todos', id: 'todo-done' }, done.map(item)));
           lists.appendChild(h('button', { type: 'button', id: 'todo-clear', cls: 'secondary', text: t('todo_clear'), onclick: function () {
-            api('POST', '/api/todos/clear-done', {}).then(function (x) { if (!x.ok) return showErr(cmsg, x); load('todo-text'); });
+            api('POST', '/api/todos/clear-done', {}).then(function (x) { if (!x.ok) return showErr(cmsg, x); load('todo-new'); });
           } }));
           lists.appendChild(cmsg);
         }
@@ -1290,28 +1289,44 @@
         if (f && (f === document.activeElement || !busy(document.activeElement))) f.focus();
       });
     };
-    view.appendChild(h('form', { id: 'todo-form', cls: 'panel', onsubmit: function (ev) {
-      ev.preventDefault();
-      // a half-typed date never gets here: the browser's own form check refuses it, as on Tugas baru (browser_check)
-      var sentText = text.value, sentDesc = desc.value, sentDue = due.value;
-      api('POST', '/api/todos', { text: sentText, description: sentDesc, due: sentDue }).then(function (x) {
-        if (!x.ok) { showErr(msg, x); (x.data.error === 'bad_input' ? due : text).focus(); return; }
-        clear(msg);
-        if (text.value === sentText) text.value = ''; // anything typed while the add was on its way stays
-        if (desc.value === sentDesc) desc.value = '';
-        if (due.value === sentDue) due.value = '';
-        load('todo-text'); // ready for the next one
-      });
-    } },
-      h('div', { cls: 'grid2' },
-        h('div', {}, h('label', { for: 'todo-text', text: t('todo_text') }), text),
-        h('div', {}, h('label', { for: 'todo-due', text: t('todo_due') }), due)),
-      h('label', { for: 'todo-desc', text: t('todo_desc') }), desc,
-      h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'todo-add', text: t('todo_add') })),
-      msg));
     view.appendChild(lists);
     load();
   };
+  // The add form in a native <dialog>, as Settings: Escape or the close button shuts it, the page under it is inert,
+  // and it removes itself on close (render() must never mistake it for a task panel). added(): the list reloads.
+  function openTodoForm(added) {
+    var msg = h('div', { cls: 'msg' });
+    var text = h('input', { id: 'todo-text', type: 'text', maxlength: '200', autocomplete: 'off' });
+    var desc = h('textarea', { id: 'todo-desc', rows: '3', maxlength: '1000' });
+    var due = h('input', { id: 'todo-due', type: 'date' });
+    var dlg = h('dialog', { id: 'todo-dlg', cls: 'dlg', 'aria-labelledby': 'todo-dlg-h', onclose: function () {
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
+      var o = document.getElementById('todo-new');
+      if (o) o.focus(); // back to the button that opened it
+    } },
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'todo-dlg-h', cls: 'dr-title', text: t('todo_new') }),
+        h('button', { type: 'button', id: 'todo-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
+      h('div', { cls: 'dr-body' },
+        h('p', { cls: 'muted', id: 'todo-note', text: t('todo_note') }),
+        h('form', { id: 'todo-form', onsubmit: function (ev) {
+          ev.preventDefault();
+          // a half-typed date never gets here: the browser's own form check refuses it, as on Tugas baru (browser_check)
+          api('POST', '/api/todos', { text: text.value, description: desc.value, due: due.value }).then(function (x) {
+            if (!dlg.open) { if (x.ok) added(); return; } // closed while it was on its way: still show a saved item
+            if (!x.ok) { showErr(msg, x); (x.data.error === 'bad_input' ? due : text).focus(); return; }
+            dlg.close();
+            added();
+          });
+        } },
+          h('label', { for: 'todo-text', text: t('todo_text') }), text,
+          h('label', { for: 'todo-due', text: t('todo_due') }), due,
+          h('label', { for: 'todo-desc', text: t('todo_desc') }), desc,
+          h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'todo-add', text: t('todo_add') })),
+          msg)));
+    layer.appendChild(dlg);
+    dlg.showModal();
+    text.focus();
+  }
 
   ROUTES.help = function () {
     view.appendChild(h('h1', { text: t('help') }));
