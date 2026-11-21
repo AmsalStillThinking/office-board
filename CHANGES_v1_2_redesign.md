@@ -12,6 +12,13 @@ RESULT: PASS. The stop launcher was not run on the live board; it was checked on
 21 Nov 2026: the installation was moved by hand from `F:\apps\office-board` to `F:\Office Board` (data folder
 included; both launchers edited to the new path) and runs from there. Deploys here now use
 `-Target "F:\Office Board"`.
+21 Nov 2026: the app is named "Office Board" in both languages (owner's choice; was "Papan Tugas Kantor" /
+"Office Task Board"): `app_name` in i18n.json, the page title in index.html, and the staff sheet's title, heading
+and footer (the sheet now takes its heading from `app_name`). The English tab "Office Board" (Papan Kantor) keeps
+its label, by the owner's choice, so on English screens the app and that tab read the same. The staff sheet's
+address moved from the office PC (http://OFFICE-PC-LAN-IP:3006) to this PC (http://BOARD-PC-LAN-IP:3006). The sheet's file
+name (SOP_Papan_Tugas_Kantor.html) is unchanged. browser_check.py excuses only the app name in its wrong-language
+check, since that one string is now the same in both languages.
 The design came from the canvas "Project Management Redesign".
 
 ## Decided by the app's owner on 20 Nov 2026

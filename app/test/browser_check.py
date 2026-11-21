@@ -151,8 +151,12 @@ def residue(ch, width, lang, step):
     text = ch.eval("""(function(){ var sh=document.styleSheets[0], i=sh.insertRule('*{text-transform:none !important}', sh.cssRules.length);
       var t=document.body.innerText; sh.deleteRule(i); return t; })()""")
     found = []
+    # the app name is the same in both languages on purpose ("Office Board", owner, 21 Nov 2026), and it is also the
+    # English label of Papan Kantor; only that one string is excused, so an English word put into the Indonesian
+    # dictionary under another key is still caught
+    brand = DICT[lang]["app_name"]
     for k, v in DICT[other].items():
-        if v == DICT[lang].get(k):
+        if v == DICT[lang].get(k) or v == brand:
             continue
         pat = re.sub(r"\\\{\w+\\\}", ".+?", re.escape(v))  # a {slot} in a template matches any text
         if re.search(r"(?<![\w])" + pat + r"(?![\w])", text):

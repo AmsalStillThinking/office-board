@@ -13,6 +13,9 @@
 > `stop-office-board.bat` next to it stops the board and says whether port 3006 is free.
 > Sections 2 and 7 still describe the office PC; a deploy here is the same script with `-Target "F:\Office Board"`
 > (with the quotes). This package's `app\` is the source; the program folder is the copy the deploy makes from it.
+> Since 21 Nov 2026 the app is called "Office Board" on screen in both languages, and the staff sheet sends people
+> to `http://BOARD-PC-LAN-IP:3006`. That address comes from the router (DHCP), so reserve it there, or the sheet goes
+> stale the day the PC gets another one.
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."

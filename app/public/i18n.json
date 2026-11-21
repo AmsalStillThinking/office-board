@@ -1,6 +1,6 @@
 {
  "id": {
-  "app_name": "Papan Tugas Kantor",
+  "app_name": "Office Board",
   "motto": "Tanpa bukti, belum selesai.",
   "framing": "Apa yang macet dan siapa yang perlu dibantu.",
   "lang_toggle": "EN",
@@ -259,7 +259,7 @@
   "due_past": "Lewat tenggat"
  },
  "en": {
-  "app_name": "Office Task Board",
+  "app_name": "Office Board",
   "motto": "No proof, not done.",
   "framing": "What is stuck and who needs help.",
   "lang_toggle": "ID",

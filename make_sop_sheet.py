@@ -2,7 +2,7 @@
 """Build the one-page staff sheet (Indonesian) for the Office Board.
 The three SOP texts and every button word are read from the app's own dictionary, and the day limits from the app's
 default settings, so the sheet cannot drift from what the app says. The build fails when a cited word is not in the app.
-usage: python -X utf8 make_sop_sheet.py [--address http://OFFICE-PC-LAN-IP:3006] [--out <file.html>]
+usage: python -X utf8 make_sop_sheet.py [--address http://BOARD-PC-LAN-IP:3006] [--out <file.html>]
 Without --out it writes SOP_Papan_Tugas_Kantor.html in the folder above this one."""
 import html
 import io
@@ -14,7 +14,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(HERE, "app")
 OUT = os.path.join(HERE, "..", "SOP_Papan_Tugas_Kantor.html")
-address = "http://OFFICE-PC-LAN-IP:3006"
+address = "http://BOARD-PC-LAN-IP:3006"  # the board runs on BOARD-PC since 20 Nov 2026 (was the office PC)
 if "--address" in sys.argv:
     address = sys.argv[sys.argv.index("--address") + 1]
 if "--out" in sys.argv:
@@ -35,7 +35,7 @@ CITED = ["Papan Saya", "Tugas baru", "Mulai", "Macet", "Kirim bukti", "Terima", 
 missing = [w for w in CITED if w not in values]
 if missing:
     sys.exit("words not in the app dictionary: %s" % missing)
-for k in ("motto", "sop1_t", "sop1_b", "sop2_t", "sop2_b", "sop3_t", "sop3_b"):
+for k in ("app_name", "motto", "sop1_t", "sop1_b", "sop2_t", "sop2_b", "sop3_t", "sop3_b"):
     if not D.get(k):
         sys.exit("dictionary key missing: " + k)
 
@@ -107,9 +107,9 @@ footer{margin-top:9px;padding-top:5px;border-top:1px solid var(--line);color:var
 parts = []
 parts.append('<!DOCTYPE html>\n<html lang="id">\n<head>\n<meta charset="utf-8">\n'
              '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-             '<title>Papan Tugas Kantor: cara pakai</title>\n<style>' + css + '</style>\n</head>\n<body>\n<div class="sheet">\n')
-parts.append('<header><div><h1>Papan Tugas Kantor</h1><p class="motto">%s</p></div>'
-             '<p class="why">Tujuannya melihat apa yang macet dan siapa yang perlu dibantu.</p></header>\n' % e(D["motto"]))
+             '<title>Office Board: cara pakai</title>\n<style>' + css + '</style>\n</head>\n<body>\n<div class="sheet">\n')
+parts.append('<header><div><h1>%s</h1><p class="motto">%s</p></div>'
+             '<p class="why">Tujuannya melihat apa yang macet dan siapa yang perlu dibantu.</p></header>\n' % (e(D["app_name"]), e(D["motto"])))
 parts.append('<h2>Lima langkah</h2>\n<div class="steps">\n')
 for i, (name, text) in enumerate(steps, 1):
     parts.append('<div class="step"><b><span class="n">%d</span>%s</b><p>%s</p></div>\n' % (i, e(name), e(text)))
@@ -125,7 +125,7 @@ parts.append('<div>\n<h2>Cara membuka</h2>\n<div class="open"><ol>\n'
              '<li>Pakai WiFi kantor, di HP atau komputer. Buka <span class="addr" id="addr">%s</span></li>\n'
              '<li>Pilih nama Anda, ketik PIN. PIN pertama dari Direktur; langsung ganti dengan PIN Anda sendiri (6 sampai 12 angka).</li>\n'
              '<li>Lupa PIN? Minta Direktur reset.</li>\n</ol></div>\n</div>\n</div>\n' % e(address))
-parts.append('<footer><span>PT Logam Murni Nusantara · Papan Tugas Kantor v1 · 19 Nov 2026</span>'
+parts.append('<footer><span>PT Logam Murni Nusantara · Office Board v1.2 · 21 Nov 2026</span>'
              '<span>Batas hari bisa diubah Direktur di Pengaturan.</span></footer>\n</div>\n</body>\n</html>\n')
 text = "".join(parts)
 tmp = OUT + ".tmp"
