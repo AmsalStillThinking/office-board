@@ -91,6 +91,8 @@ subtask too". The Tugas baru form has a "Sub-tugas (boleh kosong)" box: "+ Tamba
 a PIC and a due date (the row starts with the task's PIC and date), and Hapus removes it. Saving makes the task and its
 sub-tasks in one transaction: the server checks every row first (title, an active PIC, a real date; at most 20 rows),
 and one incomplete row refuses the whole save ("Sub-tugas ke-2 belum lengkap: ...") with nothing written.
+The form stops at the same 20 (owner's choice, 22 Nov 2026): "+ Tambah sub-tugas" turns off and a note says more can
+be added later with "+ Sub-tugas" on the task; Hapus turns it back on.
 A row holds a title, a PIC and a due date only. A sub-task made this way takes the task's type and source (the row
 has no field for them) and, like the "+ Sub-tugas" form, the task's privacy and the people picked to see a private
 task (its own PIC left out). Its notes and team are added by opening the sub-task afterwards.

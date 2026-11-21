@@ -104,6 +104,7 @@
   "sub_row_due": "Tenggat sub-tugas {n}",
   "sub_row_del": "Hapus sub-tugas {n}",
   "sub_row_remove": "Hapus",
+  "sub_row_max": "Maksimal {n} sub-tugas sekaligus. Tambah lagi nanti lewat + Sub-tugas di tugasnya.",
   "new_sub_title": "Sub-tugas baru",
   "new_sub_for": "Untuk tugas #{id}: {title}",
   "btn_team": "Ubah tim",

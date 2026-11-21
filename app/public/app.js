@@ -869,7 +869,9 @@
     // v1.6.1: sub-tasks made together with this task (not offered when this is a sub-task: one level only). A row
     // starts with the task's PIC and date; the server checks every row before it writes anything.
     var subRows = [], subSeq = 0;
+    var MAX_SUBS = 20; // the server takes at most 20 rows in one save (POST /api/cards)
     var subList = h('div', { id: 'new-subs-list' });
+    var subFull = h('p', { cls: 'muted fhelp', id: 'new-subs-full', 'aria-live': 'polite', hidden: true, text: tf('sub_row_max', { n: MAX_SUBS }) });
     var renumber = function () {
       subRows.forEach(function (r, i) {
         r.title.setAttribute('aria-label', tf('sub_row_title', { n: i + 1 }));
@@ -877,6 +879,9 @@
         r.due.setAttribute('aria-label', tf('sub_row_due', { n: i + 1 }));
         r.del.setAttribute('aria-label', tf('sub_row_del', { n: i + 1 }));
       });
+      var full = subRows.length >= MAX_SUBS;
+      addRow.disabled = full;
+      subFull.hidden = !full;
     };
     var addSub = function () {
       var k = ++subSeq;
@@ -896,8 +901,8 @@
       renumber();
       r.title.focus();
     };
-    var subBox = parent ? null : h('fieldset', { cls: 'new-subs', id: 'new-subs' }, h('legend', { text: t('f_subtasks') }), subList,
-      h('button', { type: 'button', id: 'new-add-sub', cls: 'secondary small', text: t('btn_add_sub_row'), onclick: addSub }));
+    var addRow = h('button', { type: 'button', id: 'new-add-sub', cls: 'secondary small', text: t('btn_add_sub_row'), onclick: addSub });
+    var subBox = parent ? null : h('fieldset', { cls: 'new-subs', id: 'new-subs' }, h('legend', { text: t('f_subtasks') }), subList, addRow, subFull);
     var form = h('form', { id: 'new-form', onsubmit: function (ev) {
       ev.preventDefault();
       // FX17i: the button stays disabled for the whole create + attachments chain; a second tap creates nothing.
