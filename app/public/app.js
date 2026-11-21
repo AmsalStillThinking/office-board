@@ -1257,11 +1257,12 @@
       var hint = td.done ? '' : dueText({ due: td.due, status: 'antri' }); // the board's own working-day words
       return h('li', { cls: 'todo' + (late ? ' late' : ''), 'data-id': String(td.id), 'data-done': String(td.done) },
         h('label', { cls: 'check', for: box.id }, box, h('span', { cls: 'todo-t', text: td.text })),
-        td.description ? h('p', { cls: 'todo-d muted', text: td.description }) : null,
         td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') }) : null,
         h('button', { type: 'button', cls: 'secondary small todo-del', 'aria-label': tf('todo_del_label', { text: td.text }), text: t('todo_del'), onclick: function () {
           api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-new'); });
         } }),
+        // after the button: the title row keeps its date and Hapus, the description gets the full row under it
+        td.description ? h('p', { cls: 'todo-d muted', text: td.description }) : null,
         slot);
     };
     // focusId: the control to focus once the lists are drawn again. seq: only the newest reload draws, so two reloads
