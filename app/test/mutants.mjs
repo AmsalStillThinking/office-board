@@ -136,6 +136,10 @@ const MUTANTS = [
     edits: [['AND done = 0 ORDER BY due IS NULL, due, id', 'AND done = 0 ORDER BY due IS NULL, id']] },
   { name: 'todo_done_by_id', file: 'server.mjs', test: TODO_TESTS, check: 'TD3 tick, untick, delete and clear the finished ones',
     edits: [['AND done = 1 ORDER BY done_at DESC, id DESC', 'AND done = 1 ORDER BY id DESC']] },
+  { name: 'todo_edit_any_person', file: 'server.mjs', test: TODO_TESTS, check: 'TD9 its person edits a to-do; nobody else can, and a refused edit changes nothing',
+    edits: [["description = ? WHERE id = ? AND person = ?').run(text, due, description, id, ctx.me.id);", "description = ? WHERE id = ? AND (person = ? OR 1 = 1)').run(text, due, description, id, ctx.me.id);"]] },
+  { name: 'todo_edit_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
+    edits: [['  async function todoEdit(ctx, id) {' + NL + '    const body = await readJson(ctx);', '  async function todoEdit(ctx, id) {' + NL + '    const body = await readJsonRaw(ctx);']] },
   // v1.4 PostgreSQL
   { name: 'pg_seed_guard_removed', file: path.join('lib', 'db.mjs'), test: PG_TESTS, check: PG3,
     edits: [["if (fs.existsSync(path.join(dataDir, 'office.db'))) {", 'if (false) {']] },

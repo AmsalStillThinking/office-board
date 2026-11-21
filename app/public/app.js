@@ -1370,6 +1370,9 @@
       return h('li', { cls: 'todo' + (late ? ' late' : ''), 'data-id': String(td.id), 'data-done': String(td.done) },
         h('label', { cls: 'check', for: box.id }, box, h('span', { cls: 'todo-t', text: td.text })),
         td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') }) : null,
+        h('button', { type: 'button', id: 'todo-edit-' + td.id, cls: 'secondary small todo-edit', 'aria-label': tf('todo_edit_label', { text: td.text }), text: t('todo_edit'), onclick: function () {
+          openTodoForm(function () { load('todo-edit-' + td.id); }, td);
+        } }),
         h('button', { type: 'button', cls: 'secondary small todo-del', 'aria-label': tf('todo_del_label', { text: td.text }), text: t('todo_del'), onclick: function () {
           api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-new'); });
         } }),
@@ -1407,24 +1410,27 @@
   };
   // The add form in a native <dialog>, as Settings: Escape or the close button shuts it, the page under it is inert,
   // and it removes itself on close (render() must never mistake it for a task panel). added(): the list reloads.
-  function openTodoForm(added) {
+  // td (v1.5.2): an item to edit instead; the form starts with its title, date and description.
+  function openTodoForm(added, td) {
+    var openerId = td ? 'todo-edit-' + td.id : 'todo-new';
     var msg = h('div', { cls: 'msg' });
     var text = h('input', { id: 'todo-text', type: 'text', maxlength: '200', autocomplete: 'off' });
     var desc = h('textarea', { id: 'todo-desc', rows: '3', maxlength: '1000' });
     var due = h('input', { id: 'todo-due', type: 'date' });
+    if (td) { text.value = td.text; due.value = td.due || ''; desc.value = td.description || ''; }
     var dlg = h('dialog', { id: 'todo-dlg', cls: 'dlg', 'aria-labelledby': 'todo-dlg-h', onclose: function () {
       if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
-      var o = document.getElementById('todo-new');
+      var o = document.getElementById(openerId);
       if (o) o.focus(); // back to the button that opened it
     } },
-      h('div', { cls: 'dr-head' }, h('h1', { id: 'todo-dlg-h', cls: 'dr-title', text: t('todo_new') }),
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'todo-dlg-h', cls: 'dr-title', text: td ? t('todo_edit_title') : t('todo_new') }),
         h('button', { type: 'button', id: 'todo-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
       h('div', { cls: 'dr-body' },
         h('p', { cls: 'muted', id: 'todo-note', text: t('todo_note') }),
         h('form', { id: 'todo-form', onsubmit: function (ev) {
           ev.preventDefault();
           // a half-typed date never gets here: the browser's own form check refuses it, as on Tugas baru (browser_check)
-          api('POST', '/api/todos', { text: text.value, description: desc.value, due: due.value }).then(function (x) {
+          api('POST', td ? '/api/todos/' + td.id + '/edit' : '/api/todos', { text: text.value, description: desc.value, due: due.value }).then(function (x) {
             if (!dlg.open) { if (x.ok) added(); return; } // closed while it was on its way: still show a saved item
             if (!x.ok) { showErr(msg, x); (x.data.error === 'bad_input' ? due : text).focus(); return; }
             dlg.close();
@@ -1434,7 +1440,7 @@
           h('label', { for: 'todo-text', text: t('todo_text') }), text,
           h('label', { for: 'todo-due', text: t('todo_due') }), due,
           h('label', { for: 'todo-desc', text: t('todo_desc') }), desc,
-          h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'todo-add', text: t('todo_add') })),
+          h('div', { cls: 'row' }, h('button', { type: 'submit', id: td ? 'todo-save' : 'todo-add', text: td ? t('btn_save') : t('todo_add') })),
           msg)));
     layer.appendChild(dlg);
     dlg.showModal();

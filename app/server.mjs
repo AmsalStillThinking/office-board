@@ -602,13 +602,17 @@ export function createApp(opts) {
       today: today(),
     });
   });
-  add('POST', '/api/todos', async (ctx) => {
-    const body = await readJson(ctx);
+  // The fields of a to-do, checked the same way for an add and an edit.
+  function todoFields(body) {
     const text = str(body.text, 200);
     if (!text) refuse(400, 'need_todo_text');
     const due = body.due === undefined || body.due === null || body.due === '' ? null : body.due;
     if (due !== null && !R.isDate(due)) refuse(400, 'bad_input');
-    const description = str(body.description, 1000); // v1.5: optional
+    return { text, due, description: str(body.description, 1000) }; // v1.5: the description is optional
+  }
+  add('POST', '/api/todos', async (ctx) => {
+    const body = await readJson(ctx);
+    const { text, due, description } = todoFields(body);
     const info = q('INSERT INTO todos(person, text, description, due, created_at) VALUES (?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, now());
     send(ctx.res, 201, { todo: getTodo(ctx.me, Number(info.lastInsertRowid)) });
   });
@@ -622,6 +626,14 @@ export function createApp(opts) {
     // ticking again keeps the first time; unticking clears it. Someone else's to-do does not exist for this person.
     const info = q('UPDATE todos SET done = ?, done_at = CASE WHEN ? = 1 THEN COALESCE(done_at, ?) END WHERE id = ? AND person = ?')
       .run(body.done ? 1 : 0, body.done ? 1 : 0, now(), id, ctx.me.id);
+    if (info.changes !== 1) refuse(404, 'not_found');
+    send(ctx.res, 200, { todo: getTodo(ctx.me, id) });
+  }
+  // v1.5.2: change an item's title, date and description (not its tick). Someone else's to-do does not exist here.
+  async function todoEdit(ctx, id) {
+    const body = await readJson(ctx);
+    const { text, due, description } = todoFields(body);
+    const info = q('UPDATE todos SET text = ?, due = ?, description = ? WHERE id = ? AND person = ?').run(text, due, description, id, ctx.me.id);
     if (info.changes !== 1) refuse(404, 'not_found');
     send(ctx.res, 200, { todo: getTodo(ctx.me, id) });
   }
@@ -1036,6 +1048,7 @@ export function createApp(opts) {
     ['POST', /^\/api\/people\/([A-Za-z0-9_-]{1,40})$/, (ctx, m) => personUpdate(ctx, m[1])],
     ['POST', /^\/api\/todos\/(\d{1,12})$/, (ctx, m) => todoTick(ctx, Number(m[1]))],
     ['POST', /^\/api\/todos\/(\d{1,12})\/delete$/, (ctx, m) => todoDelete(ctx, Number(m[1]))],
+    ['POST', /^\/api\/todos\/(\d{1,12})\/edit$/, (ctx, m) => todoEdit(ctx, Number(m[1]))],
   ];
 
   // ------------------------------------------------------------------ dispatcher

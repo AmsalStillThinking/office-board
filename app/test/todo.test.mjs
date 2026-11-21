@@ -178,6 +178,7 @@ test('TD7 a write whose body arrives after sign-out is refused', T, async () => 
     ['delete', delayedPost(a, DEWI, `/api/todos/${id}/delete`, {})],
     ['clear-done', delayedPost(a, DEWI, '/api/todos/clear-done', {})],
     ['add', delayedPost(a, DEWI, '/api/todos', { text: 'Terlambat' })],
+    ['edit', delayedPost(a, DEWI, `/api/todos/${id}/edit`, { text: 'Diubah terlambat' })],
   ];
   for (const [, l] of late) await l.sendHeaders();
   assert.equal((await a.req(DEWI, 'POST', '/api/logout', {})).status, 200);
@@ -210,4 +211,22 @@ test('TD8 an existing data folder without the to-do table gains it', T, async ()
     await a2.close();
     dropDir(dataDir);
   }
+});
+
+test('TD9 its person edits a to-do; nobody else can, and a refused edit changes nothing', T, async () => {
+  const a = await signedIn();
+  const id = await a.add(DEWI, { text: 'Telepon vendor', description: 'Tanya harga', due: '2026-11-20' });
+  assert.equal((await a.req(DEWI, 'POST', `/api/todos/${id}`, { done: true })).status, 200);
+  const before = JSON.stringify(a.todo(id));
+  for (const other of [EKO, D1]) refusal(await a.req(other, 'POST', `/api/todos/${id}/edit`, { text: 'Diambil alih' }), 404, 'not_found');
+  refusal(await a.req(DEWI, 'POST', '/api/todos/999999/edit', { text: 'x' }), 404, 'not_found');
+  for (const body of [{}, { text: '' }, { text: '   ' }]) refusal(await a.req(DEWI, 'POST', `/api/todos/${id}/edit`, body), 400, 'need_todo_text');
+  refusal(await a.req(DEWI, 'POST', `/api/todos/${id}/edit`, { text: 'x', due: '2026-02-30' }), 400, 'bad_input');
+  assert.equal(JSON.stringify(a.todo(id)), before, 'row byte-identical after the refusals');
+  const r = await a.req(DEWI, 'POST', `/api/todos/${id}/edit`, { text: '  Email vendor  ', description: 'Minta penawaran\ntertulis', due: '' });
+  assert.equal(r.status, 200, r.text);
+  const row = a.todo(id), was = JSON.parse(before);
+  assert.deepEqual([row.text, row.description, row.due], ['Email vendor', 'Minta penawaran\ntertulis', null], 'title trimmed, description kept, the date cleared');
+  assert.deepEqual([row.done, row.done_at, row.created_at, row.person], [was.done, was.done_at, was.created_at, was.person], 'the tick and who it belongs to are untouched');
+  assert.equal(r.json.todo.text, 'Email vendor', 'the answer carries the new item');
 });
