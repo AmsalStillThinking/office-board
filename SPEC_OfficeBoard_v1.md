@@ -32,7 +32,9 @@ cards(id, title, body, requester, owner, due (date), hard 0/1, type, source, pri
 waiting_note, koreksi (count), moved (count), self_closed 0/1, created_at, started_at, proof_at, closed_at, routine_key)
 · evidence(id, card, kind 'file'|'link', name, mime, size, url, by, at) · events(id, card, actor, at, kind, detail JSON):
 append-only, never updated or deleted · routines(id, title, owner, type, hard, schedule JSON, lead_days, active, note)
-· reviews(id, date, chair, counts JSON) · settings(key, value) · sessions.
+· reviews(id, date, chair, counts JSON) · settings(key, value) · sessions · todos(id, person, text, due (date or
+null), done 0/1, created_at, done_at) (v1.3: a person's own to-dos, not cards; R12 does not cover them, they write no
+events, and a person may delete their own).
 Cards are never deleted (cancel only). Status: `antri` (not started) · `jalan` (active) · `tunggu` (blocked, names who)
 · `bukti` (proof sent, waiting for confirmation) · `selesai` · `batal`.
 

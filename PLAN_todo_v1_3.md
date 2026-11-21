@@ -43,10 +43,13 @@ someone else is still made a tugas (the board's "no card, no task" direction sta
 - `test/todo.test.mjs` (added to run_tests.mjs): TD1 only the person sees it (other staff and a director get empty
   lists); TD2 nobody else can tick or delete it (404, row byte-identical); TD3 tick, untick, delete, clear finished
   (another person's ticked item survives); TD4 refusals write nothing; TD5 no events, change log unchanged; TD6 a
-  session and a changed PIN are needed; TD7 a tick whose body arrives after sign-out is refused (with a positive
-  control that the same delayed request passes while signed in).
-- `test/mutants.mjs`: list leaks, tick or delete by another person, clear-done takes others' items, empty text saved,
-  a to-do writes an event. Each caught by its named TD check.
+  session and a changed PIN are needed; TD7 a write (tick, delete, clear-done, add) whose body arrives after sign-out
+  is refused (with a positive control that a delayed request passes while signed in); TD8 an existing data folder
+  without the table gains it. (TD7 and TD8, the ordering fixtures and the matching mutants were added or sharpened
+  after the review; CHANGES_v1_3_todo.md has the list.)
+- `test/mutants.mjs`, 12: list leaks; tick or delete by another person; clear-done takes others' items; empty text
+  saved; a to-do writes an event; each write route skipping the session re-check; the open list or the done list
+  sorted by id. Each caught by its named TD check.
 - `test/browser_check.py`, all four runs: Dewi opens To-Do Saya from the menu, an empty add shows the server's
   sentence, adds a dated item (late, with the hint) and an undated one with real keys, ticks one with a real tap,
   sees "Selesai (1)", deletes it; the director's To-Do Saya does not show Dewi's item. Page checks on the page.

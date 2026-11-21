@@ -1234,9 +1234,9 @@
     });
   };
 
-  // v1.3: To-Do Saya, the person's own list. Not a tugas: no owner, no proof, no ageing, and nobody else sees it.
-  // Every read goes through pageGet and nothing is kept outside the page, so the next person on a shared PC sees only
-  // their own list.
+  // v1.3: To-Do Saya, the person's own list. Not a tugas: no owner, no proof, no ageing; no page shows it to anyone
+  // else. Every read goes through pageGet and nothing is kept outside the page, so the next person on a shared PC sees
+  // only their own list.
   ROUTES.todo = function () {
     view.appendChild(h('h1', { text: t('todo') }));
     view.appendChild(h('p', { cls: 'muted', id: 'todo-note', text: t('todo_note') }));
@@ -1244,6 +1244,8 @@
     var text = h('input', { id: 'todo-text', type: 'text', maxlength: '200', autocomplete: 'off' });
     var due = h('input', { id: 'todo-due', type: 'date' });
     var lists = h('div', { id: 'todo-lists' });
+    // a field the person is in (typing, or on another box): an answer that lands later must not take the focus from it
+    var busy = function (a) { return !!a && a.isConnected && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName); };
     var item = function (td) {
       var box = h('input', { type: 'checkbox', id: 'todo-box-' + td.id, checked: td.done === 1 });
       var slot = h('div', { cls: 'msg' });
@@ -1251,7 +1253,11 @@
       box.addEventListener('change', function () {
         box.disabled = true;
         api('POST', '/api/todos/' + td.id, { done: box.checked }).then(function (x) {
-          if (!x.ok) { box.disabled = false; box.checked = !box.checked; return showErr(slot, x); }
+          if (!x.ok) {
+            box.disabled = false; box.checked = !box.checked;
+            if (!busy(document.activeElement)) box.focus();
+            return showErr(slot, x);
+          }
           load(box.id); // drawn again from the server's answer; the focus stays on this item's box
         });
       });
@@ -1265,10 +1271,13 @@
         } }),
         slot);
     };
-    // focusId: the control to focus once the lists are drawn again
+    // focusId: the control to focus once the lists are drawn again. seq: only the newest reload draws, so two reloads
+    // whose answers cross cannot leave the older list on screen.
+    var seq = 0;
     var load = function (focusId) {
+      var mine = ++seq;
       pageGet('/api/todos').then(function (r) {
-        if (!ME) return; // the session ended: api() has shown the sign-in page
+        if (!ME || mine !== seq) return; // the session ended (api() has shown the sign-in page), or a newer reload is out
         clear(lists);
         if (!r.ok) return showErr(lists, r);
         newDay(r);
@@ -1284,15 +1293,18 @@
           lists.appendChild(cmsg);
         }
         var f = focusId && document.getElementById(focusId);
-        if (f) f.focus();
+        if (f && (f === document.activeElement || !busy(document.activeElement))) f.focus();
       });
     };
     view.appendChild(h('form', { id: 'todo-form', cls: 'panel', onsubmit: function (ev) {
       ev.preventDefault();
-      api('POST', '/api/todos', { text: text.value, due: due.value }).then(function (x) {
-        if (!x.ok) { showErr(msg, x); text.focus(); return; }
+      // a half-typed date never gets here: the browser's own form check refuses it, as on Tugas baru (browser_check)
+      var sentText = text.value, sentDue = due.value;
+      api('POST', '/api/todos', { text: sentText, due: sentDue }).then(function (x) {
+        if (!x.ok) { showErr(msg, x); (x.data.error === 'bad_input' ? due : text).focus(); return; }
         clear(msg);
-        text.value = ''; due.value = '';
+        if (text.value === sentText) text.value = ''; // anything typed while the add was on its way stays
+        if (due.value === sentDue) due.value = '';
         load('todo-text'); // ready for the next one
       });
     } },

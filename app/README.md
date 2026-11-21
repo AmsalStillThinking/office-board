@@ -58,9 +58,13 @@ who owns a running routine cannot be switched off until the routine has another 
 ## The data folder is as sensitive as the PINs
 
 Anyone holding a copy of `data\` can try 6-digit PINs against the stored hashes offline, read every card including the
-private ones, read every person's own To-Do Saya list (which in the app only that person sees, a director included),
+private ones, read every person's own To-Do Saya list (which no page shows to anyone else, a director included),
 and open every uploaded file. Keep the folder and its backups where only the directors can reach them.
 `first-pins.txt` is plain text: hand the PINs out, then delete it.
+
+Two limits of "only that person sees it" for To-Do Saya: a director who resets someone's PIN can sign in as that
+person and see their list (the reset is in the change log, so the other director can see it happened); and Hapus
+removes an item from the app, not from the daily backup copies in `data\backups\`, which keep it for up to 14 days.
 
 ## Back up
 

@@ -35,9 +35,10 @@ const ids = (rows) => rows.map((x) => x.id);
 
 test('TD1 a to-do is seen by its person only', T, async () => {
   const a = await signedIn();
-  const late = await a.add(DEWI, { text: 'Telepon vendor', due: '2026-11-17' });
-  const undated = await a.add(DEWI, { text: 'Cetak formulir', due: '' });
+  // created in an order that differs from the date order, so a sort by id cannot pass
   const soon = await a.add(DEWI, { text: '  Kirim surat  ', due: '2026-11-19' });
+  const undated = await a.add(DEWI, { text: 'Cetak formulir', due: '' });
+  const late = await a.add(DEWI, { text: 'Telepon vendor', due: '2026-11-17' });
   const eko = await a.add(EKO, { text: 'Catatan Eko' });
   const mine = await a.list(DEWI);
   assert.deepEqual(ids(mine.open), [late, soon, undated], 'dated first, by date, then undated');
@@ -71,17 +72,19 @@ test('TD3 tick, untick, delete and clear the finished ones', T, async () => {
   const y = await a.add(DEWI, { text: 'Dua' });
   const z = await a.add(DEWI, { text: 'Tiga' });
   const e = await a.add(EKO, { text: 'Punya Eko' });
-  const t1 = at('2026-11-18T11:00:00+08:00'), t2 = at('2026-11-18T12:00:00+08:00');
+  const t1 = at('2026-11-18T11:00:00+08:00'), t2 = at('2026-11-18T12:00:00+08:00'), t3 = at('2026-11-18T13:00:00+08:00');
+  // the newer item is ticked first, so "most recently ticked first" and "newest id first" give different orders
   a.clock.t = t1;
-  let r = await a.req(DEWI, 'POST', `/api/todos/${x}`, { done: true });
+  let r = await a.req(DEWI, 'POST', `/api/todos/${y}`, { done: true });
   assert.equal(r.status, 200, r.text);
   assert.deepEqual([r.json.todo.done, r.json.todo.done_at], [1, t1]);
   a.clock.t = t2;
-  assert.equal((await a.req(DEWI, 'POST', `/api/todos/${y}`, { done: true })).status, 200);
   assert.equal((await a.req(DEWI, 'POST', `/api/todos/${x}`, { done: true })).status, 200);
-  assert.equal(a.todo(x).done_at, t1, 'ticking again keeps the first time');
+  a.clock.t = t3;
+  assert.equal((await a.req(DEWI, 'POST', `/api/todos/${y}`, { done: true })).status, 200);
+  assert.equal(a.todo(y).done_at, t1, 'ticking again keeps the first time');
   let l = await a.list(DEWI);
-  assert.deepEqual(ids(l.done), [y, x], 'most recently ticked first');
+  assert.deepEqual(ids(l.done), [x, y], 'most recently ticked first');
   assert.deepEqual(ids(l.open), [z]);
   r = await a.req(DEWI, 'POST', `/api/todos/${y}`, { done: false });
   assert.deepEqual([r.json.todo.done, r.json.todo.done_at], [0, null], 'unticked');
@@ -162,17 +165,26 @@ function delayedPost(a, who, url, json) {
   };
 }
 
-test('TD7 a tick whose body arrives after sign-out is refused', T, async () => {
+test('TD7 a write whose body arrives after sign-out is refused', T, async () => {
   const a = await hooked([DEWI]);
   const id = await a.add(DEWI, { text: 'Tunda' });
-  const ok = delayedPost(a, DEWI, `/api/todos/${id}`, { done: true });
+  const done = await a.add(DEWI, { text: 'Sudah' });
+  const ok = delayedPost(a, DEWI, `/api/todos/${done}`, { done: true });
   await ok.sendHeaders();
-  assert.equal((await ok.sendBody()).status, 200, 'control: the same delayed request passes while signed in');
-  const late = delayedPost(a, DEWI, `/api/todos/${id}`, { done: false });
-  await late.sendHeaders();
+  assert.equal((await ok.sendBody()).status, 200, 'control: a delayed request passes while signed in');
+  const rows = () => JSON.stringify(a.db.prepare('SELECT * FROM todos ORDER BY id').all());
+  const before = rows();
+  // every write route: the headers are in while signed in, the body only after the sign-out
+  const late = [
+    ['tick', delayedPost(a, DEWI, `/api/todos/${id}`, { done: true })],
+    ['delete', delayedPost(a, DEWI, `/api/todos/${id}/delete`, {})],
+    ['clear-done', delayedPost(a, DEWI, '/api/todos/clear-done', {})],
+    ['add', delayedPost(a, DEWI, '/api/todos', { text: 'Terlambat' })],
+  ];
+  for (const [, l] of late) await l.sendHeaders();
   assert.equal((await a.req(DEWI, 'POST', '/api/logout', {})).status, 200);
-  refusal(await late.sendBody(), 401, 'unauthorized');
-  assert.equal(a.todo(id).done, 1, 'still ticked');
+  for (const [name, l] of late) { const r = await l.sendBody(); assert.equal(r.status, 401, name + ': ' + r.text); refusal(r, 401, 'unauthorized'); }
+  assert.equal(rows(), before, 'no row added, changed or deleted');
 });
 
 test('TD8 an existing data folder without the to-do table gains it', T, async () => {

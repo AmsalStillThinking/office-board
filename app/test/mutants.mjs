@@ -103,8 +103,18 @@ const MUTANTS = [
     edits: [["if (!text) refuse(400, 'need_todo_text');", '/* planted: an empty to-do is saved */']] },
   { name: 'todo_writes_event', file: 'server.mjs', test: TODO_TESTS, check: 'TD5 to-dos write no events and stay out of the change log',
     edits: [["VALUES (?,?,?,?)').run(ctx.me.id, text, due, now());", "VALUES (?,?,?,?)').run(ctx.me.id, text, due, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
-  { name: 'todo_tick_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a tick whose body arrives after sign-out is refused',
+  { name: 'todo_tick_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
     edits: [['  async function todoTick(ctx, id) {' + NL + '    const body = await readJson(ctx);', '  async function todoTick(ctx, id) {' + NL + '    const body = await readJsonRaw(ctx);']] },
+  { name: 'todo_delete_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
+    edits: [['  async function todoDelete(ctx, id) {' + NL + '    await readJson(ctx);', '  async function todoDelete(ctx, id) {' + NL + '    await readJsonRaw(ctx);']] },
+  { name: 'todo_clear_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
+    edits: [['    await readJson(ctx); // the body first: the session is checked again once it is in (FX11)', '    await readJsonRaw(ctx);']] },
+  { name: 'todo_add_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
+    edits: [["  add('POST', '/api/todos', async (ctx) => {" + NL + '    const body = await readJson(ctx);', "  add('POST', '/api/todos', async (ctx) => {" + NL + '    const body = await readJsonRaw(ctx);']] },
+  { name: 'todo_open_by_id', file: 'server.mjs', test: TODO_TESTS, check: 'TD1 a to-do is seen by its person only',
+    edits: [['AND done = 0 ORDER BY due IS NULL, due, id', 'AND done = 0 ORDER BY due IS NULL, id']] },
+  { name: 'todo_done_by_id', file: 'server.mjs', test: TODO_TESTS, check: 'TD3 tick, untick, delete and clear the finished ones',
+    edits: [['AND done = 1 ORDER BY done_at DESC, id DESC', 'AND done = 1 ORDER BY id DESC']] },
 ];
 
 function count(hay, needle) { let n = 0, i = 0; while ((i = hay.indexOf(needle, i)) >= 0) { n++; i += needle.length; } return n; }
