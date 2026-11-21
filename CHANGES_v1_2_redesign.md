@@ -17,8 +17,10 @@ included; both launchers edited to the new path) and runs from there. Deploys he
 and footer (the sheet now takes its heading from `app_name`). The English tab "Office Board" (Papan Kantor) keeps
 its label, by the owner's choice, so on English screens the app and that tab read the same. The staff sheet's
 address moved from the office PC (http://OFFICE-PC-LAN-IP:3006) to this PC (http://BOARD-PC-LAN-IP:3006). The sheet's file
-name (SOP_Papan_Tugas_Kantor.html) is unchanged. browser_check.py excuses only the app name in its wrong-language
-check, since that one string is now the same in both languages.
+name (SOP_Papan_Tugas_Kantor.html) is unchanged. browser_check.py takes the app name out of the screen text before
+its wrong-language scan, since that one string is now the same in both languages (a planted English "Office" in
+the Indonesian sidebar is still caught). Not deployed from this repo: the live board already shows the name, and
+its public\ files had been edited in place (see the warning at the top of HANDOVER.md).
 The design came from the canvas "Project Management Redesign".
 
 ## Decided by the app's owner on 20 Nov 2026

@@ -16,9 +16,13 @@
 > Since 21 Nov 2026 the app is called "Office Board" on screen in both languages, and the staff sheet sends people
 > to `http://BOARD-PC-LAN-IP:3006`. That address comes from the router (DHCP), so reserve it there, or the sheet goes
 > stale the day the PC gets another one.
-> v1.3 (21 Nov 2026, branch feat/todo-list) adds To-Do Saya: each person's own to-do list, which nobody else sees,
-> a director included. That is a who-sees-what choice (section 5), made by the app's owner: tell the director before
-> it is deployed. Read CHANGES_v1_3_todo.md.
+> WARNING before any deploy: on 21 Nov 2026, 08:03-08:20, the live `public\` files (app.js, index.html, style.css,
+> i18n.json) were edited in place at the owner's request (layout changes by another session; the old files are in
+> `F:\Office Board\_backup-layout-2026-11-21\old-public`, the new ones in `new-public`). Those edits were not in this
+> repo when this note was written, so a deploy from this repo reverts them: bring them into the repo first.
+> v1.3 (21 Nov 2026, branch feat/todo-list) adds To-Do Saya: each person's own to-do list, which no page shows to
+> anyone else, a director included (app\README.md names the two limits). That is a who-sees-what choice (section 5),
+> made by the app's owner: tell the director before it is deployed. Read CHANGES_v1_3_todo.md.
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."
