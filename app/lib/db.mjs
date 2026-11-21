@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS cards_owner ON cards(owner, status);
 CREATE INDEX IF NOT EXISTS cards_requester ON cards(requester, status);
 CREATE TABLE IF NOT EXISTS evidence(
   id BIGSERIAL PRIMARY KEY, card BIGINT NOT NULL REFERENCES cards(id),
-  kind TEXT NOT NULL CHECK(kind IN ('file','link')), purpose TEXT NOT NULL DEFAULT 'bukti' CHECK(purpose IN ('bukti','lampiran')),
+  kind TEXT NOT NULL CHECK(kind IN ('file','link','comment')), purpose TEXT NOT NULL DEFAULT 'bukti' CHECK(purpose IN ('bukti','lampiran')),
   name TEXT NOT NULL, mime TEXT, size BIGINT, url TEXT, stored TEXT, "by" TEXT NOT NULL, at BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS evidence_card ON evidence(card);
 CREATE TABLE IF NOT EXISTS events(
@@ -86,6 +86,12 @@ export function openDb(dataDir) {
   db.exec(SCHEMA);
   // Columns added after v1: an existing database gains them; nothing is ever dropped.
   db.exec('ALTER TABLE routines ADD COLUMN IF NOT EXISTS active_since TEXT');
+  db.exec("ALTER TABLE todos ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''"); // v1.5
+  // v1.5: a comment is evidence too. A database made before v1.5 has the two-kind check: widen it once.
+  const kinds = db.prepare("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conrelid = 'evidence'::regclass AND conname = 'evidence_kind_check'").get();
+  if (!kinds || !kinds.d.includes("'comment'")) {
+    db.exec("ALTER TABLE evidence DROP CONSTRAINT IF EXISTS evidence_kind_check; ALTER TABLE evidence ADD CONSTRAINT evidence_kind_check CHECK (kind IN ('file','link','comment'))");
+  }
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     db.prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING').run(k, String(v));
   }

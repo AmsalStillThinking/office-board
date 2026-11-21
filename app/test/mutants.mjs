@@ -25,6 +25,10 @@ const PG3 = 'PG3 nothing is seeded while an office.db is in the data folder; the
 const PG4 = 'PG4 the start waits for a PostgreSQL that comes up late; a later outage fails fast and recovers';
 const PG5 = 'PG5 a dropped connection is reopened, but never in the middle of a transaction';
 const PG6 = 'PG6 a NUL character in text is dropped, not a 500 (PostgreSQL text cannot hold it)';
+const V15_TESTS = path.join(HERE, 'v15.test.mjs');
+const V1 = 'V1 a comment is proof: Kirim bukti needs no file, and after a correction a new comment counts';
+const V2 = 'V2 a to-do has a title and an optional description';
+const V3 = 'V3 a database from before v1.5 gains the comment kind and the to-do description';
 
 const MUTANTS = [
   { name: 'limit_off_by_one', file: 'server.mjs', test: SERVER_TESTS, check: 'R2 limit_active at the fourth start',
@@ -109,7 +113,7 @@ const MUTANTS = [
   { name: 'todo_empty_text_saved', file: 'server.mjs', test: TODO_TESTS, check: 'TD4 refusals write nothing',
     edits: [["if (!text) refuse(400, 'need_todo_text');", '/* planted: an empty to-do is saved */']] },
   { name: 'todo_writes_event', file: 'server.mjs', test: TODO_TESTS, check: 'TD5 to-dos write no events and stay out of the change log',
-    edits: [["VALUES (?,?,?,?) RETURNING id').run(ctx.me.id, text, due, now());", "VALUES (?,?,?,?) RETURNING id').run(ctx.me.id, text, due, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
+    edits: [["VALUES (?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, now());", "VALUES (?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
   { name: 'todo_tick_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
     edits: [['  async function todoTick(ctx, id) {' + NL + '    const body = await readJson(ctx);', '  async function todoTick(ctx, id) {' + NL + '    const body = await readJsonRaw(ctx);']] },
   { name: 'todo_delete_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
@@ -151,6 +155,17 @@ const MUTANTS = [
     edits: [["if (inTx && !verb.startsWith('ROLLBACK')) throw", 'if (false) throw']] },
   { name: 'backup_skips_a_table', file: 'server.mjs', test: FX_TESTS, check: 'FX9 daily snapshot',
     edits: [['for (const t of TABLES) tables[t] =', 'for (const t of TABLES.slice(1)) tables[t] =']] },
+  // v1.5
+  { name: 'comment_empty_saved', file: 'server.mjs', test: V15_TESTS, check: V1,
+    edits: [["if (!text) refuse(400, 'need_comment');", '/* planted: an empty comment is saved */']] },
+  { name: 'comment_by_anyone', file: 'server.mjs', test: V15_TESTS, check: V1,
+    edits: [['    assertEvidenceAllowed(me, c, purpose);' + NL + '    const text = str(body.text, 2000);', '    const text = str(body.text, 2000);']] },
+  { name: 'comment_not_proof', file: 'server.mjs', test: V15_TESTS, check: V1,
+    edits: [["run(c.id, 'comment', purpose, text, me.id, now());", "run(c.id, 'comment', 'lampiran', text, me.id, now());"]] },
+  { name: 'todo_description_dropped', file: 'server.mjs', test: V15_TESTS, check: V2,
+    edits: [["run(ctx.me.id, text, description, due, now());", "run(ctx.me.id, text, '', due, now());"]] },
+  { name: 'old_db_kinds_not_widened', file: path.join('lib', 'db.mjs'), test: V15_TESTS, check: V3,
+    edits: [["if (!kinds || !kinds.d.includes(\"'comment'\")) {", 'if (false) {']] },
 ];
 
 function count(hay, needle) { let n = 0, i = 0; while ((i = hay.indexOf(needle, i)) >= 0) { n++; i += needle.length; } return n; }

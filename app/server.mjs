@@ -528,7 +528,7 @@ export function createApp(opts) {
   // ------------------------------------------------------------------ v1.3: To-Do Saya, the person's own to-do list
   // Seen and changed by that person only, a director included: every statement names the person. Not a tugas (no
   // proof, no limit, no ageing) and no events rows, because the change log shows card-less events to the directors.
-  const TODO_COLS = 'id, text, due, done, created_at, done_at';
+  const TODO_COLS = 'id, text, description, due, done, created_at, done_at';
   const getTodo = (me, id) => q(`SELECT ${TODO_COLS} FROM todos WHERE id = ? AND person = ?`).get(id, me.id);
   add('GET', '/api/todos', (ctx) => {
     const me = ctx.me;
@@ -544,7 +544,8 @@ export function createApp(opts) {
     if (!text) refuse(400, 'need_todo_text');
     const due = body.due === undefined || body.due === null || body.due === '' ? null : body.due;
     if (due !== null && !R.isDate(due)) refuse(400, 'bad_input');
-    const info = q('INSERT INTO todos(person, text, due, created_at) VALUES (?,?,?,?) RETURNING id').run(ctx.me.id, text, due, now());
+    const description = str(body.description, 1000); // v1.5: optional
+    const info = q('INSERT INTO todos(person, text, description, due, created_at) VALUES (?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, now());
     send(ctx.res, 201, { todo: getTodo(ctx.me, Number(info.lastInsertRowid)) });
   });
   add('POST', '/api/todos/clear-done', async (ctx) => {
@@ -631,6 +632,18 @@ export function createApp(opts) {
     tx(() => {
       const info = q('INSERT INTO evidence(card, kind, purpose, name, url, "by", at) VALUES (?,?,?,?,?,?,?) RETURNING id').run(c.id, 'link', purpose, name, url, me.id, now());
       writeEvent(c.id, me.id, 'evidence', { after: { evidence: Number(info.lastInsertRowid), kind: 'link', purpose, name } });
+    });
+  });
+  // v1.5: a written comment is proof too (or an attachment, by purpose), so a file or link is optional. It is an
+  // evidence row like a link, so need_proof and the FX12 "new proof after a correction" rule count it unchanged.
+  ACTIONS.set('comment', (me, c, body) => {
+    const purpose = body.purpose === 'lampiran' ? 'lampiran' : 'bukti';
+    assertEvidenceAllowed(me, c, purpose);
+    const text = str(body.text, 2000);
+    if (!text) refuse(400, 'need_comment');
+    tx(() => {
+      const info = q('INSERT INTO evidence(card, kind, purpose, name, "by", at) VALUES (?,?,?,?,?,?) RETURNING id').run(c.id, 'comment', purpose, text, me.id, now());
+      writeEvent(c.id, me.id, 'evidence', { after: { evidence: Number(info.lastInsertRowid), kind: 'comment', purpose, name: text.slice(0, 200) } });
     });
   });
   ACTIONS.set('proof', (me, c) => {
@@ -893,7 +906,7 @@ export function createApp(opts) {
 
   // ------------------------------------------------------------------ dispatcher
   async function handle(req, res) {
-    const ctx = { req, res, lang: req.headers['x-lang'] === 'en' ? 'en' : 'id', bodyUnread: req.method === 'POST', me: null, authClass: null };
+    const ctx = { req, res, lang: 'id', bodyUnread: req.method === 'POST', me: null, authClass: null }; // v1.5: one language
     try {
       if (hooks.onHeaders) hooks.onHeaders(req);
       res.setHeader('X-Content-Type-Options', 'nosniff');

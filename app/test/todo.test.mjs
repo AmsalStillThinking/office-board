@@ -103,8 +103,7 @@ test('TD3 tick, untick, delete and clear the finished ones', T, async () => {
 test('TD4 refusals write nothing', T, async () => {
   const a = await signedIn([DEWI]);
   for (const body of [{}, { text: '' }, { text: '   ' }, { text: 42 }]) refusal(await a.req(DEWI, 'POST', '/api/todos', body), 400, 'need_todo_text');
-  const en = await a.req(DEWI, 'POST', '/api/todos', { text: '' }, { 'x-lang': 'en' });
-  assert.deepEqual([en.json.message, (await a.req(DEWI, 'POST', '/api/todos', {})).json.message], [MSG.need_todo_text.en, MSG.need_todo_text.id]);
+  assert.equal((await a.req(DEWI, 'POST', '/api/todos', {})).json.message, MSG.need_todo_text.id);
   for (const due of ['2026-02-30', '18-11-2026', 20261118, 'besok', true]) refusal(await a.req(DEWI, 'POST', '/api/todos', { text: 'x', due }), 400, 'bad_input');
   assert.equal(a.count(), 0, 'no row from a refused add');
   const id = await a.add(DEWI, { text: 'x'.repeat(300), due: null });

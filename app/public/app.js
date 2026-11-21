@@ -18,7 +18,7 @@
   var PAGE_SIZE = 10;
   var AVATAR_BG = ['#112D4E', '#2E5A88', '#3F72AF', '#4D6A92', '#1D4E7A', '#365F91'];
 
-  try { var saved = window.localStorage.getItem('ob_lang'); if (saved === 'en' || saved === 'id') LANG = saved; } catch (e) { /* private mode */ }
+  // v1.5: one language only (Indonesian, with the English words the office uses); no switch.
 
   function t(k) { var d = DICT && DICT[LANG]; return d && Object.prototype.hasOwnProperty.call(d, k) ? d[k] : k; }
 
@@ -48,7 +48,7 @@
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
 
   function api(method, url, body, extraHeaders) {
-    var headers = { 'X-Lang': LANG };
+    var headers = {};
     var opts = { method: method, headers: headers, credentials: 'same-origin' };
     if (body !== undefined && !(body instanceof Blob)) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     else if (body instanceof Blob) opts.body = body;
@@ -192,8 +192,6 @@
     document.documentElement.lang = LANG;
     document.title = t('app_name');
     document.getElementById('app-name').textContent = t('app_name');
-    var lb = document.getElementById('lang-btn');
-    lb.textContent = t('lang_toggle'); lb.setAttribute('aria-label', t('lang_toggle_label'));
     var lo = document.getElementById('logout-btn');
     lo.textContent = t('logout'); lo.hidden = !ME;
     document.getElementById('me-name').textContent = ME ? (ME.nick || ME.name) : '';
@@ -366,20 +364,10 @@
     who.focus();
   }
 
-  // v1.3: the sidebar (with the language and sign-out buttons) is hidden while signed out, so the sign-in card and the
-  // first PIN change carry their own
+  // v1.3: the sidebar (with the sign-out button) is hidden while signed out, so the first PIN change carries its own
   function cardTools() {
     return h('div', { cls: 'card-tools' },
-      h('button', { type: 'button', id: 'card-lang', cls: 'small secondary', 'aria-label': t('lang_toggle_label'), text: t('lang_toggle'), onclick: switchLang }),
       ME ? h('button', { type: 'button', id: 'card-logout', cls: 'small secondary', text: t('logout'), onclick: signOut }) : null);
-  }
-  function switchLang() {
-    var id = document.activeElement && document.activeElement.id; // the button pressed may be rebuilt: focus it again
-    LANG = LANG === 'id' ? 'en' : 'id';
-    try { window.localStorage.setItem('ob_lang', LANG); } catch (e) { /* ignore */ }
-    if (ME) render(); else showSignin();
-    var b = id && document.getElementById(id);
-    if (b) b.focus();
   }
   function signOut() {
     api('POST', '/api/logout', {}).then(function () { ME = null; location.hash = ''; showSignin(); });
@@ -892,6 +880,8 @@
         var href = '/f/' + e.id;
         if (/^image\/(png|jpeg|gif|webp)$/.test(e.mime || '')) li.appendChild(h('a', { href: href, target: '_blank', rel: 'noopener' }, h('img', { cls: 'thumb', src: href, alt: e.name })));
         info.appendChild(h('a', { href: href, cls: 'file-link', text: e.name }));
+      } else if (e.kind === 'comment') { // v1.5: a written comment counts as proof; a file or link is optional
+        info.appendChild(h('p', { cls: 'ev-comment', text: e.name }));
       } else {
         info.appendChild(h('a', { href: e.url, target: '_blank', rel: 'noopener noreferrer', cls: 'link-ev', text: e.name }));
       }
@@ -1001,7 +991,12 @@
     var slot = h('div', { cls: 'msg', id: 'ev-msg' });
     var ff = fileField('ev-file', false), file = ff.input;
     var url = h('input', { id: 'ev-url', type: 'url', maxlength: '2000', placeholder: 'https://' });
+    var note = h('textarea', { id: 'ev-comment', rows: '3', maxlength: '2000' });
     return h('div', { cls: 'inline-form' },
+      h('label', { for: 'ev-comment', text: t('f_comment') }), note,
+      h('div', { cls: 'row' }, h('button', { type: 'button', id: 'ev-add-comment', cls: 'secondary', text: t('add_comment'), onclick: function () {
+        act(c.id, 'comment', { text: note.value, purpose: purpose }, slot);
+      } })),
       h('p', { cls: 'field-title', text: purpose === 'bukti' ? t('f_file_proof') : t('f_file_attach') }), ff.wrap,
       h('div', { cls: 'row' }, h('button', { type: 'button', id: 'ev-upload', cls: 'secondary', text: t('add_file'), onclick: function () {
         if (!file.files || !file.files[0]) return;
@@ -1239,6 +1234,7 @@
     view.appendChild(h('p', { cls: 'muted', id: 'todo-note', text: t('todo_note') }));
     var msg = h('div', { cls: 'msg' });
     var text = h('input', { id: 'todo-text', type: 'text', maxlength: '200', autocomplete: 'off' });
+    var desc = h('textarea', { id: 'todo-desc', rows: '2', maxlength: '1000' });
     var due = h('input', { id: 'todo-due', type: 'date' });
     var lists = h('div', { id: 'todo-lists' });
     // a field the person is in (typing, or on another box): an answer that lands later must not take the focus from it
@@ -1262,6 +1258,7 @@
       var hint = td.done ? '' : dueText({ due: td.due, status: 'antri' }); // the board's own working-day words
       return h('li', { cls: 'todo' + (late ? ' late' : ''), 'data-id': String(td.id), 'data-done': String(td.done) },
         h('label', { cls: 'check', for: box.id }, box, h('span', { cls: 'todo-t', text: td.text })),
+        td.description ? h('p', { cls: 'todo-d muted', text: td.description }) : null,
         td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') }) : null,
         h('button', { type: 'button', cls: 'secondary small todo-del', 'aria-label': tf('todo_del_label', { text: td.text }), text: t('todo_del'), onclick: function () {
           api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-text'); });
@@ -1296,11 +1293,12 @@
     view.appendChild(h('form', { id: 'todo-form', cls: 'panel', onsubmit: function (ev) {
       ev.preventDefault();
       // a half-typed date never gets here: the browser's own form check refuses it, as on Tugas baru (browser_check)
-      var sentText = text.value, sentDue = due.value;
-      api('POST', '/api/todos', { text: sentText, due: sentDue }).then(function (x) {
+      var sentText = text.value, sentDesc = desc.value, sentDue = due.value;
+      api('POST', '/api/todos', { text: sentText, description: sentDesc, due: sentDue }).then(function (x) {
         if (!x.ok) { showErr(msg, x); (x.data.error === 'bad_input' ? due : text).focus(); return; }
         clear(msg);
         if (text.value === sentText) text.value = ''; // anything typed while the add was on its way stays
+        if (desc.value === sentDesc) desc.value = '';
         if (due.value === sentDue) due.value = '';
         load('todo-text'); // ready for the next one
       });
@@ -1308,6 +1306,7 @@
       h('div', { cls: 'grid2' },
         h('div', {}, h('label', { for: 'todo-text', text: t('todo_text') }), text),
         h('div', {}, h('label', { for: 'todo-due', text: t('todo_due') }), due)),
+      h('label', { for: 'todo-desc', text: t('todo_desc') }), desc,
       h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'todo-add', text: t('todo_add') })),
       msg));
     view.appendChild(lists);
@@ -1349,7 +1348,6 @@
       if (b && b.disabled) { e.preventDefault(); e.stopPropagation(); return; } // Enter while it is still sending
       if (b) { ARMED = b; setTimeout(function () { if (ARMED === b) ARMED = null; }, 0); }
     }, true);
-    document.getElementById('lang-btn').addEventListener('click', switchLang);
     document.getElementById('logout-btn').addEventListener('click', signOut);
     document.getElementById('settings-btn').addEventListener('click', openSettings);
     window.addEventListener('hashchange', function () { if (ME) render(true); else dropLayer(); });

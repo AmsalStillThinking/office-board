@@ -682,22 +682,23 @@ test('director manages people and settings', T, async () => {
   refusal(await a.req(D1, 'POST', '/api/people/constructor', { name: 'x' }), 404, 'not_found');
 });
 
-test('dictionaries complete; refusal language follows X-Lang', T, async () => {
+test('dictionaries complete; one language (v1.5): X-Lang changes nothing', T, async () => {
   for (const [code, m] of Object.entries(MSG)) {
-    assert.ok(m.id && m.en && m.id !== m.en, 'message ' + code + ' has both languages');
+    assert.deepEqual(Object.keys(m), ['id'], 'message ' + code + ' has the one version only');
+    assert.ok(m.id, 'message ' + code + ' is not empty');
   }
   const dict = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'public', 'i18n.json'), 'utf8'));
-  assert.deepEqual(Object.keys(dict.id).sort(), Object.keys(dict.en).sort(), 'same keys in id and en');
-  for (const w of ['Segar', 'Layu', 'Busuk', 'Bukti', 'Menunggu Anda', 'Papan Saya', 'Papan Kantor', 'Pengecualian', 'Review Jumat']) {
+  assert.deepEqual(Object.keys(dict), ['id'], 'one client dictionary');
+  for (const w of ['Segar', 'Layu', 'Busuk', 'Bukti', 'Menunggu Anda', 'Papan Saya', 'Papan Kantor', 'Pengecualian', 'Review Jumat', 'To-Do List']) {
     assert.ok(Object.values(dict.id).includes(w), 'required word in the dictionary: ' + w);
   }
-  const serverSentences = new Set(Object.values(MSG).flatMap((m) => [m.id, m.en]));
-  for (const v of [...Object.values(dict.id), ...Object.values(dict.en)]) assert.ok(!serverSentences.has(v), 'client dictionary must not hold a server sentence: ' + v);
+  const serverSentences = new Set(Object.values(MSG).map((m) => m.id));
+  for (const v of Object.values(dict.id)) assert.ok(!serverSentences.has(v), 'client dictionary must not hold a server sentence: ' + v);
   const a = await signedIn({}, [DEWI]);
   const en = await a.req(DEWI, 'POST', '/api/cards', { title: 'x', due: '2026-11-25', source: 'Lisan' }, { 'x-lang': 'en' });
-  assert.equal(en.json.message, MSG.need_owner.en);
+  assert.equal(en.json.message, MSG.need_owner.id, 'an old client asking for English still gets the one version');
   const id = await a.req(DEWI, 'POST', '/api/cards', { title: 'x', due: '2026-11-25', source: 'Lisan' });
-  assert.equal(id.json.message, MSG.need_owner.id, 'Bahasa Indonesia by default');
+  assert.equal(id.json.message, MSG.need_owner.id);
 });
 
 test('PostgreSQL: saved rows outlive a restart, no SQLite file, the connection closes on shutdown', T, async () => {

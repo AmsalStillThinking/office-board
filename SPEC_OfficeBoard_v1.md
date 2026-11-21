@@ -24,6 +24,7 @@ The process copies LMN's Work Order app for electricians (reference only, do not
 - Served over plain HTTP on a LAN address: NOT a secure context. The client must not use `crypto.randomUUID`,
   `crypto.subtle`, `navigator.clipboard`, service workers or anything else that needs HTTPS. Ids come from the server.
 - Phone first (390 px) and desktop (1280 px); no horizontal page scroll; touch targets 40 px or more.
+- v1.5 (21 Nov 2026, the owner): one language only, no EN switch (CHANGES_v1_5.md). Before v1.5:
 - Language: Bahasa Indonesia by default with an EN switch; every piece of UI text from one dictionary; data text
   (names, titles) set with `textContent`. Required words: Segar / Layu / Busuk, Bukti, Menunggu Anda, Papan Saya,
   Papan Kantor, Pengecualian, Review Jumat.

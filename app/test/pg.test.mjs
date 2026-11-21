@@ -52,7 +52,9 @@ function writeSqlite(file, rows, { withoutTodos = false } = {}) {
   sq.exec(fs.readFileSync(path.join(FIXTURE, 'sqlite-v13-schema.sql'), 'utf8'));
   if (withoutTodos) sq.exec('DROP INDEX todos_person; DROP TABLE todos;');
   for (const t of TABLES.filter((x) => !(withoutTodos && x === 'todos'))) for (const row of rows[t]) {
-    const k = Object.keys(row);
+    // only the columns v1.3 had (later ones, such as todos.description from v1.5, take their default on the way in)
+    const cols = new Set(sq.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name));
+    const k = Object.keys(row).filter((c) => cols.has(c));
     sq.prepare(`INSERT INTO ${t}(${k.map((c) => `"${c}"`).join(', ')}) VALUES (${k.map(() => '?').join(', ')})`).run(...k.map((c) => row[c]));
   }
   sq.close();
