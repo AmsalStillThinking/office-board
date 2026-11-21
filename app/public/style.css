@@ -283,6 +283,7 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
 .todos .due { font-size: 14px; color: var(--muted); }
 .todos li.late .due { color: var(--busuk); font-weight: 600; }
 .todos .msg { flex: 1 1 100%; }
+.todos .todo-acts { display: inline-flex; gap: 8px; margin-left: auto; } /* Ubah and Hapus stay together, at the right */
 
 @media (min-width: 900px) {
   .cards.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }

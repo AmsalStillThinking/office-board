@@ -1370,13 +1370,15 @@
       return h('li', { cls: 'todo' + (late ? ' late' : ''), 'data-id': String(td.id), 'data-done': String(td.done) },
         h('label', { cls: 'check', for: box.id }, box, h('span', { cls: 'todo-t', text: td.text })),
         td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') }) : null,
-        h('button', { type: 'button', id: 'todo-edit-' + td.id, cls: 'secondary small todo-edit', 'aria-label': tf('todo_edit_label', { text: td.text }), text: t('todo_edit'), onclick: function () {
-          openTodoForm(function () { load('todo-edit-' + td.id); }, td);
-        } }),
-        h('button', { type: 'button', cls: 'secondary small todo-del', 'aria-label': tf('todo_del_label', { text: td.text }), text: t('todo_del'), onclick: function () {
-          api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-new'); });
-        } }),
-        // after the button: the title row keeps its date and Hapus, the description gets the full row under it
+        // Ubah and Hapus as one unit: on a narrow screen they wrap together instead of splitting over two lines
+        h('span', { cls: 'todo-acts' },
+          h('button', { type: 'button', id: 'todo-edit-' + td.id, cls: 'secondary small todo-edit', 'aria-label': tf('todo_edit_label', { text: td.text }), text: t('todo_edit'), onclick: function () {
+            openTodoForm(function () { load('todo-edit-' + td.id); }, td);
+          } }),
+          h('button', { type: 'button', cls: 'secondary small todo-del', 'aria-label': tf('todo_del_label', { text: td.text }), text: t('todo_del'), onclick: function () {
+            api('POST', '/api/todos/' + td.id + '/delete', {}).then(function (x) { if (!x.ok) return showErr(slot, x); load('todo-new'); });
+          } })),
+        // after the buttons: the title row keeps its date, Ubah and Hapus; the description gets the full row under it
         td.description ? h('p', { cls: 'todo-d muted', text: td.description }) : null,
         slot);
     };
