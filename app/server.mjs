@@ -79,13 +79,21 @@ export function createApp(opts) {
   const getPerson = (id) => (typeof id === 'string' && id ? q('SELECT * FROM people WHERE id = ?').get(id) : undefined);
   const getCard = (id) => q('SELECT * FROM cards WHERE id = ?').get(id);
   const isDir = (me) => me.role === 'direktur';
-  const canSee = (me, c) => isDir(me) || c.private === 0 || c.owner === me.id || c.requester === me.id;
-  const activeCount = (owner) => q("SELECT COUNT(*) AS n FROM cards WHERE owner = ? AND status = 'jalan'").get(owner).n;
+  // v1.6: one visibility rule for the whole server, the SQL one in visibleClause
+  const canSee = (me, c) => { const v = visibleClause(me); return !!q(`SELECT 1 AS x FROM cards c WHERE c.id = ? AND ${v.sql}`).get(c.id, ...v.args); };
+  // v1.6: a task in jalan counts for its PIC and for every member of its team (R2)
+  const activeCount = (person) => q("SELECT COUNT(*) AS n FROM cards c WHERE c.status = 'jalan' AND (c.owner = ? OR EXISTS (SELECT 1 FROM card_people cp WHERE cp.card = c.id AND cp.person = ? AND cp.kind = 'member'))").get(person, person).n;
   const pubPerson = (p) => ({ id: p.id, name: p.name, nick: p.nick, role: p.role, keeper: p.keeper, active: p.active });
+  // v1.6: the people on a task besides its PIC ('member'), and the people picked to see a private one ('viewer')
+  const peopleOf = (cardId, kind) => q('SELECT person FROM card_people WHERE card = ? AND kind = ? ORDER BY person').all(cardId, kind).map((r) => r.person);
+  const teamOf = (c) => [c.owner, ...peopleOf(c.id, 'member')];
 
+  let inTx = false;
   function tx(fn) {
-    db.exec('BEGIN');
-    try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
+    if (inTx) return fn(); // inside another tx(): that one commits or rolls back everything
+    db.exec('BEGIN'); // first: a BEGIN that fails must not leave inTx set (every later tx() would then run without one)
+    inTx = true;
+    try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } finally { inTx = false; }
   }
   function writeEvent(card, actor, kind, detail) {
     q('INSERT INTO events(card, actor, at, kind, detail) VALUES (?,?,?,?,?)').run(card, actor, now(), kind, JSON.stringify(detail || {}));
@@ -110,13 +118,43 @@ export function createApp(opts) {
   }
   function visibleClause(me) {
     if (isDir(me)) return { sql: '1 = 1', args: [] };
-    return { sql: '(c.private = 0 OR c.owner = ? OR c.requester = ?)', args: [me.id, me.id] };
+    // v1.6: also its team and picked people, and for a sub-task the parent's PIC, team and requester (the parent closes
+    // after its sub-tasks, so they always see what holds it back)
+    return {
+      sql: '(c.private = 0 OR c.owner = ? OR c.requester = ? OR EXISTS (SELECT 1 FROM card_people cp WHERE cp.card = c.id AND cp.person = ?)' +
+        " OR EXISTS (SELECT 1 FROM cards p WHERE p.id = c.parent AND (p.owner = ? OR p.requester = ? OR EXISTS (SELECT 1 FROM card_people pp WHERE pp.card = p.id AND pp.person = ? AND pp.kind = 'member'))))",
+      args: [me.id, me.id, me.id, me.id, me.id, me.id],
+    };
   }
   function openVisible(me) {
     const v = visibleClause(me);
     const td = today(), st = settings();
-    return q(`SELECT c.* FROM cards c WHERE c.status IN ('antri','jalan','tunggu','bukti') AND ${v.sql} ORDER BY c.due, c.id`)
-      .all(...v.args).map((c) => decorate(c, td, st));
+    return withPeople(me, q(`SELECT c.* FROM cards c WHERE c.status IN ('antri','jalan','tunggu','bukti') AND ${v.sql} ORDER BY c.due, c.id`)
+      .all(...v.args)).map((c) => decorate(c, td, st));
+  }
+  // v1.6: every card sent to a viewer carries its team (members), and its parent only when the viewer may see the
+  // parent: others must not learn a private task exists (R11).
+  function withPeople(me, cards) {
+    if (!cards.length) return cards;
+    const team = new Map(cards.map((c) => [c.id, []]));
+    for (const r of q("SELECT card, person FROM card_people WHERE kind = 'member' AND card = ANY(?::bigint[]) ORDER BY person").all(cards.map((c) => c.id))) team.get(r.card).push(r.person);
+    const pids = [...new Set(cards.filter((c) => c.parent != null).map((c) => c.parent))];
+    const v = visibleClause(me);
+    const parents = new Map(pids.length ? q(`SELECT c.id, c.title FROM cards c WHERE c.id = ANY(?::bigint[]) AND ${v.sql}`).all(pids, ...v.args).map((p) => [p.id, p.title]) : []);
+    return cards.map((c) => ({ ...c, members: team.get(c.id), parent: parents.has(c.parent) ? c.parent : null, parent_title: parents.get(c.parent) ?? null }));
+  }
+  // v1.6: a list of people ids from a request, each once: active people, or people already in `keep` (someone who left
+  // stays where they were until removed, but cannot be added)
+  function peopleList(list, keep = []) {
+    if (list === undefined || list === null) return [];
+    if (!Array.isArray(list) || list.length > 100) refuse(400, 'bad_people');
+    const out = [];
+    for (const x of list) {
+      const p = getPerson(x);
+      if (!p || (!p.active && !keep.includes(p.id))) refuse(400, 'bad_people');
+      if (!out.includes(p.id)) out.push(p.id);
+    }
+    return out;
   }
   const directorIds = () => new Set(q("SELECT id FROM people WHERE role = 'direktur'").all().map((r) => r.id));
   function reviewSets(me) {
@@ -138,14 +176,22 @@ export function createApp(opts) {
   const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
   const needReason = (body) => { const r = str(body.reason, 1000); if (!r) refuse(400, 'need_reason'); return r; };
 
-  // R2: refuse a start beyond the limit unless a direktur gives a reason (logged as an override).
-  function checkLimit(me, ownerId, body) {
+  // R2: refuse a start beyond the limit unless a direktur gives a reason (logged as an override). v1.6: checked for
+  // every person given (a task's whole team, a member who left excepted). The refusal names the full person, except
+  // one's own limit and a director's start on the PIC's, which keep the sentence they had before v1.6. Known: a named
+  // refusal can hint that a teammate runs private tasks the asker cannot see (inherent in the team rule).
+  function checkLimit(me, people, body, pic) {
     const st = settings();
-    const n = activeCount(ownerId);
-    if (n >= st.maxActive) {
-      const reason = str(body.reason, 1000);
-      if (isDir(me) && reason) return { override: true, reason, active: n };
-      refuse(409, 'limit_active', { n: st.maxActive });
+    for (const pid of people) {
+      const p = getPerson(pid);
+      if (pid !== pic && !(p && p.active)) continue;
+      const n = activeCount(pid);
+      if (n >= st.maxActive) {
+        const reason = str(body.reason, 1000);
+        if (isDir(me) && reason) return { override: true, reason, active: n };
+        if (!(pid === me.id || (pid === pic && isDir(me)))) refuse(409, 'limit_active_person', { n: st.maxActive, name: p.name });
+        refuse(409, 'limit_active', { n: st.maxActive });
+      }
     }
     return null;
   }
@@ -338,8 +384,8 @@ export function createApp(opts) {
     const me = ctx.me;
     const view = ctx.url.searchParams.get('view') || 'office';
     let cards = openVisible(me);
-    if (view === 'my') cards = cards.filter((c) => c.owner === me.id);
-    else if (view === 'req') cards = cards.filter((c) => c.requester === me.id && c.owner !== me.id);
+    if (view === 'my') cards = cards.filter((c) => c.owner === me.id || c.members.includes(me.id)); // v1.6: the team too
+    else if (view === 'req') cards = cards.filter((c) => c.requester === me.id && c.owner !== me.id && !c.members.includes(me.id));
     else if (view !== 'office') refuse(400, 'bad_input');
     send(ctx.res, 200, { cards, today: today() });
   });
@@ -355,18 +401,36 @@ export function createApp(opts) {
     if (!R.SOURCES.includes(body.source)) refuse(400, 'bad_source');
     const type = body.type === undefined || body.type === '' ? 'umum' : body.type;
     if (!R.TYPES.includes(type)) refuse(400, 'bad_input'); // FX17e: one list, on the server
+    // v1.6: the team besides the PIC; a sub-task names the task it belongs to (one level only)
+    const members = peopleList(body.members).filter((p) => p !== owner.id);
+    let parent = null;
+    if (body.parent !== undefined && body.parent !== null && body.parent !== '') {
+      const pid = typeof body.parent === 'number' || typeof body.parent === 'string' ? String(body.parent) : '';
+      parent = /^[1-9]\d{0,11}$/.test(pid) ? getCard(Number(pid)) : null;
+      if (!parent || !canSee(me, parent)) refuse(404, 'not_found');
+      // who may add comes first, so that "this is a sub-task" is told only to people who may add to it
+      if (!(isDir(me) || parent.requester === me.id || teamOf(parent).includes(me.id))) refuse(403, 'forbidden');
+      if (parent.parent != null) refuse(400, 'sub_of_sub');
+      if (!['antri', 'jalan', 'tunggu'].includes(parent.status)) refuse(409, 'bad_state');
+    }
+    // a sub-task of a private task is private too; the parent's people see it by the visibility rule, not as viewers
+    const priv = body.private || (parent && parent.private) ? 1 : 0;
+    const viewers = (priv ? peopleList(body.viewers) : []).filter((p) => p !== owner.id && p !== me.id && !members.includes(p));
     const card = {
       title, body: str(body.body, 5000), requester: me.id, owner: owner.id, due: body.due, hard: body.hard ? 1 : 0,
-      type, source: body.source, private: body.private ? 1 : 0,
+      type, source: body.source, private: priv,
     };
     const id = tx(() => {
-      const info = q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,'antri',?) RETURNING id`).run(card.title, card.body, card.requester, card.owner, card.due, card.hard, card.type, card.source, card.private, now());
+      const info = q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at, parent)
+        VALUES (?,?,?,?,?,?,?,?,?,'antri',?,?) RETURNING id`).run(card.title, card.body, card.requester, card.owner, card.due, card.hard, card.type, card.source, card.private, now(), parent ? parent.id : null);
       const cid = Number(info.lastInsertRowid);
-      writeEvent(cid, me.id, 'create', { after: { ...card, status: 'antri' } });
+      for (const p of members) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'member')").run(cid, p);
+      for (const p of viewers) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'viewer')").run(cid, p);
+      // the parent is not in the event: its viewers may not be allowed to know the parent exists
+      writeEvent(cid, me.id, 'create', { after: { ...card, status: 'antri', members, viewers } });
       return cid;
     });
-    send(ctx.res, 201, { card: decorate(getCard(id), today(), settings()) });
+    send(ctx.res, 201, { card: decorate(withPeople(me, [getCard(id)])[0], today(), settings()) });
   });
 
   add('GET', '/api/exceptions', (ctx) => {
@@ -580,46 +644,55 @@ export function createApp(opts) {
     const evidence = q('SELECT id, kind, purpose, name, mime, size, url, "by", at FROM evidence WHERE card = ? ORDER BY id').all(c.id)
       .map((e) => (e.kind === 'file' ? { ...e, url: null } : e));
     const events = q('SELECT id, actor, at, kind, detail FROM events WHERE card = ? ORDER BY id').all(c.id).map((e) => ({ ...e, detail: JSON.parse(e.detail) }));
-    const out = decorate(c, today(), settings());
-    send(ctx.res, 200, { card: out, evidence, events, can: permissions(me, c) });
+    const td = today(), st = settings();
+    const out = decorate(withPeople(me, [c])[0], td, st);
+    // v1.6: only the sub-tasks this viewer may see
+    const v = visibleClause(me);
+    const subtasks = withPeople(me, q(`SELECT c.* FROM cards c WHERE c.parent = ? AND ${v.sql} ORDER BY c.id`).all(c.id, ...v.args)).map((s) => decorate(s, td, st));
+    send(ctx.res, 200, { card: out, viewers: peopleOf(c.id, 'viewer'), subtasks, evidence, events, can: permissions(me, c, [c.owner, ...out.members]) });
   }
 
-  function permissions(me, c) {
-    const dir = isDir(me), own = c.owner === me.id, req = c.requester === me.id;
+  function permissions(me, c, team = teamOf(c)) {
+    const dir = isDir(me), pic = c.owner === me.id, own = team.includes(me.id), req = c.requester === me.id;
     const open = R.OPEN_STATUSES.includes(c.status);
-    const judge = (req || dir) && c.status === 'bukti' && !isOwnProof(me, c); // FX1
+    const judge = (req || dir) && c.status === 'bukti' && !isOwnProof(me, c, team); // FX1
     const movable = open && c.status !== 'bukti'; // FX15
     return {
       start: (own || dir) && c.status === 'antri', block: (own || dir) && c.status === 'jalan', unblock: (own || dir) && c.status === 'tunggu',
       proof: (own || dir) && c.status === 'jalan', evidence: (own || dir) && ['antri', 'jalan', 'tunggu'].includes(c.status),
       attach: (req || dir) && open, accept: judge, ret: judge,
       due: (req || dir) && movable, owner: dir && movable, cancel: dir && open, override: dir,
+      // v1.6
+      team: (req || pic || dir) && movable, viewers: req || dir, // who sees a task is the requester's choice (and a director's)
+      put_requester: req || dir, // only they may put the requester on the team (it then closes without a confirmation)
+      sub: c.parent == null && (own || req || dir) && ['antri', 'jalan', 'tunggu'].includes(c.status),
     };
   }
 
-  // FX1: the owner of someone else's request never judges his own proof, director or not.
-  const isOwnProof = (me, c) => me.id === c.owner && c.requester !== c.owner;
+  // FX1: nobody on the team of someone else's request judges its proof, director or not. v1.6: the team, not only the PIC.
+  const isOwnProof = (me, c, team = teamOf(c)) => team.includes(me.id) && !team.includes(c.requester);
+  const onTeam = (me, c) => teamOf(c).includes(me.id);
   const highestEvidence = (cardId) => q('SELECT COALESCE(MAX(id), 0) AS m FROM evidence WHERE card = ?').get(cardId).m;
 
   const ACTIONS = new Map();
   ACTIONS.set('start', (me, c, body) => {
-    if (!(c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (!(onTeam(me, c) || isDir(me))) refuse(403, 'forbidden');
     if (c.status !== 'antri') refuse(409, 'bad_state');
-    const ov = checkLimit(me, c.owner, body);
+    const ov = checkLimit(me, teamOf(c), body, c.owner);
     changeCard(c, { status: 'jalan', started_at: c.started_at ?? now() }, me.id, ov ? 'override' : 'start', ov ? { reason: ov.reason, active_before: ov.active } : undefined);
   });
   ACTIONS.set('block', (me, c, body) => {
-    if (!(c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (!(onTeam(me, c) || isDir(me))) refuse(403, 'forbidden');
     if (c.status !== 'jalan') refuse(409, 'bad_state');
     const who = getPerson(str(body.waiting_on, 40));
     const note = str(body.note, 500);
-    if (!who || !who.active || who.id === c.owner || !note) refuse(400, 'need_waiting_on');
+    if (!who || !who.active || teamOf(c).includes(who.id) || !note) refuse(400, 'need_waiting_on');
     changeCard(c, { status: 'tunggu', waiting_on: who.id, waiting_note: note, waiting_since: now() }, me.id, 'block');
   });
   ACTIONS.set('unblock', (me, c, body) => {
-    if (!(c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (!(onTeam(me, c) || isDir(me))) refuse(403, 'forbidden');
     if (c.status !== 'tunggu') refuse(409, 'bad_state');
-    const ov = checkLimit(me, c.owner, body);
+    const ov = checkLimit(me, teamOf(c), body, c.owner);
     changeCard(c, { status: 'jalan', waiting_on: null, waiting_note: null, waiting_since: null }, me.id, 'unblock', ov ? { override: true, reason: ov.reason } : undefined);
   });
   ACTIONS.set('link', (me, c, body) => {
@@ -647,8 +720,12 @@ export function createApp(opts) {
     });
   });
   ACTIONS.set('proof', (me, c) => {
-    if (!(c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+    const team = teamOf(c);
+    if (!(team.includes(me.id) || isDir(me))) refuse(403, 'forbidden');
     if (c.status !== 'jalan') refuse(409, 'bad_state');
+    // v1.6: a task closes after its sub-tasks (the owner's decision, 21 Nov 2026)
+    const subs = q("SELECT COUNT(*) AS n FROM cards WHERE parent = ? AND status IN ('antri','jalan','tunggu','bukti')").get(c.id).n;
+    if (subs > 0) refuse(409, 'subtasks_open', { n: subs });
     const proofs = q("SELECT COUNT(*) AS n FROM evidence WHERE card = ? AND purpose = 'bukti'").get(c.id).n;
     if (proofs === 0) refuse(409, 'need_proof');
     if (c.koreksi > 0) { // FX12: after a correction request, at least one proof item added since the last return
@@ -658,7 +735,8 @@ export function createApp(opts) {
       if (fresh === 0) refuse(409, 'need_new_proof');
     }
     const t = now();
-    if (c.requester === c.owner) changeCard(c, { status: 'selesai', self_closed: 1, proof_at: t, closed_at: t }, me.id, 'self_close');
+    // R4, v1.6: a requester on the team (PIC or member) closes with the proof, as an owner of their own task did
+    if (team.includes(c.requester)) changeCard(c, { status: 'selesai', self_closed: 1, proof_at: t, closed_at: t }, me.id, 'self_close');
     else changeCard(c, { status: 'bukti', proof_at: t }, me.id, 'proof');
   });
   ACTIONS.set('accept', (me, c) => {
@@ -688,19 +766,75 @@ export function createApp(opts) {
     if (!who || !who.active) refuse(400, 'need_owner');
     if (who.id === c.owner) refuse(400, 'bad_input');
     if (c.status === 'tunggu' && who.id === c.waiting_on) refuse(400, 'owner_is_waited_on'); // FX17c
-    const ov = c.status === 'jalan' ? checkLimit(me, who.id, body) : null;
-    changeCard(c, { owner: who.id }, me.id, 'owner', { reason: str(body.reason, 1000), ...(ov ? { override: true } : {}) });
+    // v1.6: a member who becomes the PIC already counts toward the limit, and leaves the member list
+    const wasOn = peopleOf(c.id, 'member').includes(who.id);
+    const ov = c.status === 'jalan' && !wasOn ? checkLimit(me, [who.id], body, who.id) : null;
+    tx(() => {
+      changeCard(c, { owner: who.id }, me.id, 'owner', { reason: str(body.reason, 1000), ...(ov ? { override: true } : {}) });
+      q('DELETE FROM card_people WHERE card = ? AND person = ?').run(c.id, who.id);
+    });
   });
   ACTIONS.set('cancel', (me, c, body) => {
     if (!isDir(me)) refuse(403, 'forbidden');
     if (!R.OPEN_STATUSES.includes(c.status)) refuse(409, 'bad_state');
     const reason = needReason(body);
-    changeCard(c, { status: 'batal', closed_at: now() }, me.id, 'cancel', { reason });
+    tx(() => {
+      changeCard(c, { status: 'batal', closed_at: now() }, me.id, 'cancel', { reason });
+      // v1.6: its open sub-tasks are cancelled with it. Not with its reason: a sub-task's people may not see the parent.
+      for (const s of q("SELECT * FROM cards WHERE parent = ? AND status IN ('antri','jalan','tunggu','bukti') ORDER BY id").all(c.id)) {
+        changeCard(s, { status: 'batal', closed_at: now() }, me.id, 'cancel', { parent_cancelled: true });
+      }
+    });
+  });
+  // v1.6: who works on the task with its PIC. The requester, the PIC or a director; frozen while the proof waits (FX15).
+  ACTIONS.set('team', (me, c, body) => {
+    if (!(c.requester === me.id || c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (!R.OPEN_STATUSES.includes(c.status) || c.status === 'bukti') refuse(409, 'bad_state');
+    if (!Array.isArray(body.members)) refuse(400, 'bad_input'); // a missing list must not empty the team
+    const before = peopleOf(c.id, 'member');
+    const next = peopleList(body.members, before).filter((p) => p !== c.owner);
+    // R4: a requester on the team closes the task with its proof, so only the requester (or a director) puts them there
+    if (next.includes(c.requester) && !before.includes(c.requester) && !(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (c.status === 'tunggu' && next.includes(c.waiting_on)) refuse(400, 'member_is_waited_on');
+    const ov = c.status === 'jalan' ? checkLimit(me, next.filter((p) => !before.includes(p)), body, null) : null;
+    tx(() => {
+      if (q('UPDATE cards SET status = status WHERE id = ? AND status = ?').run(c.id, c.status).changes !== 1) refuse(409, 'bad_state'); // FX11
+      q("DELETE FROM card_people WHERE card = ? AND kind = 'member'").run(c.id);
+      for (const p of next) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'member') ON CONFLICT (card, person) DO UPDATE SET kind = 'member'").run(c.id, p);
+      writeEvent(c.id, me.id, 'team', { before: { members: before }, after: { members: next }, ...(ov ? { override: true, reason: ov.reason } : {}) });
+    });
+  });
+  // v1.6: who may see the task (R11): the requester's choice, or a director's, in any status (not the PIC's: a PIC must
+  // not open a requester's private task to the office, nor hide a late one from the Friday list). A sub-task of a
+  // private task stays private. The PIC, the team, the requester and the directors always see it, so they are never
+  // listed. Making a task private makes its sub-tasks private too, in the same transaction.
+  ACTIONS.set('viewers', (me, c, body) => {
+    if (!(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (typeof body.private !== 'boolean' || (body.private && !Array.isArray(body.viewers))) refuse(400, 'bad_input'); // a missing key must not publish it
+    const priv = body.private ? 1 : 0;
+    const parent = c.parent != null ? getCard(c.parent) : null;
+    if (!priv && parent && parent.private) refuse(400, 'sub_private');
+    const team = teamOf(c);
+    const before = { private: c.private, viewers: peopleOf(c.id, 'viewer') };
+    const next = priv ? peopleList(body.viewers, before.viewers).filter((p) => !team.includes(p) && p !== c.requester) : [];
+    tx(() => {
+      if (q('UPDATE cards SET private = ? WHERE id = ? AND status = ?').run(priv, c.id, c.status).changes !== 1) refuse(409, 'bad_state'); // FX11
+      q("DELETE FROM card_people WHERE card = ? AND kind = 'viewer'").run(c.id);
+      for (const p of next) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'viewer')").run(c.id, p);
+      writeEvent(c.id, me.id, 'viewers', { before, after: { private: priv, viewers: next } });
+      if (priv) {
+        for (const s of q('SELECT id FROM cards WHERE parent = ? AND private = 0 ORDER BY id').all(c.id)) {
+          q('UPDATE cards SET private = 1 WHERE id = ?').run(s.id);
+          // no actor: who made the parent private is the parent's business, and the sub-task's people may not see it
+          writeEvent(s.id, null, 'viewers', { before: { private: 0 }, after: { private: 1 }, parent_private: true });
+        }
+      }
+    });
   });
 
   function assertEvidenceAllowed(me, c, purpose) {
     if (purpose === 'bukti') {
-      if (!(c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+      if (!(onTeam(me, c) || isDir(me))) refuse(403, 'forbidden');
       if (!['antri', 'jalan', 'tunggu'].includes(c.status)) refuse(409, 'bad_state');
     } else {
       if (!(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');

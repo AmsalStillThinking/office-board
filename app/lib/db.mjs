@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS cards(
   created_at BIGINT NOT NULL, started_at BIGINT, proof_at BIGINT, closed_at BIGINT, routine_key TEXT UNIQUE);
 CREATE INDEX IF NOT EXISTS cards_owner ON cards(owner, status);
 CREATE INDEX IF NOT EXISTS cards_requester ON cards(requester, status);
+CREATE TABLE IF NOT EXISTS card_people(
+  card BIGINT NOT NULL REFERENCES cards(id), person TEXT NOT NULL REFERENCES people(id),
+  kind TEXT NOT NULL CHECK(kind IN ('member','viewer')), PRIMARY KEY(card, person));
+CREATE INDEX IF NOT EXISTS card_people_person ON card_people(person);
 CREATE TABLE IF NOT EXISTS evidence(
   id BIGSERIAL PRIMARY KEY, card BIGINT NOT NULL REFERENCES cards(id),
   kind TEXT NOT NULL CHECK(kind IN ('file','link','comment')), purpose TEXT NOT NULL DEFAULT 'bukti' CHECK(purpose IN ('bukti','lampiran')),
@@ -48,7 +52,7 @@ CREATE TABLE IF NOT EXISTS todos(
 CREATE INDEX IF NOT EXISTS todos_person ON todos(person, done);
 `;
 // Load order for a move or a restore (a table after the ones it refers to), and the tables with an id sequence.
-export const TABLES = ['people', 'cards', 'evidence', 'events', 'routines', 'reviews', 'settings', 'sessions', 'todos'];
+export const TABLES = ['people', 'cards', 'card_people', 'evidence','events', 'routines', 'reviews', 'settings', 'sessions', 'todos'];
 export const SERIAL_TABLES = ['cards', 'evidence', 'events', 'routines', 'reviews', 'todos'];
 
 export function hashPin(pin) {
@@ -92,6 +96,8 @@ export function openDb(dataDir) {
   if (!kinds || !kinds.d.includes("'comment'")) {
     db.exec("ALTER TABLE evidence DROP CONSTRAINT IF EXISTS evidence_kind_check; ALTER TABLE evidence ADD CONSTRAINT evidence_kind_check CHECK (kind IN ('file','link','comment'))");
   }
+  // v1.6: the task a sub-task belongs to (one level only)
+  db.exec('ALTER TABLE cards ADD COLUMN IF NOT EXISTS parent BIGINT REFERENCES cards(id); CREATE INDEX IF NOT EXISTS cards_parent ON cards(parent)');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     db.prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT DO NOTHING').run(k, String(v));
   }

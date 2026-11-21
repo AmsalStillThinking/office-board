@@ -130,9 +130,32 @@
     for (var i = 0; i < PEOPLE.length; i++) if (PEOPLE[i].id === id) return personName(id) + (PEOPLE[i].active ? '' : ' ' + t('inactive_lane'));
     return personName(id);
   }
+  // v1.6: a task's team is its PIC (owner) and its members; the PIC is named first
+  function onTeam(c, id) { return c.owner === id || (c.members || []).indexOf(id) >= 0; }
+  function teamLabel(c) { return [c.owner].concat(c.members || []).map(ownerLabel).join(', '); }
+  function namesOf(ids) { return ids.length ? ids.map(ownerLabel).join(', ') : t('none_picked'); }
+  // v1.6: a tick per active person, for a team or the people who may see a private task; someone who left is listed
+  // only where already chosen (the server keeps them there). hide(ids) leaves out the people who always belong
+  // (the PIC, the requester, the directors); picked() is what is ticked and shown.
+  function peopleChecks(id, legendKey, chosen) {
+    var box = h('fieldset', { cls: 'pchecks', id: id }, h('legend', { text: t(legendKey) }));
+    PEOPLE.filter(function (p) { return p.active || chosen.indexOf(p.id) >= 0; }).forEach(function (p) {
+      var cb = h('input', { type: 'checkbox', id: id + '-' + p.id, value: p.id, checked: chosen.indexOf(p.id) >= 0 });
+      box.appendChild(h('label', { cls: 'check', for: cb.id, 'data-person': p.id }, cb,
+        h('span', { text: ownerLabel(p.id) + (ME && p.id === ME.id ? ' ' + t('me_suffix') : '') })));
+    });
+    box.hide = function (ids) {
+      Array.prototype.forEach.call(box.querySelectorAll('label[data-person]'), function (l) { l.hidden = ids.indexOf(l.getAttribute('data-person')) >= 0; });
+    };
+    box.picked = function () {
+      return Array.prototype.filter.call(box.querySelectorAll('label[data-person]'), function (l) { return !l.hidden && l.querySelector('input').checked; })
+        .map(function (l) { return l.getAttribute('data-person'); });
+    };
+    return box;
+  }
   // urgency is computed, never typed in (R5): Busuk, then Layu (legal deadline first), Macet, waiting for me, the rest
   function deco(c) {
-    c.waitingYou = !!ME && ((c.status === 'tunggu' && c.waiting_on === ME.id) || (c.status === 'bukti' && c.requester === ME.id && c.owner !== ME.id));
+    c.waitingYou = !!ME && ((c.status === 'tunggu' && c.waiting_on === ME.id) || (c.status === 'bukti' && c.requester === ME.id && !onTeam(c, ME.id)));
     c.rank = c.age === 'busuk' ? 0 : c.age === 'layu' ? (c.hard ? 1 : 2) : c.macet ? 3 : c.waitingYou ? 4 : c.status === 'bukti' ? 6 : 5;
     return c;
   }
@@ -140,7 +163,7 @@
   function quickOk(c, q) {
     if (q === 'att') return c.age === 'layu' || c.age === 'busuk' || !!c.macet;
     if (q === 'wait') return !!c.waitingYou;
-    if (q === 'mine') return !!ME && c.owner === ME.id;
+    if (q === 'mine') return !!ME && onTeam(c, ME.id);
     if (q === 'hard') return !!c.hard;
     return true;
   }
@@ -445,17 +468,18 @@
     });
   }
 
-  function peopleSelect(id, exclude, withChoose) {
+  function peopleSelect(id, exclude, withChoose) { // exclude: one id or a list (v1.6: a task's whole team)
     var sel = h('select', { id: id });
+    var out = [].concat(exclude || []);
     if (withChoose) sel.appendChild(h('option', { value: '', text: t('choose') }));
-    PEOPLE.filter(function (p) { return p.active && p.id !== exclude; }).forEach(function (p) {
+    PEOPLE.filter(function (p) { return p.active && out.indexOf(p.id) < 0; }).forEach(function (p) {
       sel.appendChild(h('option', { value: p.id, text: (p.nick ? p.name + ' (' + p.nick + ')' : p.name) + (ME && p.id === ME.id ? ' ' + t('me_suffix') : '') }));
     });
     return sel;
   }
 
   function blockForm(c, slot, wrap) {
-    var sel = peopleSelect('block-who-' + c.id, c.owner, true);
+    var sel = peopleSelect('block-who-' + c.id, [c.owner].concat(c.members || []), true); // never someone on the team
     sel.className = 'block-who';
     var note = h('input', { cls: 'block-note', id: 'block-note-' + c.id, type: 'text', maxlength: '500' });
     var f = h('form', { cls: 'inline-form block-form', onsubmit: function (ev) {
@@ -488,7 +512,8 @@
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null,
         c.hard ? h('span', { cls: 'flag', text: t('lbl_hard') }) : null,
         c.routine_key ? h('span', { cls: 'flag', text: t('lbl_routine') }) : null,
-        c.private ? h('span', { cls: 'flag' }, icon('lock'), h('span', { text: t('lbl_private') })) : null)));
+        c.private ? h('span', { cls: 'flag' }, icon('lock'), h('span', { text: t('lbl_private') })) : null,
+        c.parent ? h('span', { cls: 'flag', text: tf('lbl_sub_of', { id: c.parent }) }) : null)));
     var title = h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } });
     el.appendChild(title);
     var due = dueText(c);
@@ -499,26 +524,27 @@
       c.status === 'bukti' && c.macet ? h('span', { cls: 'waiting-confirm', text: t('waiting_confirm') + ': ' + personName(c.requester) }) : null);
     el.appendChild(meta);
     var who = h('div', { cls: 'card-foot' },
-      opts.showOwner !== false ? h('span', { cls: 'who' }, avatar(c.owner, 'sm'), h('span', { text: ownerLabel(c.owner) })) : null,
+      opts.showOwner !== false ? h('span', { cls: 'who' }, avatar(c.owner, 'sm'), h('span', { text: teamLabel(c) })) : null,
+      opts.showOwner === false && (c.members || []).length ? h('span', { cls: 'team', text: t('lbl_team') + ': ' + teamLabel(c) }) : null,
       opts.showRequester && c.requester !== c.owner ? h('span', { text: tf('from_req', { name: personName(c.requester) }) }) : null);
     if (who.firstChild) el.appendChild(who);
     var acts = h('div', { cls: 'acts' });
     var slot = h('div', { cls: 'msg' });
     var extra = h('div', { cls: 'extra' });
-    var mine = ME && (c.owner === ME.id || ME.role === 'direktur');
+    var mine = ME && (onTeam(c, ME.id) || ME.role === 'direktur');
     if (opts.quick && mine) {
       if (c.status === 'antri') acts.appendChild(h('button', { type: 'button', cls: 'btn-start', text: t('btn_start'), onclick: function () {
-        act(c.id, 'start', {}, slot).then(function (r) { if (!r.ok && r.data.error === 'limit_active') overrideRetry(c, 'start', slot, 'btn_start_override'); });
+        act(c.id, 'start', {}, slot).then(function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, 'start', slot, 'btn_start_override'); });
       } }));
       if (c.status === 'jalan') {
         acts.appendChild(h('button', { type: 'button', cls: 'btn-block secondary', text: t('btn_block'), onclick: function () { clear(extra); blockForm(c, slot, extra); } }));
         acts.appendChild(h('button', { type: 'button', cls: 'btn-proof', text: t('btn_proof'), onclick: function () { act(c.id, 'proof', {}, slot); } }));
       }
       if (c.status === 'tunggu') acts.appendChild(h('button', { type: 'button', cls: 'btn-unblock secondary', text: t('btn_unblock'), onclick: function () {
-        act(c.id, 'unblock', {}, slot).then(function (r) { if (!r.ok && r.data.error === 'limit_active') overrideRetry(c, 'unblock', slot, 'btn_unblock_override'); });
+        act(c.id, 'unblock', {}, slot).then(function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, 'unblock', slot, 'btn_unblock_override'); });
       } }));
     }
-    var ownProof = ME && ME.id === c.owner && c.requester !== c.owner; // FX1: never judge your own proof
+    var ownProof = ME && onTeam(c, ME.id) && !onTeam(c, c.requester); // FX1: never judge your own (team's) proof
     if (opts.confirm && c.status === 'bukti' && ME && !ownProof && (c.requester === ME.id || ME.role === 'direktur')) {
       acts.appendChild(h('button', { type: 'button', cls: 'btn-accept', text: t('btn_accept'), onclick: function () { act(c.id, 'accept', {}, slot); } }));
       acts.appendChild(h('button', { type: 'button', cls: 'btn-return secondary', text: t('btn_return'), onclick: function () {
@@ -637,7 +663,7 @@
         h('div', { cls: 'toolbar' }, seg, chips,
           h('div', { cls: 'fields' },
             h('label', { cls: 'fld', for: 'f-type' }, h('span', { text: t('f_type') }), typeSel),
-            h('label', { cls: 'fld', for: 'f-owner' }, h('span', { text: t('lbl_owner') }), ownerSel),
+            h('label', { cls: 'fld', for: 'f-owner' }, h('span', { text: t('lbl_people') }), ownerSel),
             h('label', { cls: 'fld fld-search', for: 'f-q' }, h('span', { cls: 'vh', text: t('f_search') }), icon('search'), search),
             clearBtn)),
         count, body, legend()));
@@ -654,8 +680,8 @@
         });
         var text = OFFICE.text.trim().toLowerCase();
         var rows = all.filter(function (c) {
-          return quickOk(c, OFFICE.q) && (!OFFICE.type || c.type === OFFICE.type) && (!OFFICE.owner || c.owner === OFFICE.owner) &&
-            (!text || (c.title + ' #' + c.id + ' ' + personName(c.owner) + ' ' + personName(c.requester)).toLowerCase().indexOf(text) >= 0);
+          return quickOk(c, OFFICE.q) && (!OFFICE.type || c.type === OFFICE.type) && (!OFFICE.owner || onTeam(c, OFFICE.owner)) &&
+            (!text || (c.title + ' #' + c.id + ' ' + teamLabel(c) + ' ' + personName(c.requester)).toLowerCase().indexOf(text) >= 0);
         }).sort(byUrgency);
         clearBtn.hidden = !(OFFICE.q !== 'all' || OFFICE.type || OFFICE.owner || text);
         count.textContent = tf('count_line', { n: rows.length, m: all.length });
@@ -676,7 +702,7 @@
     OFFICE.page = Math.min(Math.max(1, OFFICE.page), pages); // a stale page number (the list shrank) is clamped
     var from = (OFFICE.page - 1) * PAGE_SIZE, part = rows.slice(from, from + PAGE_SIZE);
     var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t('nav_office') },
-      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'lbl_status', 'lbl_urgency', 'lbl_owner', 'lbl_requester', 'lbl_due'].map(function (k) {
+      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'lbl_status', 'lbl_urgency', 'lbl_people', 'lbl_requester', 'lbl_due'].map(function (k) {
         return h('div', { role: 'columnheader', text: t(k) });
       })));
     part.forEach(function (c) { tbl.appendChild(rowItem(c)); });
@@ -706,7 +732,8 @@
   }
 
   function rowItem(c) {
-    var flags = [c.hard ? t('lbl_hard') : '', c.routine_key ? t('lbl_routine') : '', c.private ? t('lbl_private') : ''].filter(Boolean);
+    var flags = [c.hard ? t('lbl_hard') : '', c.routine_key ? t('lbl_routine') : '', c.private ? t('lbl_private') : '',
+      c.parent ? tf('lbl_sub_of', { id: c.parent }) : ''].filter(Boolean);
     return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status },
       h('div', { role: 'cell', cls: 'c-task' },
         h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } }),
@@ -714,7 +741,7 @@
       h('div', { role: 'cell' }, statusBadge(c.status)),
       h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null),
-      h('div', { role: 'cell', cls: 'c-who' }, avatar(c.owner, 'sm'), h('span', { text: ownerLabel(c.owner) })),
+      h('div', { role: 'cell', cls: 'c-who' }, avatar(c.owner, 'sm'), h('span', { text: teamLabel(c) })),
       h('div', { role: 'cell', text: personName(c.requester) }),
       h('div', { role: 'cell' }, h('span', { text: fmtDate(c.due) }), h('span', { cls: 'sub', text: dueText(c) })));
   }
@@ -796,12 +823,37 @@
     });
   };
 
-  ROUTES['new'] = function () {
-    var d = openDrawer('new-panel', 'new-h', h('h2', { id: 'new-h', cls: 'dr-title', text: t('nav_new') }), true);
+  // v1.6: #new/<id> is a sub-task of task <id>. The task is always read first, so the form shows what the server
+  // says now (still open, still mine to add to, private or not), never a copy kept from earlier or from someone else.
+  ROUTES['new'] = function (arg) {
+    var pid = String(arg || '').replace(/[^0-9]/g, '');
+    if (!pid) return newForm(null);
+    api('GET', '/api/cards/' + pid).then(function (r) {
+      var now = currentRoute();
+      if (!ME || now.name !== 'new' || now.arg !== arg) return; // the form was left while the task was loading
+      var cannot = r.ok && !r.data.can.sub ? { data: { error: 'client_no_sub', message: t('sub_cannot') } } : null; // said before anything is typed
+      if (!r.ok || cannot) return showErr(openDrawer('new-panel', 'new-h', h('h2', { id: 'new-h', cls: 'dr-title', text: t('new_sub_title') }), true).body, cannot || r);
+      newForm({ id: r.data.card.id, title: r.data.card.title, 'private': r.data.card.private, viewers: r.data.viewers });
+    });
+  };
+  function newForm(parent) {
+    var d = openDrawer('new-panel', 'new-h', h('h2', { id: 'new-h', cls: 'dr-title', text: t(parent ? 'new_sub_title' : 'nav_new') }), true);
     var msg = h('div', { cls: 'msg' });
     var title = h('input', { id: 'new-title', type: 'text', maxlength: '200' });
     var owner = peopleSelect('new-owner', null, false);
     owner.value = ME.id;
+    var members = peopleChecks('new-members', 'f_members', []);
+    members.appendChild(h('p', { cls: 'muted fhelp', text: t('f_members_help') }));
+    // a sub-task of a private task is private too (the server says so as well); it starts with the parent's picked
+    // people who are still here. The directors and the one creating it always see it: not offered.
+    var parentPrivate = !!(parent && parent['private']);
+    var active = function (pid) { return PEOPLE.some(function (p) { return p.id === pid && p.active; }); };
+    var viewers = peopleChecks('new-viewers', 'f_viewers', parentPrivate ? (parent.viewers || []).filter(active) : []);
+    viewers.appendChild(h('p', { cls: 'muted fhelp', text: t('f_viewers_help') + (parent ? ' ' + t('f_viewers_help_sub') : '') }));
+    var always = PEOPLE.filter(function (p) { return p.role === 'direktur'; }).map(function (p) { return p.id; }).concat([ME.id]);
+    var hideOwner = function () { members.hide([owner.value]); viewers.hide(always.concat([owner.value])); };
+    owner.addEventListener('change', hideOwner);
+    hideOwner();
     var due = h('input', { id: 'new-due', type: 'date' });
     var type = h('select', { id: 'new-type' });
     TYPES.forEach(function (x) { type.appendChild(h('option', { value: x, text: t('type_' + x) })); });
@@ -810,7 +862,10 @@
     SOURCES.forEach(function (x) { source.appendChild(h('option', { value: x, text: t('src_' + x) })); });
     var body = h('textarea', { id: 'new-body', maxlength: '5000' });
     var files = fileField('new-files', true);
-    var priv = h('input', { id: 'new-private', type: 'checkbox' });
+    var priv = h('input', { id: 'new-private', type: 'checkbox', checked: parentPrivate, disabled: parentPrivate });
+    var showViewers = function () { viewers.hidden = !priv.checked; };
+    priv.addEventListener('change', showViewers);
+    showViewers();
     var form = h('form', { id: 'new-form', onsubmit: function (ev) {
       ev.preventDefault();
       // FX17i: the button stays disabled for the whole create + attachments chain; a second tap creates nothing.
@@ -820,7 +875,8 @@
       submit.disabled = true;
       ARMED = null;
       api('POST', '/api/cards', { title: title.value, owner: owner.value, due: due.value, type: type.value, hard: hard.checked,
-        source: source.value, body: body.value, 'private': priv.checked }).then(function (r) {
+        source: source.value, body: body.value, 'private': priv.checked, members: members.picked(),
+        viewers: priv.checked ? viewers.picked() : [], parent: parent ? parent.id : null }).then(function (r) {
         if (!r.ok) { submit.removeAttribute('data-hold'); submit.disabled = false; return showErr(msg, r); }
         var id = r.data.card.id;
         var list = Array.prototype.slice.call(files.input.files || []);
@@ -835,6 +891,7 @@
         });
       });
     } },
+      parent ? h('p', { cls: 'muted', id: 'new-parent', text: tf('new_sub_for', { id: parent.id, title: parent.title }) }) : null,
       h('div', { cls: 'grid2' },
         h('div', {}, h('label', { for: 'new-title', text: t('f_title') }), title),
         h('div', {}, h('label', { for: 'new-owner', text: t('f_owner') }), owner),
@@ -842,14 +899,16 @@
         h('div', {}, h('label', { for: 'new-type', text: t('f_type') }), type),
         h('div', {}, h('label', { for: 'new-source', text: t('f_source') }), source),
         h('div', {}, h('label', { cls: 'check', for: 'new-hard' }, hard, h('span', { text: t('f_hard') })))),
+      members,
       h('label', { for: 'new-body', text: t('f_body') }), body,
       h('label', { for: 'new-files', text: t('f_files') }), files.wrap,
       h('label', { cls: 'check', for: 'new-private' }, priv, h('span', { text: t('f_private') })),
+      viewers,
       h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'new-submit', text: t('btn_create') })),
       msg);
     d.body.appendChild(form);
     title.focus();
-  };
+  }
 
   // A file field whose visible button and text come from the dictionary (the native control shows the browser's
   // own language). The real input stays in the page, visually hidden, so the file picker still works.
@@ -900,6 +959,9 @@
     if (e.kind === 'due') bits.push(fmtDate(d.before && d.before.due) + ' -> ' + fmtDate(after.due));
     if (e.kind === 'owner') bits.push(personName(d.before && d.before.owner) + ' -> ' + personName(after.owner));
     if (e.kind === 'evidence' && after.name) bits.push(after.name);
+    if (e.kind === 'team' && after.members) bits.push(namesOf(after.members)); // v1.6
+    if (e.kind === 'viewers') bits.push(d.parent_private ? t('ev_parent_private') : after['private'] ? namesOf(after.viewers || []) : t('lbl_everyone'));
+    if (d.parent_cancelled) bits.push(t('ev_parent_cancelled'));
     var li = h('li', { 'data-kind': e.kind, text: bits.join(' · ') });
     if (d.reason) li.appendChild(h('div', { cls: 'muted', text: t('f_reason') + ': ' + d.reason }));
     return li;
@@ -922,6 +984,9 @@
       d.panel.setAttribute('data-status', c.status);
       var box = d.body;
       box.appendChild(h('h1', { id: 'card-title', text: c.title }));
+      // v1.6: a sub-task names its parent (the server sends it only to people who may see the parent)
+      if (c.parent) box.appendChild(h('p', { cls: 'parent-line' }, h('span', { cls: 'muted', text: t('lbl_parent') + ': ' }),
+        h('button', { type: 'button', id: 'd-parent', cls: 'link-btn', text: '#' + c.parent + ' ' + (c.parent_title || ''), onclick: function () { go('card', String(c.parent)); } })));
       box.appendChild(h('div', { cls: 'meta row' }, ageBadge(c.age), c.macet ? macetBadge() : null, statusBadge(c.status),
         c.on_time === true ? h('span', { cls: 'badge age-segar', text: t('lbl_on_time') }) : null,
         c.on_time === false ? h('span', { cls: 'badge age-busuk', text: t('lbl_late') }) : null,
@@ -930,6 +995,7 @@
       var dl = h('table', { cls: 'facts' });
       var row = function (k, v) { dl.appendChild(h('tr', {}, h('th', { text: t(k) }), h('td', { text: v }))); };
       row('lbl_owner', personName(c.owner));
+      if (c.members.length) row('lbl_team', namesOf(c.members));
       row('lbl_requester', personName(c.requester));
       row('lbl_due', fmtDate(c.due) + (c.hard ? ' · ' + t('lbl_hard') : ''));
       row('f_type', t('type_' + c.type));
@@ -937,7 +1003,8 @@
       if (c.status === 'tunggu') row('lbl_waiting_on', personName(c.waiting_on) + ': ' + (c.waiting_note || ''));
       row('lbl_koreksi', String(c.koreksi));
       row('lbl_moved', String(c.moved));
-      if (c.private) row('lbl_private', '✓');
+      row('lbl_viewers', c['private'] ? t('lbl_private') + ': ' + t('f_viewers_help') + (c.parent ? ' ' + t('f_viewers_help_sub') : '') +
+        (r.data.viewers.length ? ' ' + t('lbl_also') + ' ' + namesOf(r.data.viewers) : '') : t('lbl_everyone'));
       if (c.routine_key) row('lbl_routine', '✓');
       // v1.2: what can be done comes first; the facts follow it
       var facts = h('div', { cls: 'table-wrap' }, dl);
@@ -946,11 +1013,11 @@
       var acts = h('div', { cls: 'acts row' });
       var extra = h('div', { cls: 'extra' });
       if (can.start) acts.appendChild(h('button', { type: 'button', id: 'd-start', text: t('btn_start'), onclick: function () {
-        act(c.id, 'start', {}, slot).then(function (x) { if (!x.ok && x.data.error === 'limit_active') overrideRetry(c, 'start', slot, 'btn_start_override'); });
+        act(c.id, 'start', {}, slot).then(function (x) { if (!x.ok && /^limit_active/.test(x.data.error)) overrideRetry(c, 'start', slot, 'btn_start_override'); });
       } }));
       if (can.block) acts.appendChild(h('button', { type: 'button', id: 'd-block', cls: 'secondary', text: t('btn_block'), onclick: function () { clear(extra); blockForm(c, slot, extra); } }));
       if (can.unblock) acts.appendChild(h('button', { type: 'button', id: 'd-unblock', cls: 'secondary', text: t('btn_unblock'), onclick: function () {
-        act(c.id, 'unblock', {}, slot).then(function (x) { if (!x.ok && x.data.error === 'limit_active') overrideRetry(c, 'unblock', slot, 'btn_unblock_override'); });
+        act(c.id, 'unblock', {}, slot).then(function (x) { if (!x.ok && /^limit_active/.test(x.data.error)) overrideRetry(c, 'unblock', slot, 'btn_unblock_override'); });
       } }));
       if (can.proof) acts.appendChild(h('button', { type: 'button', id: 'd-proof', text: t('btn_proof'), onclick: function () { act(c.id, 'proof', {}, slot); } }));
       if (can.accept) acts.appendChild(h('button', { type: 'button', id: 'd-accept', text: t('btn_accept'), onclick: function () { act(c.id, 'accept', {}, slot); } }));
@@ -962,6 +1029,9 @@
       } }));
       if (can.due) acts.appendChild(h('button', { type: 'button', id: 'd-due', cls: 'secondary', text: t('btn_move_due'), onclick: function () { clear(extra); extra.appendChild(dueForm(c, slot)); } }));
       if (can.owner) acts.appendChild(h('button', { type: 'button', id: 'd-owner', cls: 'secondary', text: t('btn_reassign'), onclick: function () { clear(extra); extra.appendChild(ownerForm(c, slot)); } }));
+      // v1.6: the team and who may see the task
+      if (can.team) acts.appendChild(h('button', { type: 'button', id: 'd-team', cls: 'secondary', text: t('btn_team'), onclick: function () { clear(extra); extra.appendChild(teamForm(c, can, slot)); } }));
+      if (can.viewers) acts.appendChild(h('button', { type: 'button', id: 'd-viewers', cls: 'secondary', text: t('btn_viewers'), onclick: function () { clear(extra); extra.appendChild(viewersForm(c, r.data.viewers, slot)); } }));
       if (can.cancel) acts.appendChild(h('button', { type: 'button', id: 'd-cancel', cls: 'danger', text: t('btn_cancel_card'), onclick: function () { clear(extra); extra.appendChild(cancelForm(c, slot)); } }));
       if (acts.firstChild) box.appendChild(acts);
       box.appendChild(extra);
@@ -972,6 +1042,26 @@
       }
       box.appendChild(facts);
       if (bodyText) box.appendChild(bodyText);
+
+      // v1.6: a task's sub-tasks (the ones this person may see); the task closes after them. Shown when there are some
+      // or this person may add one (a sub-task whose parent is hidden from them must not look like a parent).
+      if (!c.parent && (r.data.subtasks.length || can.sub)) {
+        var subs = r.data.subtasks;
+        var shut = subs.filter(function (s) { return s.status === 'selesai' || s.status === 'batal'; }).length;
+        box.appendChild(h('h2', { id: 'subs-h', text: t('lbl_subtasks') + (subs.length ? ' (' + tf('sub_count', { a: shut, b: subs.length }) + ')' : '') }));
+        var sl = h('ul', { cls: 'subs', id: 'subtasks' });
+        subs.forEach(function (s) {
+          deco(s);
+          sl.appendChild(h('li', { 'data-id': String(s.id), 'data-status': s.status },
+            h('button', { type: 'button', cls: 'title', text: s.title, onclick: function () { go('card', String(s.id)); } }),
+            h('span', { cls: 'meta' }, h('span', { cls: 'tid', text: '#' + s.id }), statusBadge(s.status), ageBadge(s.age),
+              h('span', { cls: 'who' }, avatar(s.owner, 'sm'), h('span', { text: teamLabel(s) })))));
+        });
+        box.appendChild(subs.length ? sl : h('p', { cls: 'muted', text: t('no_subtasks') }));
+        if (can.sub) box.appendChild(h('div', { cls: 'row' }, h('button', { type: 'button', id: 'd-add-sub', cls: 'secondary', text: t('btn_add_sub'), onclick: function () {
+          go('new', String(c.id));
+        } })));
+      }
 
       var proofs = r.data.evidence.filter(function (e) { return e.purpose === 'bukti'; });
       var attach = r.data.evidence.filter(function (e) { return e.purpose === 'lampiran'; });
@@ -1028,6 +1118,28 @@
     var reason = h('input', { cls: 'cancel-reason', type: 'text', id: 'cancel-reason-' + c.id, maxlength: '1000' });
     return h('form', { cls: 'inline-form cancel-form', onsubmit: function (ev) { ev.preventDefault(); act(c.id, 'cancel', { reason: reason.value }, slot, after); } },
       h('label', { for: reason.id, text: t('f_reason') }), reason, h('button', { type: 'submit', cls: 'danger cancel-send', text: t('btn_cancel_card') }));
+  }
+  // v1.6: who works on the task with its PIC
+  function teamForm(c, can, slot) {
+    var box = peopleChecks('team-new', 'f_members', c.members);
+    // not offered: the PIC; the requester (unless they save it themselves, or a director does: R4); whom it waits on
+    box.hide([c.owner].concat(can.put_requester || c.members.indexOf(c.requester) >= 0 ? [] : [c.requester], c.status === 'tunggu' ? [c.waiting_on] : []));
+    return h('form', { cls: 'inline-form team-form', onsubmit: function (ev) { ev.preventDefault(); act(c.id, 'team', { members: box.picked() }, slot); } },
+      box, h('button', { type: 'submit', id: 'team-send', text: t('btn_save') }));
+  }
+  // v1.6: everyone in the office, or only the people picked (the PIC, the team, the requester and directors always see it)
+  function viewersForm(c, viewers, slot) {
+    var priv = h('input', { id: 'viewers-private', type: 'checkbox', checked: !!c['private'] });
+    var box = peopleChecks('viewers-new', 'f_viewers', viewers);
+    box.appendChild(h('p', { cls: 'muted fhelp', text: t('f_viewers_help') + (c.parent ? ' ' + t('f_viewers_help_sub') : '') }));
+    box.hide([c.owner, c.requester].concat(c.members, PEOPLE.filter(function (p) { return p.role === 'direktur'; }).map(function (p) { return p.id; })));
+    var show = function () { box.hidden = !priv.checked; };
+    priv.addEventListener('change', show);
+    show();
+    return h('form', { cls: 'inline-form viewers-form', onsubmit: function (ev) {
+      ev.preventDefault();
+      act(c.id, 'viewers', { 'private': priv.checked, viewers: priv.checked ? box.picked() : [] }, slot);
+    } }, h('label', { cls: 'check', for: priv.id }, priv, h('span', { text: t('f_private') })), box, h('button', { type: 'submit', id: 'viewers-send', text: t('btn_save') }));
   }
 
   ROUTES.exc = function () {

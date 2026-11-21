@@ -123,10 +123,13 @@ Constraints that were deliberate, keep them unless there is a reason:
 These came from his brief or were defaults he has not yet ruled on. Improve how they work, but ask him before
 changing what they say:
 
-1. Every card has one owner and one due date.
+1. Every card has one owner and one due date. Since v1.6 (21 Nov 2026, the app owner's decision; the owner tells the
+   director) the owner is shown as PIC and a card may have a team of other people who may also work it and send its
+   proof; a card may have sub-tasks, and it closes after them.
 2. At most 3 cards in "Jalan" per person; the 4th start is refused; a director may override, with a reason, logged.
-3. A card closes only with proof (a file, photo or link added as proof). A requester's attachment is not proof. A
-   director cannot close without proof either.
+   Since v1.6 a running card counts for every person on its team.
+3. A card closes only with proof (a file, photo or link added as proof; since v1.5, the owner's decision, a written
+   comment counts too). A requester's attachment is not proof. A director cannot close without proof either.
 4. The person who asked accepts the proof or sends it back with a reason. Nobody judges their own proof, a director
    included. After "Minta koreksi", new proof is required before sending again.
 5. Ageing is computed, never edited: Layu from the due date, Busuk from 3 working days late; cards with a legal
@@ -135,7 +138,9 @@ changing what they say:
 6. Macet: waiting on someone, or proof not yet confirmed, for more than 2 working days.
 7. A director's first screen is Pengecualian: "Menunggu Anda" first, then Layu and Busuk, then Macet.
 8. Per-person numbers are visible to directors only; everyone else sees the office total and their own row.
-9. Private cards are seen only by their owner, their requester and the directors.
+9. Private cards are seen only by their owner, their requester and the directors. Since v1.6 also by the card's team
+   and by the people its requester picked (only the requester or a director changes that); a sub-task also by its
+   parent's owner, team and requester. The directors still see every private card.
 10. Routine templates start switched off; a routine can be switched on only with an active owner; a person who owns
     a running routine cannot be switched off until the routine has another owner.
 11. The card history is append-only.

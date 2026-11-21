@@ -40,6 +40,9 @@ null), done 0/1, created_at, done_at) (v1.3: a person's own to-dos, not cards; R
 events, and a person may delete their own).
 Cards are never deleted (cancel only). Status: `antri` (not started) · `jalan` (active) · `tunggu` (blocked, names who)
 · `bukti` (proof sent, waiting for confirmation) · `selesai` · `batal`.
+v1.6 (21 Nov 2026, the owner; PLAN_team_v1_6.md, CHANGES_v1_6.md): `cards.parent` (the task a sub-task belongs to, one
+level only) · card_people(card, person, kind 'member'|'viewer'): the team besides the PIC (`owner`), and the people
+picked to see a private card. One row per person and card.
 
 ## 4. Rules (server-enforced; the client only mirrors them). Each refusal is a JSON `{error: code, message}` with 4xx.
 R1 **Commit.** A card needs exactly one owner and a due date (`need_owner`, `need_due`). Anyone may create a card for
@@ -78,6 +81,28 @@ R11 **Who may do what.** staf: create cards; act on cards they own (start, block
    date unless they are also the requester. direktur: everything above for any card, overrides, cancel, people,
    settings, routines. keeper flag: read every non-private card + open the Friday list.
 R12 **Audit.** Every state change writes an `events` row (actor, time, kind, before/after). Shown as the card's history.
+
+**v1.6 changes to R1, R2, R4, R6, R11 (21 Nov 2026, the owner's decisions; tell the director):**
+- R1: a card still has exactly one owner, shown as **PIC**, and may have a **team** of other people. The PIC and
+  every member may start, block, unblock, add proof and send proof; one proof closes the card for all.
+- R2: a card in `jalan` counts toward the limit of every active person on its team. Starting it or returning it from
+  `tunggu` is refused while anyone on the team is full (`limit_active` for one's own limit and a direktur on the PIC's,
+  otherwise `limit_active_person` naming the person); a direktur may override with a reason. Adding a person to a
+  running card checks that person. Known: a named refusal can hint at a teammate's private running cards.
+- R4: a requester on the team closes with the proof (`self_closed`); nobody on the team judges the proof (FX1). Only
+  the requester or a direktur may put the requester on the team (`forbidden`).
+- R6: a card cannot wait on someone on its own team.
+- R11: a `private` card is visible to its PIC, its team, its requester, the people picked (`viewer`) and the
+  direktur; a sub-task also to its parent's PIC, team and requester; nobody else. The requester, the PIC or a
+  direktur changes the team (not in `bukti`); the requester or a direktur changes who may see it (`bad_input` without
+  an explicit list or yes/no). Someone who left stays where they were but cannot be added (`bad_people`).
+- Sub-tasks: a card with no parent may get sub-tasks, added by its PIC, a member, its requester or a direktur while
+  it is in `antri`, `jalan` or `tunggu` (`forbidden` first, then `sub_of_sub`, `bad_state`). A sub-task is a normal
+  card. A sub-task of a private card is private (`sub_private`), and making a card private makes its sub-tasks
+  private. Sending proof on a card with an open sub-task is refused (`subtasks_open`). Cancelling a card cancels its
+  open sub-tasks (their history says so, without the parent's reason). A sub-task shows its parent, and a parent
+  lists its sub-tasks, only to people who may see them; a sub-task's own people may learn that its parent is a
+  private card they cannot open, never which one.
 
 ## 5. Sign-in and safety
 - Pick your name, type your PIN (6 digits or more). First seed: every person gets a random temporary PIN written to

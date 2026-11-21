@@ -25,6 +25,16 @@ const PG3 = 'PG3 nothing is seeded while an office.db is in the data folder; the
 const PG4 = 'PG4 the start waits for a PostgreSQL that comes up late; a later outage fails fast and recovers';
 const PG5 = 'PG5 a dropped connection is reopened, but never in the middle of a transaction';
 const PG6 = 'PG6 a NUL character in text is dropped, not a 500 (PostgreSQL text cannot hold it)';
+const TEAM_TESTS = path.join(HERE, 'team.test.mjs');
+const TM1 = 'TM1 a private task is seen by its PIC, team, requester, the people picked and the directors only';
+const TM2 = 'TM2 anyone on the team works the task; one proof closes it for all; nobody on the team judges it';
+const TM3 = 'TM3 a requester on the team closes with the proof (R4 self-close)';
+const TM4 = 'TM4 a running shared task counts toward every member limit (R2)';
+const TM5 = 'TM5 who may change the team and who may see it; refusals write nothing';
+const TM6 = 'TM6 a member made PIC leaves the member list; Papan Saya holds the tasks I am on the team of';
+const TM7 = 'TM7 sub-tasks: one level, added by the parent team or requester, the parent closes after them';
+const TM8 = 'TM8 cancelling a task cancels its open sub-tasks';
+const TM9 = 'TM9 sub-tasks and parents do not reveal a private task to someone who may not see it';
 const V15_TESTS = path.join(HERE, 'v15.test.mjs');
 const V1 = 'V1 a comment is proof: Kirim bukti needs no file, and after a correction a new comment counts';
 const V2 = 'V2 a to-do has a title and an optional description';
@@ -38,28 +48,28 @@ const MUTANTS = [
   { name: 'director_bypasses_proof', file: 'server.mjs', test: SERVER_TESTS, check: 'R3 direktur cannot bypass proof',
     edits: [["if (proofs === 0) refuse(409, 'need_proof');", "if (proofs === 0 && !isDir(me)) refuse(409, 'need_proof');"]] },
   { name: 'private_leaks_in_list', file: 'server.mjs', test: SERVER_TESTS, check: 'R11 private invisible list',
-    edits: [["return { sql: '(c.private = 0 OR c.owner = ? OR c.requester = ?)', args: [me.id, me.id] };",
-      "return { sql: '(1 = 1 OR c.owner = ? OR c.requester = ?)', args: [me.id, me.id] };"]] },
+    edits: [["sql: '(c.private = 0 OR c.owner = ? OR c.requester = ? OR EXISTS",
+      "sql: '(1 = 1 OR c.owner = ? OR c.requester = ? OR EXISTS"]] },
   { name: 'ageing_boundary_shifted', file: path.join('lib', 'rules.mjs'), test: RULE_TESTS, check: 'R5 normal boundaries',
     edits: [["if (late >= settings.rotLate) return 'busuk';", "if (late > settings.rotLate) return 'busuk';"]] },
   { name: 'hard_lead_shifted', file: path.join('lib', 'rules.mjs'), test: RULE_TESTS, check: 'R5 hard boundaries',
     edits: [["if (workdaysBetween(today, due) <= settings.hardLead) return 'layu';", "if (workdaysBetween(today, due) < settings.hardLead) return 'layu';"]] },
   { name: 'tunggu_counted_active', file: 'server.mjs', test: SERVER_TESTS, check: 'R6 tunggu needs a person and a note and is not active',
-    edits: [["FROM cards WHERE owner = ? AND status = 'jalan'\").get(owner).n;", "FROM cards WHERE owner = ? AND status IN ('jalan','tunggu')\").get(owner).n;"]] },
+    edits: [["WHERE c.status = 'jalan' AND (c.owner = ?", "WHERE c.status IN ('jalan','tunggu') AND (c.owner = ?"]] },
   { name: 'macet_one_day_early', file: path.join('lib', 'rules.mjs'), test: SERVER_TESTS, check: 'R6 macet after more than 2 working days',
     edits: [['return workdaysBetween(localDate(since), today) > 2;', 'return workdaysBetween(localDate(since), today) >= 2;']] },
   { name: 'routine_created_twice', file: 'server.mjs', test: SERVER_TESTS, check: 'R10 routine idempotent',
     edits: [['const key = R.routineKey(r.id, due);', "const key = R.routineKey(r.id, due) + ':' + now();"]] },
   { name: 'refusal_still_writes', file: 'server.mjs', test: SERVER_TESTS, check: 'R2 refusal leaves the row unchanged',
     edits: [["refuse(409, 'limit_active', { n: st.maxActive });",
-      "q(\"UPDATE cards SET moved = moved + 1 WHERE owner = ? AND status = 'antri'\").run(ownerId); refuse(409, 'limit_active', { n: st.maxActive });"]] },
+      "q(\"UPDATE cards SET moved = moved + 1 WHERE owner = ? AND status = 'antri'\").run(pid); refuse(409, 'limit_active', { n: st.maxActive });"]] },
   { name: 'file_served_without_session', file: 'server.mjs', test: SERVER_TESTS, check: 'files need a session',
     edits: [["if (!exact || exact.auth !== 'none') {", "if ((!exact || exact.auth !== 'none') && !p.startsWith('/f/')) {"],
       ['    cardForViewer(ctx, ev.card);', '    if (ctx.me) cardForViewer(ctx, ev.card);']] },
   { name: 'exceptions_show_segar', file: 'server.mjs', test: SERVER_TESTS, check: 'R7 exceptions exact',
     edits: [["aged: all.filter((c) => c.age === 'layu' || c.age === 'busuk'),", "aged: all.filter((c) => c.age === 'layu' || c.age === 'busuk' || c.age === 'segar'),"]] },
   { name: 'self_close_skipped', file: 'server.mjs', test: SERVER_TESTS, check: 'R4 self card closes with self_closed',
-    edits: [['if (c.requester === c.owner) changeCard(c, { status: \'selesai\'', 'if (c.requester !== c.owner) changeCard(c, { status: \'selesai\'']] },
+    edits: [['if (team.includes(c.requester)) changeCard(c, { status: \'selesai\'', 'if (!team.includes(c.requester)) changeCard(c, { status: \'selesai\'']] },
   { name: 'owner_moves_own_due', file: 'server.mjs', test: SERVER_TESTS, check: 'R11 owner cannot move own due',
     edits: [["ACTIONS.set('due', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || isDir(me)))',
       "ACTIONS.set('due', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || c.owner === me.id || isDir(me)))']] },
@@ -71,7 +81,7 @@ const MUTANTS = [
     edits: [['const fn = ACTIONS.get(name);', "const fn = ({ start: ACTIONS.get('start') })[name];"]] },
   // ---- v1.1 fix round
   { name: 'owner_judges_own_proof', file: 'server.mjs', test: FX_TESTS, check: 'FX1 owner never judges own proof',
-    edits: [['const isOwnProof = (me, c) => me.id === c.owner && c.requester !== c.owner;', 'const isOwnProof = (me, c) => false;']] },
+    edits: [['const isOwnProof = (me, c, team = teamOf(c)) => team.includes(me.id) && !team.includes(c.requester);', 'const isOwnProof = (me, c, team = teamOf(c)) => false;']] },
   { name: 'staff_see_every_row', file: 'server.mjs', test: FX_TESTS, check: 'FX2 staff see total and own row',
     edits: [['(p.active || cards.some((c) => c.owner === p.id)) : p.id === me.id);', '(p.active || cards.some((c) => c.owner === p.id)) : true);']] },
   { name: 'routine_no_backfill', file: path.join('lib', 'rules.mjs'), test: FX_TESTS, check: 'FX3 routine back-fill',
@@ -166,6 +176,59 @@ const MUTANTS = [
     edits: [["run(ctx.me.id, text, description, due, now());", "run(ctx.me.id, text, '', due, now());"]] },
   { name: 'old_db_kinds_not_widened', file: path.join('lib', 'db.mjs'), test: V15_TESTS, check: V3,
     edits: [["if (!kinds || !kinds.d.includes(\"'comment'\")) {", 'if (false) {']] },
+  // v1.6 team, sub-tasks, picked viewers
+  { name: 'team_member_cannot_start', file: 'server.mjs', test: TEAM_TESTS, check: TM2,
+    edits: [["ACTIONS.set('start', (me, c, body) => {" + NL + '    if (!(onTeam(me, c) || isDir(me)))', "ACTIONS.set('start', (me, c, body) => {" + NL + '    if (!(c.owner === me.id || isDir(me)))']] },
+  { name: 'team_member_judges', file: 'server.mjs', test: TEAM_TESTS, check: TM2,
+    edits: [['=> team.includes(me.id) && !team.includes(c.requester);', '=> me.id === c.owner && c.requester !== c.owner;']] },
+  { name: 'member_requester_no_self_close', file: 'server.mjs', test: TEAM_TESTS, check: TM3,
+    edits: [['if (team.includes(c.requester)) changeCard(', 'if (c.requester === c.owner) changeCard(']] },
+  { name: 'limit_ignores_members', file: 'server.mjs', test: TEAM_TESTS, check: TM4,
+    edits: [["OR EXISTS (SELECT 1 FROM card_people cp WHERE cp.card = c.id AND cp.person = ? AND cp.kind = 'member'))\").get(person, person).n;",
+      "OR ?::text IS NULL)\").get(person, person).n;"]] },
+  { name: 'member_changes_team', file: 'server.mjs', test: TEAM_TESTS, check: TM5,
+    edits: [["ACTIONS.set('team', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || c.owner === me.id || isDir(me)))',
+      "ACTIONS.set('team', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || c.owner === me.id || isDir(me) || onTeam(me, c)))']] },
+  { name: 'inactive_person_picked', file: 'server.mjs', test: TEAM_TESTS, check: TM5,
+    edits: [["if (!p || (!p.active && !keep.includes(p.id))) refuse(400, 'bad_people');", "if (!p) refuse(400, 'bad_people');"]] },
+  { name: 'pic_stays_member', file: 'server.mjs', test: TEAM_TESTS, check: TM6,
+    edits: [["      q('DELETE FROM card_people WHERE card = ? AND person = ?').run(c.id, who.id);", '      /* planted: the new PIC stays a member */']] },
+  { name: 'my_view_without_team', file: 'server.mjs', test: TEAM_TESTS, check: TM6,
+    edits: [["cards.filter((c) => c.owner === me.id || c.members.includes(me.id)); // v1.6", 'cards.filter((c) => c.owner === me.id); // planted']] },
+  { name: 'viewer_of_any_card_sees_all', file: 'server.mjs', test: TEAM_TESTS, check: TM1,
+    edits: [["WHERE cp.card = c.id AND cp.person = ?)' +", "WHERE cp.person = ?)' +"]] },
+  { name: 'parent_closes_first_removed', file: 'server.mjs', test: TEAM_TESTS, check: TM7,
+    edits: [["    if (subs > 0) refuse(409, 'subtasks_open', { n: subs });", '    /* planted: the parent closes with open sub-tasks */']] },
+  { name: 'sub_of_sub_allowed', file: 'server.mjs', test: TEAM_TESTS, check: TM7,
+    edits: [["if (parent.parent != null) refuse(400, 'sub_of_sub');", '/* planted: sub-tasks of sub-tasks */']] },
+  { name: 'cancel_no_cascade', file: 'server.mjs', test: TEAM_TESTS, check: TM8,
+    edits: [["for (const s of q(\"SELECT * FROM cards WHERE parent = ? AND status IN ('antri','jalan','tunggu','bukti') ORDER BY id\").all(c.id)) {", 'for (const s of []) {']] },
+  { name: 'parent_title_leaks', file: 'server.mjs', test: TEAM_TESTS, check: TM9,
+    edits: [['WHERE c.id = ANY(?::bigint[]) AND ${v.sql}`).all(pids, ...v.args)', 'WHERE c.id = ANY(?::bigint[])`).all(pids)']] },
+  { name: 'subtask_list_leaks', file: 'server.mjs', test: TEAM_TESTS, check: TM9,
+    edits: [['WHERE c.parent = ? AND ${v.sql} ORDER BY c.id`).all(c.id, ...v.args)', 'WHERE c.parent = ? ORDER BY c.id`).all(c.id)']] },
+  { name: 'sub_of_private_made_public', file: 'server.mjs', test: TEAM_TESTS, check: TM9,
+    edits: [['const priv = body.private || (parent && parent.private) ? 1 : 0;', 'const priv = body.private ? 1 : 0; // planted']] },
+  // v1.6 review round
+  { name: 'parent_people_rule_removed', file: 'server.mjs', test: TEAM_TESTS, check: TM9,
+    edits: [['" OR EXISTS (SELECT 1 FROM cards p WHERE p.id = c.parent AND', '" OR false AND EXISTS (SELECT 1 FROM cards p WHERE p.id = c.parent AND']] },
+  { name: 'parent_private_keeps_subs_public', file: 'server.mjs', test: TEAM_TESTS, check: TM9,
+    edits: [["          q('UPDATE cards SET private = 1 WHERE id = ?').run(s.id);", '          /* planted: the sub-task stays public */']] },
+  { name: 'sub_of_sub_told_to_anyone', file: 'server.mjs', test: TEAM_TESTS, check: TM7,
+    edits: [["      if (parent.parent != null) refuse(400, 'sub_of_sub');" + NL, ''],
+      ['      // who may add comes first', "      if (parent.parent != null) refuse(400, 'sub_of_sub');" + NL + '      // who may add comes first']] },
+  { name: 'pic_adds_requester', file: 'server.mjs', test: TEAM_TESTS, check: TM5,
+    edits: [["if (next.includes(c.requester) && !before.includes(c.requester) && !(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');", '/* planted: the PIC may add the requester */']] },
+  { name: 'pic_changes_viewers', file: 'server.mjs', test: TEAM_TESTS, check: TM5,
+    edits: [["ACTIONS.set('viewers', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || isDir(me)))', "ACTIONS.set('viewers', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || c.owner === me.id || isDir(me)))']] },
+  { name: 'missing_switch_publishes', file: 'server.mjs', test: TEAM_TESTS, check: TM5,
+    edits: [["if (typeof body.private !== 'boolean' || (body.private && !Array.isArray(body.viewers))) refuse(400, 'bad_input');", '/* planted: no check of the switch */']] },
+  { name: 'missing_list_empties_team', file: 'server.mjs', test: TEAM_TESTS, check: TM5,
+    edits: [["if (!Array.isArray(body.members)) refuse(400, 'bad_input');", '/* planted: no check of the list */']] },
+  { name: 'left_member_still_counts', file: 'server.mjs', test: TEAM_TESTS, check: TM4,
+    edits: [['      if (pid !== pic && !(p && p.active)) continue;', '      /* planted: a member who left still counts */']] },
+  { name: 'cascade_copies_reason', file: 'server.mjs', test: TEAM_TESTS, check: TM8,
+    edits: [["me.id, 'cancel', { parent_cancelled: true });", "me.id, 'cancel', { reason, parent_cancelled: true });"]] },
 ];
 
 function count(hay, needle) { let n = 0, i = 0; while ((i = hay.indexOf(needle, i)) >= 0) { n++; i += needle.length; } return n; }
