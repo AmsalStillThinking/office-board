@@ -37,14 +37,17 @@ async function run({ sql, params, simple }) {
   const c = client;
   try {
     const r = simple ? await c.query(sql) : await c.query(sql, params);
+    // v1.5.2: only a BEGIN that worked opens a transaction. One that failed opened none, and its callers send it
+    // before their try, so nothing would ever end it: the worker then refused every statement after the next lost
+    // connection, until a restart (found in the v1.6 review).
+    if (verb.startsWith('BEGIN')) inTx = true;
     const last = Array.isArray(r) ? r[r.length - 1] : r; // a multi-statement script answers with one result each
     return { rows: last.rows || [], rowCount: last.rowCount ?? 0 };
   } catch (e) {
     if (lost(e)) { if (client === c) client = null; c.end().catch(() => {}); } // killed mid-statement: never reuse it
     throw e;
   } finally {
-    if (verb.startsWith('BEGIN')) inTx = true;
-    else if (verb.startsWith('COMMIT') || verb.startsWith('ROLLBACK')) inTx = false;
+    if (verb.startsWith('COMMIT') || verb.startsWith('ROLLBACK')) inTx = false;
   }
 }
 

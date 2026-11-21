@@ -247,3 +247,19 @@ test('PG6 a NUL character in text is dropped, not a 500 (PostgreSQL text cannot 
     await a.close();
   }
 });
+
+test('PG7 a BEGIN that fails leaves no transaction behind (a later lost connection still reconnects)', T, async () => {
+  const data = freshDir('pg_badbegin');
+  const url = fs.readFileSync(path.join(data, 'database.url'), 'utf8').trim();
+  const db = openPg(url), killer = openPg(url);
+  try {
+    assert.throws(() => db.exec('BEGIN ISOLATION LEVEL NONSENSE'), 'control: this BEGIN fails');
+    assert.equal(db.prepare('SELECT 1 AS one').get().one, 1, 'the connection itself is fine');
+    killer.prepare('SELECT pg_terminate_backend(?)').get(db.prepare('SELECT pg_backend_pid() AS p').get().p);
+    pause(300); // the worker hears of it
+    assert.equal(db.prepare('SELECT 2 AS two').get().two, 2, 'no transaction was opened, so the next statement reconnects');
+  } finally {
+    db.close(); killer.close();
+    dropDir(data);
+  }
+});

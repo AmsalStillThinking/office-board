@@ -25,6 +25,7 @@ const PG3 = 'PG3 nothing is seeded while an office.db is in the data folder; the
 const PG4 = 'PG4 the start waits for a PostgreSQL that comes up late; a later outage fails fast and recovers';
 const PG5 = 'PG5 a dropped connection is reopened, but never in the middle of a transaction';
 const PG6 = 'PG6 a NUL character in text is dropped, not a 500 (PostgreSQL text cannot hold it)';
+const PG7 = 'PG7 a BEGIN that fails leaves no transaction behind (a later lost connection still reconnects)';
 const TEAM_TESTS = path.join(HERE, 'team.test.mjs');
 const TM1 = 'TM1 a private task is seen by its PIC, team, requester, the people picked and the directors only';
 const TM2 = 'TM2 anyone on the team works the task; one proof closes it for all; nobody on the team judges it';
@@ -165,6 +166,8 @@ const MUTANTS = [
     edits: [['const until = Date.now() + (started ? 0 : START_WAIT_MS);', 'const until = Date.now() + START_WAIT_MS;']] },
   { name: 'pg_nul_kept', file: path.join('lib', 'pgsync.mjs'), test: PG_TESTS, check: PG6,
     edits: [["p.includes(NUL) ? p.replaceAll(NUL, '') : p", 'p']] },
+  { name: 'pg_failed_begin_opens_tx', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG7,
+    edits: [["    if (verb.startsWith('COMMIT') || verb.startsWith('ROLLBACK')) inTx = false;", "    if (verb.startsWith('BEGIN')) inTx = true; else if (verb.startsWith('COMMIT') || verb.startsWith('ROLLBACK')) inTx = false;"]] },
   { name: 'pg_reconnect_inside_tx', file: path.join('lib', 'pg-worker.mjs'), test: PG_TESTS, check: PG5,
     edits: [["if (inTx && !verb.startsWith('ROLLBACK')) throw", 'if (false) throw']] },
   { name: 'backup_skips_a_table', file: 'server.mjs', test: FX_TESTS, check: 'FX9 daily snapshot',
