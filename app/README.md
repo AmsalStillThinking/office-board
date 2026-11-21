@@ -108,6 +108,11 @@ On an empty data folder, people and routine templates are loaded from `seed\peop
 and every person gets a temporary PIN written to `data\first-pins.txt`. Hand each PIN out in person, then DELETE that
 file. Everyone must choose a new PIN (6 to 12 digits) at first sign-in.
 
+`seed\people.json` holds the real staff names, so it is NOT in git (the repository is public): it exists only on the
+board PC. For a new installation, write it yourself in the shape of `test\fixture\people.json` (fictional people).
+The placeholders `BOARD-PC`, `BOARD-PC-LAN-IP` and `BOARD-PC-TAILSCALE-IP` in the docs stand for the board PC's name
+and addresses; give `make_sop_sheet.py --address` the real one when building the staff sheet.
+
 All routine templates start INACTIVE. A director opens Lainnya -> Rutin, sets the owner and the date, ticks Aktif and
 saves. Cards are created `lead_days` (calendar days) before each due date, checked at start and every hour. If the
 server was off for a whole creation window, the missed card is still created when it comes back (marked as

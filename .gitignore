@@ -5,3 +5,4 @@ __pycache__/
 /data/
 /_backup-*/
 /LMN_Office_Task_Monitor.html
+/app/seed/people.json
