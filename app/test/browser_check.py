@@ -440,6 +440,39 @@ def todo_flow(ch, width, lang):
     ch.tap('#todo-open li[data-id="%s"] .todo-del' % t3)
     wait(ch, "!document.querySelector('#todo-open li[data-id=\"%s\"]')" % t3, "deleted to-do gone")
     check(tag + ": Hapus removes it; Tes T2 stays (the director's check)", todo_rows(ch, "open") == [["Tes T2 cetak formulir", False, None]], todo_rows(ch, "open"))
+    # Answers that land late or fail, each held in the browser (CDP Fetch). Each of these three checks went red in a
+    # copy with only its own line of app.js removed.
+    # 1) a tick answered after the person has moved into the text box leaves the focus there
+    ch.hold_requests("*/api/todos/*")
+    ch.tap('label[for="todo-box-%s"]' % t2)
+    ch.tap("#todo-text")
+    held = ch.release_requests()
+    wait(ch, "!!document.querySelector('#todo-done li[data-id=\"%s\"]')" % t2, "T2 ticked, answered late")
+    ch.pump(0.3)
+    got = (held, ch.eval("document.activeElement.id"))
+    check(tag + ": a late tick answer does not take the focus from the text box", got == (["POST"], "todo-text"), got)
+    ch.tap('label[for="todo-box-%s"]' % t2)  # untick again: back to the open list for the director's check
+    wait(ch, "!!document.querySelector('#todo-open li[data-id=\"%s\"]')" % t2, "T2 unticked again")
+    # 2) text typed while an add is on its way stays in the box
+    ch.tap_and_type("#todo-text", "Tes T4 tunggu")
+    ch.hold_requests("*/api/todos")
+    ch.tap("#todo-add")
+    ch.tap("#todo-text")
+    ch.key("End", "End", 35)
+    ch.type_keys(" lagi")
+    held = ch.release_requests()
+    wait(ch, "Array.prototype.some.call(document.querySelectorAll('#todo-open .todo-t'), function(x){return x.textContent==='Tes T4 tunggu';})", "T4 listed")
+    ch.pump(0.3)
+    got = (held, ch.eval("document.getElementById('todo-text').value"))
+    check(tag + ": text typed while an add was on its way stays in the box", got == (["POST"], "Tes T4 tunggu lagi"), got)
+    # 3) a tick the server refuses: undone, usable and focused again, with the server's sentence beside it
+    ch.hold_requests("*/api/todos/*")
+    ch.tap('label[for="todo-box-%s"]' % t2)
+    answered = ch.answer_held(500, {"error": "server_error", "message": MSG["server_error"][lang]})
+    wait(ch, "!!document.querySelector('#todo-open li[data-id=\"%s\"] .err')" % t2, "refused tick shown")
+    st = ch.eval("(function(){var b=document.getElementById('todo-box-%s'); return [b.checked, b.disabled, document.activeElement.id, document.querySelector('#todo-open li[data-id=\"%s\"] .err').textContent];})()" % (t2, t2))
+    check(tag + ": a refused tick is undone, usable and focused, with the server's sentence", answered == ["POST"] and st == [False, False, "todo-box-" + t2, MSG["server_error"][lang]], (answered, st))
+    ch.errors.clear()  # the 500 above is this check's own answer, not a page error
 
 
 # ------------------------------------------------------------------ one full run

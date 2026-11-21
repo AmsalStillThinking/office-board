@@ -31,14 +31,20 @@ deploys.
 ## Before deploying
 The live `F:\Office Board\public\` was edited in place on 21 Nov 2026 by another session (top bar, Angka, Ganti PIN
 dialog; backup in `F:\Office Board\_backup-layout-2026-11-21`). Those edits are not in this repo, so a deploy of
-this branch would revert them. Bring them into master first, rebase this branch on it, re-run the checks, then deploy.
+this branch would revert them. Bring them into master first, merge master into this branch, re-run the checks, then
+deploy. Measured on a copy of the live `public\` (identical to the backup's `new-public`): this branch's `public\`
+diff applies to style.css but not to app.js (the live icon list lost its `pin` line, which my icon insertion uses as
+context) or i18n.json (the live dictionary has `my_settings` and `close` after `my_pin`). Every change here is an
+insertion, so it is a hand merge of context, not of meaning; the live dictionary already has every key the page
+reuses (`st_selesai`, `due_*`).
 
 ## Independent review (21 Nov 2026) and what was done
 One reviewer read the first commit adversarially and reproduced its findings on copies of the app. No high-severity
 defect: someone else's to-do and a missing one get the same 404, rows stay byte-identical, and no events are written.
-- "Not even a director" was too strong: a director who resets a person's PIN can sign in as them and see the list.
-  The page now says the list is not shown to anyone else, a director included (true of every page), and the README
-  names the PIN-reset and backup limits. Changing what a PIN reset does to the list is left to the owner.
+- OPEN, for the owner: the page says the list is "not shown to anyone else, not even a director". That holds for every
+  page of the app, but a director who resets a person's PIN can sign in as that person and see their list (the reset
+  is in the change log). The README names this limit and the backup one. Keep the sentence, soften it, or change what
+  a PIN reset does to the list: the owner's call.
 - The "late body after sign-out" test covered the tick only; TD7 now covers tick, delete, clear-done and add, with a
   mutant for each route (4 mutants had survived the first TD7).
 - TD1 and TD3 could not tell their sort orders from "by id" (2 mutants survived); the fixtures now create and tick in
@@ -46,9 +52,10 @@ defect: someone else's to-do and a missing one get the same 404, rows stay byte-
 - "A half-typed date is saved as no date" (reasoned by the reviewer, not run) is false in Chrome: the browser's own
   form check refuses a date field flagged badInput, as on Tugas baru, so nothing is sent and the focus goes to the
   date. A guard of my own for it never ran and was removed; browser_check.py now measures the native refusal.
-- Client: a reload answered late no longer draws over a newer one or takes the focus from a field the person has
-  moved to; a failed tick gives the focus back to its box; text typed while an add is on its way is kept; a refused
-  date puts the focus on the date box.
+- Client: a reload answered late no longer takes the focus from a field the person has moved to; a failed tick gives
+  the focus back to its box; text typed while an add is on its way is kept (each of these three has a browser check
+  that went red with only its own line removed). Only the newest reload draws now, and a refused date puts the focus
+  on the date box: both added, neither measured.
 - Docs: SPEC section 3 lists `todos` (R12 does not cover them), PLAN lists the final checks.
 - Accepted as is: the shared id counter shows roughly how many to-dos others add (private cards work the same way);
   `autocomplete="off"` is checked as an attribute, not measured in a browser; a failed sign-out leaving the session
@@ -63,8 +70,10 @@ defect: someone else's to-do and a missing one get the same 404, rows stay byte-
 ## Checks (21 Nov 2026, this PC, on the final code of this branch)
 - `node test/run_tests.mjs`: 100 of 100 (92 before plus TD1-TD8), RESULT: PASS. Every TD test failed on the code
   before the feature first (8 of 8).
-- `python -X utf8 test/browser_check.py`: 1122 of 1122 at 390 and 1280 px, Indonesian and English, 124 of them on
-  To-Do Saya; RESULT: PASS.
+- `python -X utf8 test/browser_check.py`: 1134 of 1134 at 390 and 1280 px, Indonesian and English, 136 of them on
+  To-Do Saya; RESULT: PASS. Red proofs: three copies of the app, each with one client fix removed (the focus guard
+  after a reload, keeping text typed during an add, the focus back after a refused tick), each failed exactly its own
+  check and nothing else (1 of 288 at 1280 px, Indonesian).
 - `node test/mutants.mjs`: 41 of 41 caught (29 before plus 12 todo_*); RESULT: PASS.
 - `seat_checks`: seat_probe 129 of 129, seat_probe2 39 of 39, seat_mut_v11 27 of 27 caught, sop_check PASS,
   name_scan PASS.
