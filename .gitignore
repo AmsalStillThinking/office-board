@@ -2,3 +2,6 @@ app/test/_tmp/
 app/data/
 __pycache__/
 *.pyc
+/data/
+/_backup-*/
+/LMN_Office_Task_Monitor.html

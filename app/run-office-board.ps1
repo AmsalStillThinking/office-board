@@ -1,20 +1,24 @@
 # Start the Office Board from the folder this script is installed in, and say where to open it.
 # ASCII only (Windows PowerShell 5.1). start-office-board.bat runs it; by hand:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File run-office-board.ps1 [-Port 3006]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File run-office-board.ps1 [-Port 3006] [-Data <data folder>]
 # Already running: says so and shows the addresses, starts nothing. Port held by another program: names it, starts
 # nothing. Otherwise starts server.mjs detached (it keeps running when this window closes; it is not a service),
 # waits until it answers, and shows the addresses. Exit code 0 = the board answers on the port.
-param([int]$Port = 3006)
+# -Data: the data folder (default: data\ next to this script). F:\Office Board runs the board from the source folder's
+# app\ with -Data "F:\Office Board\data" (the start-office-board.bat at the top of the source folder does that).
+param([int]$Port = 3006, [string]$Data = "")
 $ErrorActionPreference = "Stop"
 $root  = $PSScriptRoot
 $entry = Join-Path $root "server.mjs"
-$data  = Join-Path $root "data"
+$data  = if ($Data) { [System.IO.Path]::GetFullPath($Data) } else { Join-Path $root "data" }
 $log   = Join-Path $data "server.log"
 
 function Stop-Here([string]$why) { Write-Output ("GAGAL: " + $why); exit 1 }
 if (-not (Test-Path $entry)) { Stop-Here ("server.mjs tidak ada di " + $root) }
-# the source package has test\ next to server.mjs; an installation never does (deploy leaves it out)
-if (Test-Path (Join-Path $root "test")) { Stop-Here "ini folder sumber, bukan folder instalasi: jalankan dari folder hasil deploy" }
+# the source folder has test\ next to server.mjs: a data folder must never land inside it
+if ((Test-Path (Join-Path $root "test")) -and $data.ToLower().StartsWith($root.ToLower() + "\")) {
+  Stop-Here "ini folder sumber: beri -Data dengan folder data di luar folder ini (start-office-board.bat melakukannya)"
+}
 $cmd = Get-Command node.exe -ErrorAction SilentlyContinue
 if (-not $cmd) { Stop-Here "node.exe tidak ditemukan (perlu Node.js 22.5 atau lebih baru)" }
 $node = $cmd.Source

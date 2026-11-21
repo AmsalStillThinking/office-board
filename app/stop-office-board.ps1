@@ -1,15 +1,15 @@
 # Stop the Office Board that runs from the folder this script is installed in.
 # ASCII only (Windows PowerShell 5.1). stop-office-board.bat runs it; by hand:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File stop-office-board.ps1 [-Port 3006]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File stop-office-board.ps1 [-Port 3006] [-Data <data folder>]
 # Stops ONLY node.exe processes started from this folder (never another program on the port), then waits until they
 # are gone and says whether the port is free. Not running: says so. Exit code 0 = no board from this folder runs.
 # A forced stop, as the deploy does: every saved change is already committed in PostgreSQL, and a transaction left
 # half done is rolled back by PostgreSQL itself.
-param([int]$Port = 3006)
+param([int]$Port = 3006, [string]$Data = "")
 $ErrorActionPreference = "Stop"
 $root  = $PSScriptRoot
 $entry = Join-Path $root "server.mjs"
-$data  = Join-Path $root "data"
+$data  = if ($Data) { [System.IO.Path]::GetFullPath($Data) } else { Join-Path $root "data" }
 
 function Get-Board {
   # the same test as the deploy: this folder's server.mjs by absolute path, or a relative "server.mjs" together with

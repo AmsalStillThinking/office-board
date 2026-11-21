@@ -61,6 +61,20 @@ was in the middle of saving is refused and saves nothing.
 
 ## The real installation
 
+Since 21 Nov 2026 the board runs straight from this source folder: `F:\Office Board` is the git repository, the
+board runs from `F:\Office Board\app`, and its data folder is `F:\Office Board\data` (outside `app\`, ignored by
+git), on port 3006, at `http://<this PC's IP>:3006`. There is no deploy step for it any more:
+
+- `F:\Office Board\start-office-board.bat` starts it (`app\run-office-board.ps1 -Data "F:\Office Board\data"`),
+  `F:\Office Board\stop-office-board.bat` stops it. After a restart of the PC: double-click the start one.
+- A saved change in `app\public\` (the screens) is live for everyone at once. A change in `server.mjs`, `lib\` or
+  `tools\` takes effect at the next stop and start. Commit what you change; never run the tests in this folder while
+  people are working (the tests start their own PostgreSQL and load the PC).
+- The way back from this layout: `F:\Office Board\_backup-v14-toplevel-2026-11-21` holds the program as it was
+  installed before (start it with that folder's own .bat after moving the files back up one level).
+
+The deploy script below is for any other installation (a program folder without `test\`):
+
 - Program folder `D:\apps\office-board`, data folder `D:\apps\office-board\data`, port 3006, on the office LAN at
   `http://<this PC's IP>:3006`.
 - Install, update and restart all go through `..\deploy_office_board.ps1` (in PowerShell, from `_taskmonitor_build`):
@@ -76,8 +90,9 @@ was in the middle of saving is refused and saves nothing.
 - The .bat runs `run-office-board.ps1` from the program folder: if the board already runs there it says so, if port
   3006 is held by another program it names it, otherwise it starts the board detached (closing the window does not
   stop it), waits until it answers and lists the addresses to open (this PC, and every network card's IP). Exit code
-  0 means the board answers. It refuses to run from this source folder (one with `test\`), so no data folder lands
-  here. Another port: `run-office-board.ps1 -Port 3010` (a deploy with `-Port` writes the .bat that way).
+  0 means the board answers. In a source folder (one with `test\`) it refuses a data folder inside it, so give
+  `-Data` with a folder outside. Another port: `run-office-board.ps1 -Port 3010` (a deploy with `-Port` writes the
+  .bat that way).
 - To stop it: `stop-office-board.bat` (also written by the deploy) runs `stop-office-board.ps1`. It stops only the
   board started from this folder (never another program on the port), waits until it is gone and says whether the
   port is free. It is a forced stop, as in the deploy: every saved change is already committed in PostgreSQL, and a

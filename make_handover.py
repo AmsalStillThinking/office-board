@@ -26,7 +26,7 @@ FILES = [
     ("deploy_office_board.ps1", "deploy_office_board.ps1"),
     ("make_sop_sheet.py", "make_sop_sheet.py"),
     ("make_handover.py", "make_handover.py"),
-    (os.path.join("..", "SOP_Papan_Tugas_Kantor.html"), "SOP_Papan_Tugas_Kantor.html"),
+    ("SOP_Papan_Tugas_Kantor.html", "SOP_Papan_Tugas_Kantor.html"),
 ]
 TREES = [("app", "app"), ("seat_checks", "seat_checks")]
 SKIP_DIRS = {"_tmp", "data", "__pycache__", "backups", "files"}  # v1.4: node_modules (the pg driver) ships

@@ -23,6 +23,13 @@
 > v1.3 (21 Nov 2026, branch feat/todo-list) adds To-Do Saya: each person's own to-do list, which no page shows to
 > anyone else, a director included (app\README.md names the two limits). That is a who-sees-what choice (section 5),
 > made by the app's owner: tell the director before it is deployed. Read CHANGES_v1_3_todo.md.
+> v1.4 (21 Nov 2026): the data is in PostgreSQL, moved with everyone's own PIN kept (CHANGES_v1_4_postgres.md).
+> Also since 21 Nov 2026 `F:\Office Board` IS this repository and the board runs straight from its `app\` (the
+> owner's choice: no deploy step, a saved screen file is live at once; app\README.md, "The real installation"). The
+> live screens of 21 Nov (the layout edits above) are now committed in `app\public`, so the WARNING above is settled;
+> the To-Do Saya screen is NOT in them: it stays on branch feat/todo-list until the director has been asked.
+> `browser_check.py` still expects the screens before the layout edits (top bar, Angka): bring it up to date before
+> trusting it.
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."

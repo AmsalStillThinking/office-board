@@ -13,20 +13,22 @@
   <aside id="side">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"></rect><rect x="10" y="4" width="5" height="10" rx="1.5"></rect><rect x="17" y="4" width="4" height="13" rx="1.5"></rect></svg></span>
-      <span class="brand-txt"><span id="app-name"></span><span id="motto"></span></span>
+      <span id="app-name"></span>
     </div>
     <nav id="nav" hidden></nav>
     <nav id="nav-more" hidden></nav>
-    <p id="side-foot"></p>
-  </aside>
-  <div id="main">
-    <header id="top">
-      <span id="today-line"></span>
-      <div class="who"><span id="me-avatar" aria-hidden="true"></span><span id="me-name"></span>
+    <div id="me-box">
+      <div class="who"><span id="me-avatar" aria-hidden="true"></span>
+        <span class="who-txt"><span id="me-name"></span><span id="today-line"></span></span>
+        <button type="button" id="settings-btn" class="small secondary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+      </div>
+      <div class="me-acts">
         <button type="button" id="lang-btn" class="small secondary"></button>
         <button type="button" id="logout-btn" class="small secondary" hidden></button>
       </div>
-    </header>
+    </div>
+  </aside>
+  <div id="main">
     <main id="view" tabindex="-1"></main>
   </div>
 </div>

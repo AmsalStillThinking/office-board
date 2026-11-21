@@ -3,7 +3,7 @@
 The three SOP texts and every button word are read from the app's own dictionary, and the day limits from the app's
 default settings, so the sheet cannot drift from what the app says. The build fails when a cited word is not in the app.
 usage: python -X utf8 make_sop_sheet.py [--address http://BOARD-PC-LAN-IP:3006] [--out <file.html>]
-Without --out it writes SOP_Papan_Tugas_Kantor.html in the folder above this one."""
+Without --out it writes SOP_Papan_Tugas_Kantor.html next to this script (the top of the source folder)."""
 import html
 import io
 import json
@@ -13,7 +13,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(HERE, "app")
-OUT = os.path.join(HERE, "..", "SOP_Papan_Tugas_Kantor.html")
+OUT = os.path.join(HERE, "SOP_Papan_Tugas_Kantor.html")
 address = "http://BOARD-PC-LAN-IP:3006"  # the board runs on BOARD-PC since 20 Nov 2026 (was the office PC)
 if "--address" in sys.argv:
     address = sys.argv[sys.argv.index("--address") + 1]
