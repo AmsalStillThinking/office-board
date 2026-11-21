@@ -315,3 +315,12 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   .fld-search { flex: 1 1 100%; }
   .fld-search input { width: 100%; }
 }
+
+/* v1.6.1: sub-tasks in Tugas baru. A row: the title on its own line, then PIC, date and Hapus, wrapping on a phone */
+fieldset.new-subs { margin: 12px 0 4px; padding: 6px 12px 10px; border: 1px solid var(--line-2); border-radius: 10px; min-width: 0; }
+fieldset.new-subs legend { font-weight: 600; padding: 0 4px; }
+.sub-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sub-row .sub-title { flex: 1 1 100%; }
+.sub-row select, .sub-row .sub-due { flex: 1 1 9rem; min-width: 0; }
+.sub-row .sub-del { flex: 0 0 auto; }
+#new-add-sub { margin-top: 8px; }

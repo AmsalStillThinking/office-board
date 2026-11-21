@@ -321,3 +321,43 @@ test('TM10 the daily backup holds the team and the picked people', T, async () =
   assert.deepEqual(tables.card_people.map((r) => [r.person, r.kind]).sort(), [[FAJAR, 'viewer'], [GITA, 'member']]);
   assert.ok(tables.cards.some((c) => 'parent' in c));
 });
+
+test('TM11 Tugas baru makes a task and its sub-tasks in one go; a bad row makes nothing at all', T, async () => {
+  const a = await signedIn([D1, DEWI, EKO, FAJAR, GITA]);
+  const base = { title: 'Laporan bulanan', owner: EKO, due: '2026-11-30', source: 'WhatsApp' };
+  const row = (title, owner, due) => ({ title, owner, due });
+  const cards0 = a.cardCount(), events0 = a.eventCount();
+  const late = await a.req(DEWI, 'POST', '/api/cards', { ...base, subtasks: [row('Kumpulkan data', EKO, '2026-11-26'), { title: 'Tanpa tanggal', owner: FAJAR }] });
+  refusal(late, 400, 'bad_subtask');
+  assert.match(late.json.message, /ke-2/, 'the sentence names the row');
+  for (const subtasks of [[row('', EKO, '2026-11-26')], [row('x', 'NOPE', '2026-11-26')], [row('x', EKO, '2026-02-30')]]) {
+    refusal(await a.req(DEWI, 'POST', '/api/cards', { ...base, subtasks }), 400, 'bad_subtask');
+  }
+  refusal(await a.req(DEWI, 'POST', '/api/cards', { ...base, subtasks: 'x' }), 400, 'bad_input');
+  refusal(await a.req(DEWI, 'POST', '/api/cards', { ...base, subtasks: Array.from({ length: 21 }, () => row('x', EKO, '2026-11-26')) }), 400, 'bad_input');
+  assert.deepEqual([a.cardCount(), a.eventCount()], [cards0, events0], 'a refused create writes nothing, not even the parent');
+
+  const r = await a.req(DEWI, 'POST', '/api/cards', { ...base, type: 'konten', private: true, viewers: [FAJAR],
+    subtasks: [row('Kumpulkan data', EKO, '2026-11-26'), row('Susun tabel', FAJAR, '2026-11-28')] });
+  assert.equal(r.status, 201, r.text);
+  const pid = r.json.card.id;
+  const subs = a.db.prepare('SELECT * FROM cards WHERE parent = ? ORDER BY id').all(pid);
+  assert.deepEqual(subs.map((s) => [s.title, s.owner, s.due, s.requester, s.private, s.status, s.type, s.source, s.hard]), [
+    ['Kumpulkan data', EKO, '2026-11-26', DEWI, 1, 'antri', 'konten', 'WhatsApp', 0],
+    ['Susun tabel', FAJAR, '2026-11-28', DEWI, 1, 'antri', 'konten', 'WhatsApp', 0]], 'each takes the parent type, source and privacy');
+  assert.equal(a.cardCount(), cards0 + 3);
+  // the people picked on the parent are picked on each sub-task too, its own PIC left out (as "+ Sub-tugas" starts)
+  assert.deepEqual([a.members(subs[0].id, 'viewer'), a.members(subs[1].id, 'viewer')], [[FAJAR], []]);
+  assert.equal((await a.detail(FAJAR, subs[0].id)).status, 200, 'a picked viewer sees the sub-task');
+  assert.equal((await a.detail(GITA, subs[0].id)).status, 404, 'control: someone not picked does not');
+  assert.deepEqual((await a.detail(DEWI, pid)).json.subtasks.map((s) => s.title), ['Kumpulkan data', 'Susun tabel'], 'the parent lists them');
+  const created = a.db.prepare("SELECT detail FROM events WHERE kind = 'create' AND card IN (?, ?, ?)").all(pid, subs[0].id, subs[1].id);
+  assert.equal(created.length, 3, 'one create event per task');
+  for (const e of created) assert.ok(!('parent' in JSON.parse(e.detail).after), 'no event names the parent');
+
+  const before = a.cardCount();
+  refusal(await a.req(DEWI, 'POST', '/api/cards', { ...base, parent: pid, subtasks: [row('x', EKO, '2026-11-26')] }), 400, 'sub_of_sub');
+  assert.equal(a.cardCount(), before, 'a sub-task cannot bring sub-tasks of its own');
+  const plain = await a.req(DEWI, 'POST', '/api/cards', { ...base, subtasks: [] });
+  assert.equal(plain.status, 201, 'control: an empty list is no list');
+});

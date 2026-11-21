@@ -33,6 +33,7 @@
  "limit_active_person": {"id":"{name} sudah punya {n} tugas berjalan. Selesaikan dulu sebelum mulai yang baru."},
  "bad_people": {"id":"Ada orang yang dipilih tidak ada atau tidak aktif."},
  "sub_of_sub": {"id":"Sub-tugas tidak bisa punya sub-tugas lagi."},
+ "bad_subtask": {"id":"Sub-tugas ke-{n} belum lengkap: isi judul, PIC yang aktif, dan tenggatnya."},
  "subtasks_open": {"id":"Selesaikan dulu {n} sub-tugas yang masih terbuka."},
  "member_is_waited_on": {"id":"Tugas ini sedang menunggu orang itu. Lanjutkan tugasnya dulu, baru masukkan ke tim."},
  "sub_private": {"id":"Sub-tugas dari tugas pribadi tetap pribadi."}

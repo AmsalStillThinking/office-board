@@ -420,14 +420,34 @@ export function createApp(opts) {
       title, body: str(body.body, 5000), requester: me.id, owner: owner.id, due: body.due, hard: body.hard ? 1 : 0,
       type, source: body.source, private: priv,
     };
+    // v1.6.1: sub-tasks made together with a new task (Tugas baru). Each row needs a title, an active PIC and a date;
+    // every row is checked before anything is written, so a bad row never leaves a half-made task. A row has no type
+    // or source field, so a sub-task takes the parent's; like the "+ Sub-tugas" form it also starts with the parent's
+    // privacy and picked people. One level only.
+    let subCards = [];
+    if (body.subtasks !== undefined && body.subtasks !== null) {
+      if (!Array.isArray(body.subtasks) || body.subtasks.length > 20) refuse(400, 'bad_input');
+      if (parent && body.subtasks.length) refuse(400, 'sub_of_sub');
+      subCards = body.subtasks.map((s, i) => {
+        const row = s && typeof s === 'object' ? s : {};
+        const subTitle = str(row.title, 200), subOwner = getPerson(str(row.owner, 40));
+        if (!subTitle || !subOwner || !subOwner.active || !R.isDate(row.due)) refuse(400, 'bad_subtask', { n: i + 1 });
+        return { title: subTitle, body: '', requester: me.id, owner: subOwner.id, due: row.due, hard: 0, type, source: body.source, private: priv };
+      });
+    }
+    const insertCard = (c, parentId) => Number(q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at, parent)
+        VALUES (?,?,?,?,?,?,?,?,?,'antri',?,?) RETURNING id`).run(c.title, c.body, c.requester, c.owner, c.due, c.hard, c.type, c.source, c.private, now(), parentId).lastInsertRowid);
     const id = tx(() => {
-      const info = q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at, parent)
-        VALUES (?,?,?,?,?,?,?,?,?,'antri',?,?) RETURNING id`).run(card.title, card.body, card.requester, card.owner, card.due, card.hard, card.type, card.source, card.private, now(), parent ? parent.id : null);
-      const cid = Number(info.lastInsertRowid);
+      const cid = insertCard(card, parent ? parent.id : null);
       for (const p of members) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'member')").run(cid, p);
       for (const p of viewers) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'viewer')").run(cid, p);
       // the parent is not in the event: its viewers may not be allowed to know the parent exists
       writeEvent(cid, me.id, 'create', { after: { ...card, status: 'antri', members, viewers } });
+      for (const sc of subCards) {
+        const sid = insertCard(sc, cid), subViewers = viewers.filter((p) => p !== sc.owner);
+        for (const p of subViewers) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'viewer')").run(sid, p);
+        writeEvent(sid, me.id, 'create', { after: { ...sc, status: 'antri', members: [], viewers: subViewers } });
+      }
       return cid;
     });
     send(ctx.res, 201, { card: decorate(withPeople(me, [getCard(id)])[0], today(), settings()) });

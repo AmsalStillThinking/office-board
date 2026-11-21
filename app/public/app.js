@@ -866,6 +866,38 @@
     var showViewers = function () { viewers.hidden = !priv.checked; };
     priv.addEventListener('change', showViewers);
     showViewers();
+    // v1.6.1: sub-tasks made together with this task (not offered when this is a sub-task: one level only). A row
+    // starts with the task's PIC and date; the server checks every row before it writes anything.
+    var subRows = [], subSeq = 0;
+    var subList = h('div', { id: 'new-subs-list' });
+    var renumber = function () {
+      subRows.forEach(function (r, i) {
+        r.title.setAttribute('aria-label', tf('sub_row_title', { n: i + 1 }));
+        r.owner.setAttribute('aria-label', tf('sub_row_owner', { n: i + 1 }));
+        r.due.setAttribute('aria-label', tf('sub_row_due', { n: i + 1 }));
+        r.del.setAttribute('aria-label', tf('sub_row_del', { n: i + 1 }));
+      });
+    };
+    var addSub = function () {
+      var k = ++subSeq;
+      var r = { title: h('input', { id: 'new-sub-title-' + k, cls: 'sub-title', type: 'text', maxlength: '200', placeholder: t('sub_row_placeholder') }),
+        owner: peopleSelect('new-sub-owner-' + k, null, false), due: h('input', { id: 'new-sub-due-' + k, cls: 'sub-due', type: 'date' }) };
+      r.owner.value = owner.value;
+      r.due.value = due.value;
+      r.del = h('button', { type: 'button', cls: 'secondary small sub-del', text: t('sub_row_remove'), onclick: function () {
+        subRows.splice(subRows.indexOf(r), 1);
+        subList.removeChild(r.wrap);
+        renumber();
+        document.getElementById('new-add-sub').focus();
+      } });
+      r.wrap = h('div', { cls: 'sub-row' }, r.title, r.owner, r.due, r.del);
+      subRows.push(r);
+      subList.appendChild(r.wrap);
+      renumber();
+      r.title.focus();
+    };
+    var subBox = parent ? null : h('fieldset', { cls: 'new-subs', id: 'new-subs' }, h('legend', { text: t('f_subtasks') }), subList,
+      h('button', { type: 'button', id: 'new-add-sub', cls: 'secondary small', text: t('btn_add_sub_row'), onclick: addSub }));
     var form = h('form', { id: 'new-form', onsubmit: function (ev) {
       ev.preventDefault();
       // FX17i: the button stays disabled for the whole create + attachments chain; a second tap creates nothing.
@@ -876,7 +908,8 @@
       ARMED = null;
       api('POST', '/api/cards', { title: title.value, owner: owner.value, due: due.value, type: type.value, hard: hard.checked,
         source: source.value, body: body.value, 'private': priv.checked, members: members.picked(),
-        viewers: priv.checked ? viewers.picked() : [], parent: parent ? parent.id : null }).then(function (r) {
+        viewers: priv.checked ? viewers.picked() : [], parent: parent ? parent.id : null,
+        subtasks: subRows.map(function (s) { return { title: s.title.value, owner: s.owner.value, due: s.due.value }; }) }).then(function (r) {
         if (!r.ok) { submit.removeAttribute('data-hold'); submit.disabled = false; return showErr(msg, r); }
         var id = r.data.card.id;
         var list = Array.prototype.slice.call(files.input.files || []);
@@ -900,6 +933,7 @@
         h('div', {}, h('label', { for: 'new-source', text: t('f_source') }), source),
         h('div', {}, h('label', { cls: 'check', for: 'new-hard' }, hard, h('span', { text: t('f_hard') })))),
       members,
+      subBox,
       h('label', { for: 'new-body', text: t('f_body') }), body,
       h('label', { for: 'new-files', text: t('f_files') }), files.wrap,
       h('label', { cls: 'check', for: 'new-private' }, priv, h('span', { text: t('f_private') })),

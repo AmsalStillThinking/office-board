@@ -84,3 +84,15 @@ backups also leave out `card_people`. Restore those with v1.6 code, or use a bac
 
 **The director's rules:** HANDOVER section 5, rules 1 (one owner per card) and 9 (who sees a private card), change.
 The owner approved going live with that on 21 Nov 2026 and tells the director themselves.
+
+## v1.6.1 (22 Nov 2026): sub-tasks in Tugas baru
+Asked by the owner on 22 Nov 2026: "i want it straight from Tugas Baru, so when creating a parent, they can create a
+subtask too". The Tugas baru form has a "Sub-tugas (boleh kosong)" box: "+ Tambah sub-tugas" adds a row with a title,
+a PIC and a due date (the row starts with the task's PIC and date), and Hapus removes it. Saving makes the task and its
+sub-tasks in one transaction: the server checks every row first (title, an active PIC, a real date; at most 20 rows),
+and one incomplete row refuses the whole save ("Sub-tugas ke-2 belum lengkap: ...") with nothing written.
+A row holds a title, a PIC and a due date only. A sub-task made this way takes the task's type and source (the row
+has no field for them) and, like the "+ Sub-tugas" form, the task's privacy and the people picked to see a private
+task (its own PIC left out). Its notes and team are added by opening the sub-task afterwards.
+The box is not offered on a sub-task's own form (one level only). "+ Sub-tugas" on a task still works as before.
+No new column or table: only `server.mjs` changes besides the screen files, so going live needs one restart.

@@ -36,6 +36,7 @@ const TM6 = 'TM6 a member made PIC leaves the member list; Papan Saya holds the 
 const TM7 = 'TM7 sub-tasks: one level, added by the parent team or requester, the parent closes after them';
 const TM8 = 'TM8 cancelling a task cancels its open sub-tasks';
 const TM9 = 'TM9 sub-tasks and parents do not reveal a private task to someone who may not see it';
+const TM11 = 'TM11 Tugas baru makes a task and its sub-tasks in one go; a bad row makes nothing at all';
 const V15_TESTS = path.join(HERE, 'v15.test.mjs');
 const V1 = 'V1 a comment is proof: Kirim bukti needs no file, and after a correction a new comment counts';
 const V2 = 'V2 a to-do has a title and an optional description';
@@ -236,6 +237,17 @@ const MUTANTS = [
     edits: [['      if (pid !== pic && !(p && p.active)) continue;', '      /* planted: a member who left still counts */']] },
   { name: 'cascade_copies_reason', file: 'server.mjs', test: TEAM_TESTS, check: TM8,
     edits: [["me.id, 'cancel', { parent_cancelled: true });", "me.id, 'cancel', { reason, parent_cancelled: true });"]] },
+  // v1.6.1: sub-tasks made with Tugas baru
+  { name: 'new_sub_bad_row_kept', file: 'server.mjs', test: TEAM_TESTS, check: TM11,
+    edits: [["if (!subTitle || !subOwner || !subOwner.active || !R.isDate(row.due)) refuse(400, 'bad_subtask', { n: i + 1 });", '/* planted: any row is taken */']] },
+  { name: 'new_sub_not_private', file: 'server.mjs', test: TEAM_TESTS, check: TM11,
+    edits: [['hard: 0, type, source: body.source, private: priv };', 'hard: 0, type, source: body.source, private: 0 };']] },
+  { name: 'new_sub_loose', file: 'server.mjs', test: TEAM_TESTS, check: TM11,
+    edits: [['const sid = insertCard(sc, cid)', 'const sid = insertCard(sc, null)']] },
+  { name: 'new_sub_no_viewers', file: 'server.mjs', test: TEAM_TESTS, check: TM11,
+    edits: [['subViewers = viewers.filter((p) => p !== sc.owner);', 'subViewers = [];']] },
+  { name: 'new_sub_on_a_sub', file: 'server.mjs', test: TEAM_TESTS, check: TM11,
+    edits: [["      if (parent && body.subtasks.length) refuse(400, 'sub_of_sub');", '      /* planted: sub-tasks on a sub-task */']] },
 ];
 
 function count(hay, needle) { let n = 0, i = 0; while ((i = hay.indexOf(needle, i)) >= 0) { n++; i += needle.length; } return n; }
