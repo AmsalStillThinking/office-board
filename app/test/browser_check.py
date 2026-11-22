@@ -648,7 +648,7 @@ def run(width, lang):
         wait(ch, "!!document.querySelector('#office-view .tr[data-id]')", "office list rows")
         check("office %d %s: Daftar is the default view" % (width, lang),
               ch.eval("document.querySelector('#office-view').getAttribute('data-view')==='list' && document.querySelector('#view-list').getAttribute('aria-pressed')==='true'"))
-        check("office board: colour + word + icon legend", ch.eval("document.querySelectorAll('.legend .badge svg').length") == 4)
+        check("office board: no legend under the list (the Urgensi column names the colours)", ch.eval("document.querySelectorAll('#office-view .legend').length") == 0)
         page_checks(ch, width, lang, "office")
         shot(ch, width, lang, "07_office")
         # six more open tasks through the API, so the list needs a second page

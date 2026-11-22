@@ -410,7 +410,8 @@
     var dlg = h('dialog', { id: 'settings-dlg', cls: 'dlg', 'aria-labelledby': 'settings-h', onclose: function () { if (dlg.parentNode) dlg.parentNode.removeChild(dlg); } },
       h('div', { cls: 'dr-head' }, h('h1', { id: 'settings-h', cls: 'dr-title', text: t('my_settings') }),
         h('button', { type: 'button', id: 'settings-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
-      h('div', { cls: 'dr-body' }, pinForm(false)));
+      h('div', { cls: 'dr-body' }, pinForm(false),
+        h('div', { cls: 'row dlg-out' }, h('button', { type: 'button', id: 'settings-logout', cls: 'secondary', text: t('logout'), onclick: signOut }))));
     layer.appendChild(dlg);
     dlg.showModal();
     document.getElementById('old-pin').focus();
@@ -666,7 +667,7 @@
             h('label', { cls: 'fld', for: 'f-owner' }, h('span', { text: t('lbl_people') }), ownerSel),
             h('label', { cls: 'fld fld-search', for: 'f-q' }, h('span', { cls: 'vh', text: t('f_search') }), icon('search'), search),
             clearBtn)),
-        count, body, legend()));
+        count, body, mode === 'list' ? null : legend())); // the list's Urgensi column already names each colour
 
       function paint() {
         clear(chips);
@@ -737,7 +738,7 @@
     return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status },
       h('div', { role: 'cell', cls: 'c-task' },
         h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } }),
-        h('span', { cls: 'sub', text: ['#' + c.id, t('type_' + c.type)].concat(flags).join(' · ') })),
+        h('span', { cls: 'sub', text: [t('type_' + c.type)].concat(flags).join(' · ') })),
       h('div', { role: 'cell' }, statusBadge(c.status)),
       h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null),
