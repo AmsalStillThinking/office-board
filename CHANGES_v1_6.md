@@ -98,3 +98,10 @@ has no field for them) and, like the "+ Sub-tugas" form, the task's privacy and 
 task (its own PIC left out). Its notes and team are added by opening the sub-task afterwards.
 The box is not offered on a sub-task's own form (one level only). "+ Sub-tugas" on a task still works as before.
 No new column or table: only `server.mjs` changes besides the screen files, so going live needs one restart.
+
+## Plain wording (22 Nov 2026)
+The owner asked for a plain-language pass over the board's texts. Short labels stayed as they were. Reworded: the
+To-Do List note, the Review Jumat intro, the three rules on the help page (also on the printed staff sheet, rebuilt),
+the three ageing settings labels (now "Jadi Due berapa hari kerja setelah tenggat", in the style of the routine label),
+and two server sentences (need_proof, bad_state). The meaning of every text is unchanged; rule 1 now says "kirim bukti"
+instead of "lampirkan bukti", because a comment counts as proof since v1.5.
