@@ -89,6 +89,7 @@
   "none_picked": "(tidak ada)",
   "lbl_parent": "Bagian dari",
   "lbl_sub_of": "Sub-tugas dari #{id}",
+  "lbl_sub_of_title": "Sub-tugas dari {t}",
   "lbl_subtasks": "Sub-tugas",
   "sub_count": "{a} dari {b} sudah ditutup",
   "no_subtasks": "Belum ada sub-tugas.",

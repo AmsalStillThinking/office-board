@@ -734,7 +734,7 @@
 
   function rowItem(c) {
     var flags = [c.hard ? t('lbl_hard') : '', c.routine_key ? t('lbl_routine') : '', c.private ? t('lbl_private') : '',
-      c.parent ? tf('lbl_sub_of', { id: c.parent }) : ''].filter(Boolean);
+      c.parent ? tf('lbl_sub_of_title', { t: c.parent_title }) : ''].filter(Boolean); // the table shows no task numbers
     return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status },
       h('div', { role: 'cell', cls: 'c-task' },
         h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } }),
