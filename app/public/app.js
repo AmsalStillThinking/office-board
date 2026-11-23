@@ -134,23 +134,83 @@
   function onTeam(c, id) { return c.owner === id || (c.members || []).indexOf(id) >= 0; }
   function teamLabel(c) { return [c.owner].concat(c.members || []).map(ownerLabel).join(', '); }
   function namesOf(ids) { return ids.length ? ids.map(ownerLabel).join(', ') : t('none_picked'); }
-  // v1.6: a tick per active person, for a team or the people who may see a private task; someone who left is listed
-  // only where already chosen (the server keeps them there). hide(ids) leaves out the people who always belong
-  // (the PIC, the requester, the directors); picked() is what is ticked and shown.
+  // v1.6.6: a team, or the people who may see a private task: one name field and a chip per person picked. Typing,
+  // or a click on the field, lists the people not picked yet; a click, a tap or Enter adds one and empties the field;
+  // the x on a chip takes the person off. Someone who left is offered only if already chosen (the server keeps them
+  // there). hide(ids) leaves out the people who always belong (the PIC, the requester, the directors) without
+  // dropping them from `chosen`, so a pick comes back when the PIC changes again; picked() is what the chips show.
+  // Text typed but not picked is cleared when the field loses focus: only the chips are sent.
   function peopleChecks(id, legendKey, chosen) {
-    var box = h('fieldset', { cls: 'pchecks', id: id }, h('legend', { text: t(legendKey) }));
-    PEOPLE.filter(function (p) { return p.active || chosen.indexOf(p.id) >= 0; }).forEach(function (p) {
-      var cb = h('input', { type: 'checkbox', id: id + '-' + p.id, value: p.id, checked: chosen.indexOf(p.id) >= 0 });
-      box.appendChild(h('label', { cls: 'check', for: cb.id, 'data-person': p.id }, cb,
-        h('span', { text: ownerLabel(p.id) + (ME && p.id === ME.id ? ' ' + t('me_suffix') : '') })));
+    chosen = chosen.slice();
+    var hidden = [], shown = [], active = -1, legendId = id + '-legend';
+    var eligible = PEOPLE.filter(function (p) { return p.active || chosen.indexOf(p.id) >= 0; });
+    var label = function (p) {
+      return (p.nick ? p.name + ' (' + p.nick + ')' : p.name) + (p.active ? '' : ' ' + t('inactive_lane')) + (ME && p.id === ME.id ? ' ' + t('me_suffix') : '');
+    };
+    // the chips and what is sent follow the people list's order (as the ticks did), whatever order they were picked in
+    var kept = function () { return eligible.filter(function (p) { return chosen.indexOf(p.id) >= 0 && hidden.indexOf(p.id) < 0; }); };
+    var chips = h('div', { cls: 'pchips', id: id + '-chips' });
+    var input = h('input', { id: id + '-q', type: 'text', role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false',
+      'aria-controls': id + '-list', 'aria-labelledby': legendId, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+      maxlength: '160', placeholder: t('add_person_ph') });
+    var list = h('ul', { id: id + '-list', cls: 'name-list', role: 'listbox', 'aria-labelledby': legendId, hidden: true });
+    var box = h('fieldset', { cls: 'ppick', id: id }, h('legend', { id: legendId, text: t(legendKey) }), chips, h('div', { cls: 'name-pick' }, input, list));
+    var drawChips = function () {
+      clear(chips);
+      kept().forEach(function (p) {
+        chips.appendChild(h('span', { cls: 'pchip', 'data-person': p.id }, h('span', { text: label(p) }),
+          h('button', { type: 'button', cls: 'pchip-x', 'aria-label': tf('remove_person', { name: label(p) }), text: '×', onclick: function () {
+            chosen.splice(chosen.indexOf(p.id), 1);
+            drawChips();
+            input.focus(); // the chip and its button are gone: the focus goes back to the field, not to the page
+          } })));
+      });
+    };
+    var mark = function () {
+      Array.prototype.forEach.call(list.children, function (li, i) { li.classList.toggle('on', i === active); });
+      if (active < 0) return input.removeAttribute('aria-activedescendant');
+      input.setAttribute('aria-activedescendant', list.children[active].id);
+      list.children[active].scrollIntoView({ block: 'nearest' });
+    };
+    var hideList = function () { list.hidden = true; input.setAttribute('aria-expanded', 'false'); active = -1; mark(); };
+    var showList = function () {
+      var q = input.value.trim().toLowerCase();
+      var left = eligible.filter(function (p) { return chosen.indexOf(p.id) < 0 && hidden.indexOf(p.id) < 0; });
+      shown = left.filter(function (p) { return label(p).toLowerCase().indexOf(q) >= 0; });
+      active = shown.length === 1 ? 0 : -1; // a sole match is marked, so Enter takes it
+      clear(list);
+      shown.forEach(function (p) {
+        list.appendChild(h('li', { id: id + '-o-' + p.id, role: 'option', 'aria-selected': 'false', 'data-person': p.id, text: label(p), onclick: function () { add(p.id); } }));
+      });
+      if (!shown.length) list.appendChild(h('li', { cls: 'none', text: t(left.length ? 'no_name_match' : 'no_more_names') }));
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      mark();
+    };
+    var add = function (pid) { chosen.push(pid); input.value = ''; drawChips(); hideList(); };
+    input.addEventListener('input', showList);
+    input.addEventListener('click', showList);
+    input.addEventListener('blur', function () { input.value = ''; hideList(); });
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        if (list.hidden) return showList();
+        if (!shown.length) return;
+        active = ev.key === 'ArrowDown' ? Math.min(active + 1, shown.length - 1) : Math.max(active - 1, 0);
+        mark();
+      } else if (ev.key === 'Enter') {
+        ev.preventDefault(); // the field sits inside a form: Enter adds a person, it never creates or saves the task
+        if (!list.hidden && active >= 0) add(shown[active].id);
+      } else if (ev.key === 'Escape' && !list.hidden) {
+        ev.stopPropagation(); // closes only the list; the panel around it closes on the next Escape
+        hideList();
+      }
     });
-    box.hide = function (ids) {
-      Array.prototype.forEach.call(box.querySelectorAll('label[data-person]'), function (l) { l.hidden = ids.indexOf(l.getAttribute('data-person')) >= 0; });
-    };
-    box.picked = function () {
-      return Array.prototype.filter.call(box.querySelectorAll('label[data-person]'), function (l) { return !l.hidden && l.querySelector('input').checked; })
-        .map(function (l) { return l.getAttribute('data-person'); });
-    };
+    // a press on the list must not take the focus from the field: blur would close the list before the click lands
+    list.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+    box.hide = function (ids) { hidden = ids.slice(); drawChips(); if (!list.hidden) showList(); };
+    box.picked = function () { return kept().map(function (p) { return p.id; }); };
+    drawChips();
     return box;
   }
   // urgency is computed, never typed in (R5): Busuk, then Layu (legal deadline first), Macet, waiting for me, the rest

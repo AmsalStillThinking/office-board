@@ -87,6 +87,13 @@ try {
   }
   async function type(sel, text) { await click(sel); await send('Input.insertText', { text }); }
   const setValue = (sel, v, evName) => ev(`(() => { const e = document.querySelector(${q(sel)}); e.value = ${q(v)}; e.dispatchEvent(new Event(${q(evName)}, { bubbles: true })); return e.value; })()`);
+  // v1.6.6: the team and the viewers are a name field and a chip per person. offered() opens the list from script and
+  // reads whether a person is in it; pick() clicks the field and then the name, both as real mouse events.
+  const offered = (box, p) => ev(`(() => { const f = document.getElementById(${q(box + '-q')}); f.click();
+    const on = !!document.getElementById(${q(box + '-o-' + p)});
+    f.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return on; })()`);
+  const chipped = (box, p) => ev(`!!document.querySelector(${q('#' + box + '-chips [data-person="' + p + '"]')})`);
+  async function pick(box, p) { await click('#' + box + '-q'); await waitFor(`!!document.getElementById(${q(box + '-o-' + p)})`, p + ' offered in ' + box); await click('#' + box + '-o-' + p); }
   const NAMES = { T03: 'Dewi Kartika', T04: 'Eko Saputro', T05: 'Fajar Nugroho', T06: 'Gita Maharani' };
   let loads = 0;
   // a new query string forces a real page load (a hash-only change keeps the page and its signed-in person)
@@ -119,14 +126,14 @@ try {
   await width(390);
   await as('T03', '#new');
   await waitFor(`!!document.getElementById('new-form')`, 'the new-task form');
-  check('team ticks: the PIC (Dewi by default) is left out', await ev(`document.querySelector('#new-members label[data-person="T03"]').hidden && !document.querySelector('#new-members label[data-person="T04"]').hidden`));
-  check('viewer ticks hidden until Pribadi is ticked', await ev(`document.getElementById('new-viewers').hidden`));
+  check('team field: the PIC (Dewi by default) is not offered', !(await offered('new-members', 'T03')) && await offered('new-members', 'T04'));
+  check('viewer field hidden until Pribadi is ticked', await ev(`getComputedStyle(document.getElementById('new-viewers')).display === 'none'`));
   await setValue('#new-owner', 'T04', 'change');
-  check('choosing Eko as PIC moves him out of the ticks', await ev(`document.querySelector('#new-members label[data-person="T04"]').hidden && !document.querySelector('#new-members label[data-person="T03"]').hidden`));
-  await click('label[for="new-members-T06"]');
+  check('choosing Eko as PIC takes him out of the team field', !(await offered('new-members', 'T04')) && await offered('new-members', 'T03'));
+  await pick('new-members', 'T06');
   await click('label[for="new-private"]');
-  check('Pribadi shows the viewer ticks', await ev(`!document.getElementById('new-viewers').hidden`));
-  await click('label[for="new-viewers-T05"]');
+  check('Pribadi shows the viewer field', await ev(`getComputedStyle(document.getElementById('new-viewers')).display !== 'none'`));
+  await pick('new-viewers', 'T05');
   await type('#new-title', 'Laporan stok Nov');
   await setValue('#new-due', '2026-11-30', 'input');
   await overflow('form has no horizontal overflow at 390');
@@ -146,7 +153,7 @@ try {
   await waitFor(`!!document.getElementById('new-parent')`, 'the sub-task form');
   check('sub-task form names its parent', await ev(`document.getElementById('new-parent').textContent`) === `Untuk tugas #${parentId}: Laporan stok Nov`);
   check('sub-task of a private task: Pribadi ticked and locked', await ev(`document.getElementById('new-private').checked && document.getElementById('new-private').disabled`));
-  check('sub-task starts with the parent viewers ticked', await ev(`document.getElementById('new-viewers-T05').checked && !document.getElementById('new-viewers').hidden`));
+  check('sub-task starts with the parent viewers picked', await chipped('new-viewers', 'T05') && await ev(`!document.getElementById('new-viewers').hidden`));
   await setValue('#new-owner', 'T05', 'change');
   await type('#new-title', 'Rekap kas');
   await setValue('#new-due', '2026-11-27', 'input');
@@ -187,14 +194,16 @@ try {
   await load('#card/' + parentId);
   await waitFor(`!!document.getElementById('d-viewers')`, 'the parent panel');
   await click('#d-viewers');
-  check('Siapa yang melihat: PIC, team and requester are not offered', await ev(`['T03','T04','T06'].every((p) => document.querySelector('#viewers-new label[data-person="' + p + '"]').hidden) && document.getElementById('viewers-new-T05').checked`));
+  check('Siapa yang melihat: PIC, team and requester are not offered', !(await offered('viewers-new', 'T03')) && !(await offered('viewers-new', 'T04')) &&
+    !(await offered('viewers-new', 'T06')) && await chipped('viewers-new', 'T05'));
   await shot('1280-viewers-form.png');
   // ================= Eko is the PIC, not the requester: he changes the team but not the requester's place, nor who sees
   await as('T04', '#card/' + parentId);
   await waitFor(`!!document.getElementById('d-team')`, "Eko's panel");
   check('the PIC gets no Siapa yang melihat button', await ev(`!document.getElementById('d-viewers')`));
   await click('#d-team');
-  check('Ubah tim as PIC: the requester and the PIC are not offered', await ev(`document.querySelector('#team-new label[data-person="T03"]').hidden && document.querySelector('#team-new label[data-person="T04"]').hidden && !document.querySelector('#team-new label[data-person="T05"]').hidden && document.getElementById('team-new-T06').checked`));
+  check('Ubah tim as PIC: the requester and the PIC are not offered', !(await offered('team-new', 'T03')) && !(await offered('team-new', 'T04')) &&
+    await offered('team-new', 'T05') && await chipped('team-new', 'T06'));
   check('no script error on any page', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (e) {
   check('harness ran to the end', false, (e && e.stack) || String(e));

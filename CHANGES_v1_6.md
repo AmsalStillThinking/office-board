@@ -156,3 +156,24 @@ cocok". The list is drawn in the page (not the browser's own suggestions), so it
 on a phone. Screen only (`app.js`, `i18n.json`, `style.css`): live on merge, no restart. `browser_check.py`
 (`choose_name`, the sign-in card checks, `NAMES_READY`) and `seat_checks/live_look.py` now open the list and click
 a row; neither was run.
+
+## v1.6.6 (23 Nov 2026): the team and the viewers are one name field with chips
+The owner: "Boleh melihat juga" and "Ikut mengerjakan (tim)", "can you simplify the input". Shown two versions side
+by side, they chose "type a name, add chips" over a folded tick list. Both lists (in Tugas baru, Ubah tim and Siapa
+yang melihat) were a tick box per person; each is now one field, "Ketik nama untuk menambah", with a chip per person
+picked. Typing, or a click on the field, lists the people not picked yet (name or nickname, capitals ignored); a
+click, a tap or Enter adds one and empties the field; the x on a chip takes the person off. Enter in the field never
+creates or saves the task, and Escape closes the list but not the panel. Text typed but not picked is cleared when
+the field loses focus: only the chips are sent. Who is offered is unchanged (the PIC is never offered for the team;
+the PIC, the requester, the team and the directors are never offered as viewers; someone who left is offered only
+where already chosen), and a pick hidden because that person became the PIC comes back when the PIC changes again.
+With nobody left to offer, the list says "Tidak ada nama lain untuk dipilih". Screen only (`app.js`, `i18n.json`,
+`style.css`): live on merge, no restart. The server is unchanged and is sent the same lists as before, in the people
+list's order whatever order they were picked in; the chips follow that order too and show the name as the list
+does ("Name (Nick)", "(nonaktif)" for someone who left). `seat_checks/v16_browser_look.mjs` uses the new field (not
+run; it was already behind v1.6.3 for the PIC's Ubah tim). Checked with a light stub run (no database, invented
+people, real key and mouse events): 29/29 in headless Chrome 157 and in Edge 157, at 390 px for the form and 1280 px
+for the panel. Seven planted bugs were each caught by their own check: a click lost to blur, Enter sending the form,
+a pick dropped when that person becomes the PIC, unpicked text left in the field, focus lost after removing a chip,
+Escape closing the panel (the form was gone at that check), "no match" shown when nobody is left. Not seen: a phone's
+on-screen keyboard over the list, and the sub-task form of a private task (it starts with the parent's viewers).
