@@ -97,8 +97,9 @@ R12 **Audit.** Every state change writes an `events` row (actor, time, kind, bef
   direktur; a sub-task also to its parent's PIC, team and requester; nobody else. The requester, the PIC or a
   direktur changes the team (not in `bukti`); the requester or a direktur changes who may see it (`bad_input` without
   an explicit list or yes/no). Someone who left stays where they were but cannot be added (`bad_people`).
-- Sub-tasks: a card with no parent may get sub-tasks, added by its PIC, a member, its requester or a direktur while
-  it is in `antri`, `jalan` or `tunggu` (`forbidden` first, then `sub_of_sub`, `bad_state`). A sub-task is a normal
+- Sub-tasks: a card with no parent may get sub-tasks, added by its requester or a direktur (not its PIC or team,
+  since v1.6.2 of 23 Nov 2026) while it is in `antri`, `jalan` or `tunggu` (`forbidden` first, then `sub_of_sub`,
+  `bad_state`). A sub-task is a normal
   card. A sub-task of a private card is private (`sub_private`), and making a card private makes its sub-tasks
   private. Sending proof on a card with an open sub-task is refused (`subtasks_open`). Cancelling a card cancels its
   open sub-tasks (their history says so, without the parent's reason). A sub-task shows its parent, and a parent

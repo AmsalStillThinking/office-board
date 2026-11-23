@@ -208,23 +208,34 @@ test('TM6 a member made PIC leaves the member list; Papan Saya holds the tasks I
   assert.ok(!(await my(DEWI, 'my')).includes(asked), 'control');
 });
 
-test('TM7 sub-tasks: one level, added by the parent team or requester, the parent closes after them', T, async () => {
+test('TM7 sub-tasks: one level, added by the parent requester or a director, the parent closes after them', T, async () => {
   const a = await signedIn();
   const parent = await a.create(DEWI, { title: 'Tutup buku', owner: EKO, members: [GITA] });
-  refusal(await a.req(FAJAR, 'POST', '/api/cards', { title: 's', owner: FAJAR, due: '2026-11-24', source: 'Rapat', parent }), 403, 'forbidden');
-  const sub = await a.create(GITA, { title: 'Rekap kas', owner: FAJAR, parent });
+  // v1.6.2 (owner, 23 Nov 2026): the PIC and the team do not add sub-tasks, nor does anyone else who sees the task
+  const cards0 = a.cardCount();
+  for (const w of [EKO, GITA, FAJAR]) {
+    refusal(await a.req(w, 'POST', '/api/cards', { title: 's', owner: w, due: '2026-11-24', source: 'Rapat', parent }), 403, 'forbidden');
+  }
+  assert.equal(a.cardCount(), cards0, 'a refused sub-task writes nothing');
+  const canSub = [];
+  for (const w of [DEWI, D1, EKO, GITA]) canSub.push((await a.detail(w, parent)).json.can.sub);
+  assert.deepEqual(canSub, [true, true, false, false], '+ Sub-tugas for the requester and a director, not the PIC or team');
+  const sub = await a.create(DEWI, { title: 'Rekap kas', owner: FAJAR, parent });
   assert.equal(a.card(sub).parent, parent);
-  assert.equal(a.card(sub).requester, GITA, 'the one who adds a sub-task asks for it');
-  // sub_of_sub is told only to someone who may add to that task (Gita asked for it); anyone else gets forbidden
-  refusal(await a.req(GITA, 'POST', '/api/cards', { title: 's', owner: GITA, due: '2026-11-24', source: 'Rapat', parent: sub }), 400, 'sub_of_sub');
+  assert.equal(a.card(sub).requester, DEWI, 'the one who adds a sub-task asks for it');
+  // sub_of_sub is told only to someone who may add to that task (Dewi asked for it); anyone else gets forbidden
+  refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 's', owner: DEWI, due: '2026-11-24', source: 'Rapat', parent: sub }), 400, 'sub_of_sub');
   refusal(await a.req(EKO, 'POST', '/api/cards', { title: 's', owner: EKO, due: '2026-11-24', source: 'Rapat', parent: sub }), 403, 'forbidden');
   for (const bad of [999999, true, 1e20, '7x', [parent]]) {
     refusal(await a.req(EKO, 'POST', '/api/cards', { title: 's', owner: EKO, due: '2026-11-24', source: 'Rapat', parent: bad }), 404, 'not_found');
   }
-  const d = (await a.detail(EKO, parent)).json;
-  assert.deepEqual(ids(d.subtasks), [sub]);
-  assert.equal(d.can.sub, true);
-  assert.equal((await a.detail(EKO, sub)).json.can.sub, false, 'no sub-task under a sub-task');
+  assert.deepEqual(ids((await a.detail(EKO, parent)).json.subtasks), [sub], 'the PIC still sees the sub-task list');
+  assert.equal((await a.detail(DEWI, sub)).json.can.sub, false, 'no sub-task under a sub-task');
+  // a director adds too, and so does someone who asked themselves for a task (requester and PIC at once)
+  const mine = await a.create(GITA, { title: 'Catatan sendiri', owner: GITA });
+  const s1 = await a.create(GITA, { title: 'Bagian 1', owner: GITA, parent: mine });
+  const s2 = await a.create(D1, { title: 'Bagian 2', owner: EKO, parent: mine });
+  assert.deepEqual(ids((await a.detail(GITA, mine)).json.subtasks), [s1, s2]);
   assert.equal((await a.detail(FAJAR, sub)).json.card.parent_title, 'Tutup buku');
   assert.equal((await a.act(EKO, parent, 'start')).status, 200);
   assert.equal((await a.upload(EKO, parent, PNG)).status, 200);
@@ -233,10 +244,10 @@ test('TM7 sub-tasks: one level, added by the parent team or requester, the paren
   refusal(r, 409, 'subtasks_open');
   assert.match(r.json.message, /1/);
   assert.equal(a.rowJson(parent), before);
-  // the sub-task closes (Gita asked Fajar: Gita accepts), then the parent may
+  // the sub-task closes (Dewi asked Fajar: Dewi accepts), then the parent may
   assert.equal((await a.act(FAJAR, sub, 'start')).status, 200);
   assert.equal((await a.proofAndSend(FAJAR, sub)).status, 200);
-  assert.equal((await a.act(GITA, sub, 'accept')).status, 200);
+  assert.equal((await a.act(DEWI, sub, 'accept')).status, 200);
   assert.equal((await a.act(EKO, parent, 'proof')).status, 200);
   assert.equal(a.card(parent).status, 'bukti');
   refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 's', owner: EKO, due: '2026-11-24', source: 'Rapat', parent }), 409, 'bad_state');
@@ -245,11 +256,11 @@ test('TM7 sub-tasks: one level, added by the parent team or requester, the paren
 test('TM8 cancelling a task cancels its open sub-tasks', T, async () => {
   const a = await signedIn();
   const parent = await a.create(DEWI, { title: 'Proyek', owner: EKO });
-  const open1 = await a.create(EKO, { title: 'S1', owner: GITA, parent });
-  const open2 = await a.create(EKO, { title: 'S2', owner: FAJAR, parent });
-  const done = await a.create(EKO, { title: 'S3', owner: EKO, parent });
-  assert.equal((await a.act(EKO, done, 'start')).status, 200);
-  assert.equal((await a.proofAndSend(EKO, done)).status, 200);
+  const open1 = await a.create(DEWI, { title: 'S1', owner: GITA, parent });
+  const open2 = await a.create(DEWI, { title: 'S2', owner: FAJAR, parent });
+  const done = await a.create(DEWI, { title: 'S3', owner: DEWI, parent });
+  assert.equal((await a.act(DEWI, done, 'start')).status, 200);
+  assert.equal((await a.proofAndSend(DEWI, done)).status, 200);
   assert.equal(a.card(done).status, 'selesai');
   const other = await a.create(DEWI, { title: 'Lain', owner: GITA }); // not a sub-task: untouched (control)
   assert.equal((await a.act(GITA, open1, 'start')).status, 200);
@@ -271,7 +282,7 @@ test('TM9 sub-tasks and parents do not reveal a private task to someone who may 
   // a private parent: its sub-task is private too; the parent's PIC, team and requester see it by rule (no copies)
   // Fajar is picked to see the parent: that is not being on its team
   const parent = await a.create(DEWI, { title: 'Rahasia induk', owner: EKO, private: true, viewers: [FAJAR] });
-  const sub = await a.create(EKO, { title: 'Bagian Gita', owner: GITA, parent, private: false });
+  const sub = await a.create(D1, { title: 'Bagian Gita', owner: GITA, parent, private: false });
   assert.equal(a.card(sub).private, 1, 'a sub-task of a private task is private');
   assert.deepEqual(a.members(sub, 'viewer'), [], 'nobody is copied in as a viewer');
   assert.equal((await a.detail(DEWI, sub)).status, 200, 'the parent requester sees it');
@@ -284,7 +295,7 @@ test('TM9 sub-tasks and parents do not reveal a private task to someone who may 
   assert.deepEqual(ids((await a.detail(FAJAR, parent)).json.subtasks), [sub, sub2], 'and finds them listed under the parent');
   assert.equal((await a.act(EKO, parent, 'team', { members: [] })).status, 200);
   assert.equal((await a.detail(FAJAR, sub)).status, 404, 'leaving the parent team takes it away again');
-  refusal(await a.act(EKO, sub, 'viewers', { private: false }), 400, 'sub_private');
+  refusal(await a.act(D1, sub, 'viewers', { private: false }), 400, 'sub_private');
   // Gita sees her sub-task but must not learn the parent exists: no id, no title, not in the history
   const g = await a.detail(GITA, sub);
   assert.equal(g.status, 200);
@@ -298,8 +309,8 @@ test('TM9 sub-tasks and parents do not reveal a private task to someone who may 
   assert.deepEqual([(await a.detail(EKO, sub)).json.card.parent, (await a.detail(EKO, sub)).json.card.parent_title], [parent, 'Rahasia induk'], 'control');
   // a public parent lists only the sub-tasks the viewer may see
   const pub = await a.create(DEWI, { title: 'Umum', owner: EKO });
-  const hidden = await a.create(EKO, { title: 'Sub rahasia', owner: GITA, parent: pub, private: true });
-  const shown = await a.create(EKO, { title: 'Sub umum', owner: GITA, parent: pub });
+  const hidden = await a.create(D1, { title: 'Sub rahasia', owner: GITA, parent: pub, private: true });
+  const shown = await a.create(D1, { title: 'Sub umum', owner: GITA, parent: pub });
   assert.deepEqual(ids((await a.detail(FAJAR, pub)).json.subtasks), [shown]);
   assert.deepEqual(ids((await a.detail(DEWI, pub)).json.subtasks), [hidden, shown], 'the parent requester sees every sub-task (control)');
   // only someone who may add to a task learns that it is a sub-task

@@ -105,3 +105,13 @@ To-Do List note, the Review Jumat intro, the three rules on the help page (also 
 the three ageing settings labels (now "Jadi Due berapa hari kerja setelah tenggat", in the style of the routine label),
 and two server sentences (need_proof, bad_state). The meaning of every text is unchanged; rule 1 now says "kirim bukti"
 instead of "lampirkan bukti", because a comment counts as proof since v1.5.
+
+## v1.6.2 (23 Nov 2026): only the requester adds sub-tasks
+The owner: "only the pemberi task can add Sub-Task. So when Penerima open the task, they cant add its own Sub Task".
+"+ Sub-tugas" on a task is now offered only to its requester (Pemberi) and the directors, and the server refuses
+anyone else with `forbidden`, the PIC and team members included. Someone who made a task for themselves is its
+requester, so they still add. A PIC or member who opens a task with no sub-tasks no longer sees the Sub-tugas
+heading at all; where sub-tasks exist, they still see the list. Sub-tasks a PIC or member added before stay as they
+are (that person stays their requester). Only `server.mjs` changes (the screen follows `can.sub`): one restart.
+Tests: TM7, TM8 and TM9 now add sub-tasks as the requester or a director; two new mutants (`team_adds_sub`,
+`team_offered_sub`).

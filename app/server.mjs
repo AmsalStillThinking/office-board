@@ -408,8 +408,9 @@ export function createApp(opts) {
       const pid = typeof body.parent === 'number' || typeof body.parent === 'string' ? String(body.parent) : '';
       parent = /^[1-9]\d{0,11}$/.test(pid) ? getCard(Number(pid)) : null;
       if (!parent || !canSee(me, parent)) refuse(404, 'not_found');
-      // who may add comes first, so that "this is a sub-task" is told only to people who may add to it
-      if (!(isDir(me) || parent.requester === me.id || teamOf(parent).includes(me.id))) refuse(403, 'forbidden');
+      // who may add comes first, so that "this is a sub-task" is told only to people who may add to it.
+      // v1.6.2 (owner, 23 Nov 2026): only the task's requester (Pemberi) or a director adds sub-tasks, not its PIC or team.
+      if (!(isDir(me) || parent.requester === me.id)) refuse(403, 'forbidden');
       if (parent.parent != null) refuse(400, 'sub_of_sub');
       if (!['antri', 'jalan', 'tunggu'].includes(parent.status)) refuse(409, 'bad_state');
     }
@@ -697,7 +698,7 @@ export function createApp(opts) {
       // v1.6
       team: (req || pic || dir) && movable, viewers: req || dir, // who sees a task is the requester's choice (and a director's)
       put_requester: req || dir, // only they may put the requester on the team (it then closes without a confirmation)
-      sub: c.parent == null && (own || req || dir) && ['antri', 'jalan', 'tunggu'].includes(c.status),
+      sub: c.parent == null && (req || dir) && ['antri', 'jalan', 'tunggu'].includes(c.status), // v1.6.2: not the PIC or team
     };
   }
 

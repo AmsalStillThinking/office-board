@@ -33,7 +33,7 @@ const TM3 = 'TM3 a requester on the team closes with the proof (R4 self-close)';
 const TM4 = 'TM4 a running shared task counts toward every member limit (R2)';
 const TM5 = 'TM5 who may change the team and who may see it; refusals write nothing';
 const TM6 = 'TM6 a member made PIC leaves the member list; Papan Saya holds the tasks I am on the team of';
-const TM7 = 'TM7 sub-tasks: one level, added by the parent team or requester, the parent closes after them';
+const TM7 = 'TM7 sub-tasks: one level, added by the parent requester or a director, the parent closes after them';
 const TM8 = 'TM8 cancelling a task cancels its open sub-tasks';
 const TM9 = 'TM9 sub-tasks and parents do not reveal a private task to someone who may not see it';
 const TM11 = 'TM11 Tugas baru makes a task and its sub-tasks in one go; a bad row makes nothing at all';
@@ -237,6 +237,11 @@ const MUTANTS = [
     edits: [['      if (pid !== pic && !(p && p.active)) continue;', '      /* planted: a member who left still counts */']] },
   { name: 'cascade_copies_reason', file: 'server.mjs', test: TEAM_TESTS, check: TM8,
     edits: [["me.id, 'cancel', { parent_cancelled: true });", "me.id, 'cancel', { reason, parent_cancelled: true });"]] },
+  // v1.6.2: only the requester or a director adds sub-tasks
+  { name: 'team_adds_sub', file: 'server.mjs', test: TEAM_TESTS, check: TM7,
+    edits: [["if (!(isDir(me) || parent.requester === me.id)) refuse(403, 'forbidden');", "if (!(isDir(me) || parent.requester === me.id || teamOf(parent).includes(me.id))) refuse(403, 'forbidden');"]] },
+  { name: 'team_offered_sub', file: 'server.mjs', test: TEAM_TESTS, check: TM7,
+    edits: [['sub: c.parent == null && (req || dir) &&', 'sub: c.parent == null && (own || req || dir) &&']] },
   // v1.6.1: sub-tasks made with Tugas baru
   { name: 'new_sub_bad_row_kept', file: 'server.mjs', test: TEAM_TESTS, check: TM11,
     edits: [["if (!subTitle || !subOwner || !subOwner.active || !R.isDate(row.due)) refuse(400, 'bad_subtask', { n: i + 1 });", '/* planted: any row is taken */']] },

@@ -43,7 +43,8 @@ private card). The owner approved going live with that (21 Nov 2026) and tells t
 - **Who sees (R11).** Set at creation; changed later by the requester or a director (not the PIC: a PIC must not open
   a requester's private task to the office, nor hide a late one from the Friday list). A request without a yes/no for
   Pribadi is refused. Every visibility check in the server goes through one SQL rule (`visibleClause`).
-- **Sub-tasks.** Added from the parent task by its PIC, a member, its requester or a director while the parent is in
+- **Sub-tasks.** (Since 23 Nov 2026 only its requester or a director adds them: CHANGES_v1_6.md, v1.6.2.)
+  Added from the parent task by its PIC, a member, its requester or a director while the parent is in
   `antri`, `jalan` or `tunggu`. A sub-task is a normal task (its own PIC, team, due date, proof, ageing, limit). Its
   creator is its requester. A sub-task of a private task is always private. The parent's PIC, team and requester see
   every sub-task of it by the visibility rule (also someone who joins the parent's team later; whoever leaves it loses
