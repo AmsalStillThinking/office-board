@@ -1071,7 +1071,7 @@
       if (can.due) acts.appendChild(h('button', { type: 'button', id: 'd-due', cls: 'secondary', text: t('btn_move_due'), onclick: function () { clear(extra); extra.appendChild(dueForm(c, slot)); } }));
       if (can.owner) acts.appendChild(h('button', { type: 'button', id: 'd-owner', cls: 'secondary', text: t('btn_reassign'), onclick: function () { clear(extra); extra.appendChild(ownerForm(c, slot)); } }));
       // v1.6: the team and who may see the task
-      if (can.team) acts.appendChild(h('button', { type: 'button', id: 'd-team', cls: 'secondary', text: t('btn_team'), onclick: function () { clear(extra); extra.appendChild(teamForm(c, can, slot)); } }));
+      if (can.team) acts.appendChild(h('button', { type: 'button', id: 'd-team', cls: 'secondary', text: t('btn_team'), onclick: function () { clear(extra); extra.appendChild(teamForm(c, slot)); } }));
       if (can.viewers) acts.appendChild(h('button', { type: 'button', id: 'd-viewers', cls: 'secondary', text: t('btn_viewers'), onclick: function () { clear(extra); extra.appendChild(viewersForm(c, r.data.viewers, slot)); } }));
       if (can.cancel) acts.appendChild(h('button', { type: 'button', id: 'd-cancel', cls: 'danger', text: t('btn_cancel_card'), onclick: function () { clear(extra); extra.appendChild(cancelForm(c, slot)); } }));
       if (acts.firstChild) box.appendChild(acts);
@@ -1121,7 +1121,6 @@
   function evidenceForms(c, purpose) {
     var slot = h('div', { cls: 'msg', id: 'ev-msg' });
     var ff = fileField('ev-file', false), file = ff.input;
-    var url = h('input', { id: 'ev-url', type: 'url', maxlength: '2000', placeholder: 'https://' });
     var note = h('textarea', { id: 'ev-comment', rows: '3', maxlength: '2000' });
     return h('div', { cls: 'inline-form' },
       h('label', { for: 'ev-comment', text: t('f_comment') }), note,
@@ -1133,10 +1132,6 @@
         if (!file.files || !file.files[0]) return;
         showOk(slot, t('uploading'));
         uploadOne(c.id, file.files[0], purpose, slot).then(function (ok) { if (ok) render(); });
-      } })),
-      h('label', { for: 'ev-url', text: t('f_link') }), url,
-      h('div', { cls: 'row' }, h('button', { type: 'button', id: 'ev-link', cls: 'secondary', text: t('add_link'), onclick: function () {
-        act(c.id, 'link', { url: url.value, purpose: purpose }, slot);
       } })),
       slot);
   }
@@ -1161,10 +1156,10 @@
       h('label', { for: reason.id, text: t('f_reason') }), reason, h('button', { type: 'submit', cls: 'danger cancel-send', text: t('btn_cancel_card') }));
   }
   // v1.6: who works on the task with its PIC
-  function teamForm(c, can, slot) {
+  function teamForm(c, slot) {
     var box = peopleChecks('team-new', 'f_members', c.members);
-    // not offered: the PIC; the requester (unless they save it themselves, or a director does: R4); whom it waits on
-    box.hide([c.owner].concat(can.put_requester || c.members.indexOf(c.requester) >= 0 ? [] : [c.requester], c.status === 'tunggu' ? [c.waiting_on] : []));
+    // not offered: the PIC; whom it waits on. Only the requester or a director gets here (v1.6.3), so the requester may be picked.
+    box.hide([c.owner].concat(c.status === 'tunggu' ? [c.waiting_on] : []));
     return h('form', { cls: 'inline-form team-form', onsubmit: function (ev) { ev.preventDefault(); act(c.id, 'team', { members: box.picked() }, slot); } },
       box, h('button', { type: 'submit', id: 'team-send', text: t('btn_save') }));
   }

@@ -686,7 +686,7 @@ export function createApp(opts) {
   }
 
   function permissions(me, c, team = teamOf(c)) {
-    const dir = isDir(me), pic = c.owner === me.id, own = team.includes(me.id), req = c.requester === me.id;
+    const dir = isDir(me), own = team.includes(me.id), req = c.requester === me.id;
     const open = R.OPEN_STATUSES.includes(c.status);
     const judge = (req || dir) && c.status === 'bukti' && !isOwnProof(me, c, team); // FX1
     const movable = open && c.status !== 'bukti'; // FX15
@@ -696,8 +696,7 @@ export function createApp(opts) {
       attach: (req || dir) && open, accept: judge, ret: judge,
       due: (req || dir) && movable, owner: dir && movable, cancel: dir && open, override: dir,
       // v1.6
-      team: (req || pic || dir) && movable, viewers: req || dir, // who sees a task is the requester's choice (and a director's)
-      put_requester: req || dir, // only they may put the requester on the team (it then closes without a confirmation)
+      team: (req || dir) && movable, viewers: req || dir, // v1.6.3: the team is the requester's choice too, not the PIC's
       sub: c.parent == null && (req || dir) && ['antri', 'jalan', 'tunggu'].includes(c.status), // v1.6.2: not the PIC or team
     };
   }
@@ -819,15 +818,14 @@ export function createApp(opts) {
       }
     });
   });
-  // v1.6: who works on the task with its PIC. The requester, the PIC or a director; frozen while the proof waits (FX15).
+  // v1.6: who works on the task with its PIC; frozen while the proof waits (FX15). v1.6.3 (owner, 23 Nov 2026): only the
+  // requester (Pemberi) or a director changes it, not the PIC. So only they can put the requester on the team (R4).
   ACTIONS.set('team', (me, c, body) => {
-    if (!(c.requester === me.id || c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (!(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');
     if (!R.OPEN_STATUSES.includes(c.status) || c.status === 'bukti') refuse(409, 'bad_state');
     if (!Array.isArray(body.members)) refuse(400, 'bad_input'); // a missing list must not empty the team
     const before = peopleOf(c.id, 'member');
     const next = peopleList(body.members, before).filter((p) => p !== c.owner);
-    // R4: a requester on the team closes the task with its proof, so only the requester (or a director) puts them there
-    if (next.includes(c.requester) && !before.includes(c.requester) && !(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');
     if (c.status === 'tunggu' && next.includes(c.waiting_on)) refuse(400, 'member_is_waited_on');
     const ov = c.status === 'jalan' ? checkLimit(me, next.filter((p) => !before.includes(p)), body, null) : null;
     tx(() => {

@@ -142,22 +142,26 @@ test('TM5 who may change the team and who may see it; refusals write nothing', T
   refusal(await a.act(FAJAR, id, 'viewers', { private: true, viewers: [] }), 403, 'forbidden');
   refusal(await a.act(GITA, id, 'viewers', { private: true, viewers: [] }), 403, 'forbidden');
   refusal(await a.act(EKO, id, 'viewers', { private: true, viewers: [] }), 403, 'forbidden'); // who sees is not the PIC's call
-  refusal(await a.act(EKO, id, 'team', { members: ['T99'] }), 400, 'bad_people');
-  refusal(await a.act(EKO, id, 'team', { members: GITA }), 400, 'bad_input'); // not a list
-  refusal(await a.act(EKO, id, 'team', {}), 400, 'bad_input'); // a missing list does not empty the team
+  refusal(await a.act(DEWI, id, 'team', { members: ['T99'] }), 400, 'bad_people');
+  refusal(await a.act(DEWI, id, 'team', { members: GITA }), 400, 'bad_input'); // not a list
+  refusal(await a.act(DEWI, id, 'team', {}), 400, 'bad_input'); // a missing list does not empty the team
   refusal(await a.act(DEWI, id, 'viewers', {}), 400, 'bad_input'); // a missing switch does not publish it
   refusal(await a.act(DEWI, id, 'viewers', { private: true }), 400, 'bad_input');
   refusal(await a.act(DEWI, id, 'viewers', { private: true, viewers: [FAJAR, 7] }), 400, 'bad_people');
-  // R4: the PIC cannot put the requester on the team (the task would then close without her confirmation)
-  refusal(await a.act(EKO, id, 'team', { members: [GITA, DEWI] }), 403, 'forbidden');
+  // v1.6.3: the PIC does not choose the team, not even to add someone free; nor does a bystander
+  refusal(await a.act(EKO, id, 'team', { members: [GITA, FAJAR] }), 403, 'forbidden');
+  refusal(await a.act(FAJAR, id, 'team', { members: [GITA, FAJAR] }), 403, 'forbidden');
   assert.equal(a.peopleRows(), rows);
   assert.equal(a.eventCount(), n);
   assert.equal(a.card(id).private, 0);
+  const offered = [];
+  for (const w of [DEWI, D1, EKO, GITA, FAJAR]) offered.push((await a.detail(w, id)).json.can.team);
+  assert.deepEqual(offered, [true, true, false, false, false], 'Ubah tim is offered to the requester and a director only');
   const cards = a.cardCount();
   refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 'x', owner: EKO, due: '2026-11-25', source: 'Lisan', members: ['T99'] }), 400, 'bad_people');
   assert.equal(a.cardCount(), cards, 'a refused create makes no task');
-  // the PIC changes the team; the requester makes it private with Fajar picked; the history says both
-  assert.equal((await a.act(EKO, id, 'team', { members: [GITA, FAJAR, EKO] })).status, 200);
+  // the requester changes the team, then makes it private with Fajar picked; the history says both
+  assert.equal((await a.act(DEWI, id, 'team', { members: [GITA, FAJAR, EKO] })).status, 200);
   assert.deepEqual(a.members(id), [FAJAR, GITA], 'the PIC is never stored as a member');
   assert.equal((await a.act(DEWI, id, 'viewers', { private: true, viewers: [D2, FAJAR] })).status, 200);
   assert.deepEqual([a.card(id).private, a.members(id, 'viewer')], [1, [D2]], 'a member is not listed as a viewer');
@@ -170,11 +174,10 @@ test('TM5 who may change the team and who may see it; refusals write nothing', T
   // making it public again clears the picked people
   assert.equal((await a.act(DEWI, id, 'viewers', { private: false, viewers: [FAJAR] })).status, 200);
   assert.deepEqual([a.card(id).private, a.members(id, 'viewer')], [0, []]);
-  // the requester herself may join the team (control for the PIC refusal above)
+  // R4: the requester herself may join the team, and a director may put her on
   const own = await a.create(DEWI, { title: 'Ikut sendiri', owner: EKO });
   assert.equal((await a.act(DEWI, own, 'team', { members: [DEWI] })).status, 200);
   assert.deepEqual(a.members(own), [DEWI]);
-  assert.equal((await a.act(EKO, own, 'team', { members: [DEWI, FAJAR] })).status, 200, 'the PIC may keep a requester who is already on');
   const byDir = await a.create(DEWI, { title: 'Direktur menambah', owner: EKO });
   assert.equal((await a.act(D1, byDir, 'team', { members: [DEWI] })).status, 200, 'a director may put the requester on');
   // a person who left cannot be picked, for a team or to see a task, but stays where they already were
@@ -182,10 +185,10 @@ test('TM5 who may change the team and who may see it; refusals write nothing', T
   const seen = await a.create(DEWI, { title: 'Sudah boleh melihat', owner: EKO, private: true, viewers: [GITA] });
   const x = await a.create(DEWI, { title: 'Sesudah keluar', owner: EKO });
   assert.equal((await a.req(D1, 'POST', `/api/people/${GITA}`, { active: false })).status, 200);
-  refusal(await a.act(EKO, x, 'team', { members: [GITA] }), 400, 'bad_people');
+  refusal(await a.act(DEWI, x, 'team', { members: [GITA] }), 400, 'bad_people');
   refusal(await a.act(DEWI, x, 'viewers', { private: true, viewers: [GITA] }), 400, 'bad_people');
   assert.deepEqual(a.members(x), [], 'unchanged by the refusals');
-  assert.equal((await a.act(EKO, kept, 'team', { members: [GITA, FAJAR] })).status, 200, 'saving the team keeps her');
+  assert.equal((await a.act(DEWI, kept, 'team', { members: [GITA, FAJAR] })).status, 200, 'saving the team keeps her');
   assert.deepEqual(a.members(kept), [FAJAR, GITA]);
   assert.equal((await a.act(DEWI, seen, 'viewers', { private: true, viewers: [GITA, FAJAR] })).status, 200, 'saving who sees keeps her');
   assert.deepEqual(a.members(seen, 'viewer'), [FAJAR, GITA]);
@@ -290,10 +293,10 @@ test('TM9 sub-tasks and parents do not reveal a private task to someone who may 
   assert.equal((await a.detail(EKO, sub2)).status, 200, "the parent PIC sees a sub-task someone else asked for");
   assert.equal((await a.detail(FAJAR, parent)).status, 200, 'control: Fajar sees the parent');
   assert.equal((await a.detail(FAJAR, sub)).status, 404, 'picked to see the parent, not on its team: not its sub-tasks');
-  assert.equal((await a.act(EKO, parent, 'team', { members: [FAJAR] })).status, 200);
+  assert.equal((await a.act(DEWI, parent, 'team', { members: [FAJAR] })).status, 200);
   assert.equal((await a.detail(FAJAR, sub)).status, 200, 'someone who joins the parent team later sees it');
   assert.deepEqual(ids((await a.detail(FAJAR, parent)).json.subtasks), [sub, sub2], 'and finds them listed under the parent');
-  assert.equal((await a.act(EKO, parent, 'team', { members: [] })).status, 200);
+  assert.equal((await a.act(DEWI, parent, 'team', { members: [] })).status, 200);
   assert.equal((await a.detail(FAJAR, sub)).status, 404, 'leaving the parent team takes it away again');
   refusal(await a.act(D1, sub, 'viewers', { private: false }), 400, 'sub_private');
   // Gita sees her sub-task but must not learn the parent exists: no id, no title, not in the history

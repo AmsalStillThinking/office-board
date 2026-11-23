@@ -31,7 +31,7 @@ if (max_active, wilt, rot, hard_lead) != (3, 0, 3, 3):
 
 # every UI word this sheet names must exist in the app's Indonesian dictionary, exactly
 values = set(D.values())
-CITED = ["Papan Saya", "Tugas baru", "Mulai", "Macet", "Kirim bukti", "Terima", "Minta koreksi", "Tambah komentar", "On track", "Due", "Overdue"]
+CITED = ["Papan Saya", "Tugas baru", "Mulai", "Macet", "Kirim bukti", "Terima", "Minta koreksi", "Tambah komentar", "Buka", "Unggah file", "On track", "Due", "Overdue"]
 missing = [w for w in CITED if w not in values]
 if missing:
     sys.exit("words not in the app dictionary: %s" % missing)
@@ -44,7 +44,7 @@ steps = [
     ("Catat", "Setiap permintaan jadi tugas, termasuk yang datang lewat WhatsApp atau lisan. Tombol: Tugas baru."),
     ("Sanggupi", "Satu pemilik, satu tenggat. Paling banyak %d tugas berjalan per orang. Tombol: Mulai." % max_active),
     ("Kerjakan", "Tertahan orang lain? Tekan Macet dan tulis menunggu siapa."),
-    ("Buktikan", "Tulis komentar (Tambah komentar) atau lampirkan file, foto, atau tautan, lalu tekan Kirim bukti. Peminta tugas menekan Terima atau Minta koreksi. Diminta koreksi? Tambahkan bukti baru."),
+    ("Buktikan", "Buka tugasnya, tulis komentar (Tambah komentar) atau lampirkan file atau foto (Unggah file), lalu tekan Kirim bukti. Peminta tugas menekan Terima atau Minta koreksi. Diminta koreksi? Tambahkan bukti baru."),
     ("Tinjau", "Jumat, 20 menit. Hanya tugas due, overdue, dan macet."),
 ]
 colours = [

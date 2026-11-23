@@ -37,7 +37,8 @@ private card). The owner approved going live with that (21 Nov 2026) and tells t
   as today when the requester is the owner. Nobody on the team judges its proof (FX1). So only the requester (or a
   director) may put the requester on the team: otherwise a PIC could skip the confirmation.
 - **Blocked (R6).** A task cannot wait on someone on its own team.
-- **Changing the team.** The requester, the PIC or a director, while the task is open and not in `bukti` (FX15).
+- **Changing the team.** (Since 23 Nov 2026 only the requester or a director: CHANGES_v1_6.md, v1.6.3.)
+  The requester, the PIC or a director, while the task is open and not in `bukti` (FX15).
   Making a member the PIC (director, "Ganti pemilik") takes them out of the member list. A person who left stays on a
   team until removed but cannot be added. A request without the member list is refused (it must not empty the team).
 - **Who sees (R11).** Set at creation; changed later by the requester or a director (not the PIC: a PIC must not open

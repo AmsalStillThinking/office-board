@@ -115,3 +115,18 @@ heading at all; where sub-tasks exist, they still see the list. Sub-tasks a PIC 
 are (that person stays their requester). Only `server.mjs` changes (the screen follows `can.sub`): one restart.
 Tests: TM7, TM8 and TM9 now add sub-tasks as the requester or a director; two new mutants (`team_adds_sub`,
 `team_offered_sub`).
+
+## v1.6.3 (23 Nov 2026): only the requester changes the team; no link field
+The owner: "Only Pemberi that can change the team, so dont show Ubah Tim if its pemilik". "Ubah tim" is now offered
+only to the task's requester (Pemberi) and the directors, and the server refuses anyone else with `forbidden`, the
+PIC included. Someone who made a task for themselves is its requester, so they still change it. Since only the
+requester or a director changes the team, the old R4 check (the PIC may not add the requester) could no longer be
+reached and is gone, with `can.put_requester`; the team form now offers the requester to whoever sees it.
+The owner: "Drop the Tautan, dont need that". The task panel no longer has the link field or "Tambah tautan";
+proof is a comment or a file. Links added before still show. The server still takes a link from a page opened
+before the change (reload drops the field). The texts that named a link (`need_proof`, `need_new_proof`, help rule 2,
+the printed sheet's step 4) no longer do; step 4 now says to open the task, which is where Kirim bukti is.
+Changes `server.mjs` and `messages.json`: one restart. Tests: TM5 and TM9 change the team as the requester; TM5
+checks the PIC and a bystander are refused with nothing written, and `can.team` per person. Mutants:
+`pic_changes_team` and `pic_offered_team` are new, `member_changes_team` points at the new check, `pic_adds_requester`
+went with the code it tested. `seat_checks/v16_browser_look.mjs` still expects "Ubah tim" for the PIC.

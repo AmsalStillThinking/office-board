@@ -94,8 +94,9 @@ R12 **Audit.** Every state change writes an `events` row (actor, time, kind, bef
   the requester or a direktur may put the requester on the team (`forbidden`).
 - R6: a card cannot wait on someone on its own team.
 - R11: a `private` card is visible to its PIC, its team, its requester, the people picked (`viewer`) and the
-  direktur; a sub-task also to its parent's PIC, team and requester; nobody else. The requester, the PIC or a
-  direktur changes the team (not in `bukti`); the requester or a direktur changes who may see it (`bad_input` without
+  direktur; a sub-task also to its parent's PIC, team and requester; nobody else. The requester or a direktur
+  changes the team (not in `bukti`; not the PIC, since v1.6.3 of 23 Nov 2026); the requester or a direktur changes
+  who may see it (`bad_input` without
   an explicit list or yes/no). Someone who left stays where they were but cannot be added (`bad_people`).
 - Sub-tasks: a card with no parent may get sub-tasks, added by its requester or a direktur (not its PIC or team,
   since v1.6.2 of 23 Nov 2026) while it is in `antri`, `jalan` or `tunggu` (`forbidden` first, then `sub_of_sub`,
