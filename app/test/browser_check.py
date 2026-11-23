@@ -241,7 +241,7 @@ def signin_card_checks(ch, width, lang, pins):
     check(tag + ": the list is labelled and starts with the prompt", s["label"] == d["name_label"] and s["first"] == ["", d["pick_name"]], s)
     check(tag + ": the list holds every person of the fixture", s["ids"] == want, s["ids"])
     check(tag + ": no sidebar on the sign-in page", s["side"] == "none", s["side"])
-    check(tag + ": the focus starts on the name list", s["focus"] == "login-name", s["focus"])
+    check(tag + ": the focus starts on the name search box", s["focus"] == "login-find", s["focus"])
     ch.hold_requests("*/api/login*")  # a sign-in attempt that is sent is caught here
     ch.tap("#login-btn")
     got = ch.eval("(function(){var e=document.querySelector('#login-form .err'); return [e && e.getAttribute('data-code'), e && e.textContent, document.activeElement.id];})()")

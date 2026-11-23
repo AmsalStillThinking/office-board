@@ -58,7 +58,9 @@
 - Names on the sign-in page were tap-buttons (pick your name), not a dropdown. v1.2 (owner's request, 20 Nov 2026):
   one card with a name list (`#login-name`, a native select) and the PIN field below it at once; a missing name or PIN
   is refused in the page without a sign-in attempt. `GET /api/session` (public, yes/no only) lets the page decide
-  sign-in vs board without provoking a 401 in the console.
+  sign-in vs board without provoking a 401 in the console. 23 Nov 2026 (owner's request): a search box
+  (`#login-find`) above the list keeps only the names that contain the typed text; one match is chosen at once, and a
+  chosen name that stops matching is dropped. Enter in the box moves to the PIN (or the list if no name is chosen).
 - FOUND by looking at a screenshot: the native file input shows the browser's own English "Choose File / No file
   chosen" on an Indonesian page, and no dictionary check can see it. Replaced by a visually hidden input plus a
   dictionary-labelled button and file-name line.

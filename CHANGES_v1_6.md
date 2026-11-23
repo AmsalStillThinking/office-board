@@ -130,3 +130,16 @@ Changes `server.mjs` and `messages.json`: one restart. Tests: TM5 and TM9 change
 checks the PIC and a bystander are refused with nothing written, and `can.team` per person. Mutants:
 `pic_changes_team` and `pic_offered_team` are new, `member_changes_team` points at the new check, `pic_adds_requester`
 went with the code it tested. `seat_checks/v16_browser_look.mjs` still expects "Ubah tim" for the PIC.
+
+## v1.6.4 (23 Nov 2026): type to find your name on the sign-in page
+The owner: "when user search for Username, they can type it too, so they doesnt have to scroll only". The sign-in
+card has a "Ketik nama untuk mencari" box above the name list (the owner chose this over turning the list into one
+typed field). Typing keeps only the names (or nicknames) that contain the text, ignoring capitals; when one name is
+left it is chosen at once, and a chosen name that stops matching is dropped, so the person signed in is always the
+one the list shows. No match: the list reads "Tidak ada nama yang cocok" and Masuk refuses as before. Enter in the
+box moves to the PIN. The list still scrolls as before, and the page opens with the cursor in the box.
+Screen only (`app.js`, `i18n.json`, `style.css`): live on merge, no restart. Checked with a stub server (5 invented
+names, no database) and one headless browser typing real keys: 14/14 in Chrome 157 and in Edge 157; three planted
+bugs (stale name kept, single match not chosen, Enter submits) each turned their own checks red. Not checked: what
+the browsers' saved-password and saved-entry pop-ups do with the new box (headless shows neither), and
+`browser_check.py` was not run (its focus check now expects the search box).

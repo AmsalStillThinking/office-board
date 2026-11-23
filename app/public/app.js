@@ -355,6 +355,20 @@
     var msg = h('div', { cls: 'msg' });
     var who = h('select', { id: 'login-name' }, h('option', { value: '', text: t('pick_name') }));
     var pin = h('input', { id: 'login-pin', type: 'password', inputmode: 'numeric', autocomplete: 'current-password', maxlength: '12' });
+    // typing in the box above the list keeps only the names that contain it; a single match is chosen at once.
+    // A chosen name that no longer matches is dropped, so the name sent is always the one the list shows.
+    var all = [];
+    var filterNames = function () {
+      var q = find.value.trim().toLowerCase(), was = who.value;
+      var keep = all.filter(function (o) { return o.textContent.toLowerCase().indexOf(q) >= 0; });
+      while (who.options.length > 1) who.remove(1);
+      keep.forEach(function (o) { who.appendChild(o); });
+      who.options[0].textContent = keep.length || !q ? t('pick_name') : t('no_name_match');
+      who.value = q && keep.length === 1 ? keep[0].value : keep.some(function (o) { return o.value === was; }) ? was : '';
+    };
+    var find = h('input', { id: 'login-find', type: 'search', autocomplete: 'off', 'aria-label': t('find_name'), placeholder: t('find_name_ph'), maxlength: '40',
+      oninput: filterNames,
+      onkeydown: function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); (who.value ? pin : who).focus(); } } });
     // a missing name or PIN is said here, in the page's language, and costs no sign-in attempt
     var missing = function (code, key, field) {
       clear(msg);
@@ -370,7 +384,7 @@
         boot();
       });
     } },
-      h('label', { for: 'login-name', text: t('name_label') }), who,
+      h('label', { for: 'login-name', text: t('name_label') }), find, who,
       h('label', { for: 'login-pin', text: t('pin') }), pin,
       h('button', { type: 'submit', id: 'login-btn', text: t('signin_btn') }),
       msg);
@@ -380,11 +394,12 @@
       h('p', { cls: 'muted', text: t('framing') }),
       form));
     api('GET', '/api/people-public').then(function (res) {
-      (res.data.people || []).forEach(function (p) {
-        who.appendChild(h('option', { value: p.id, text: p.nick ? p.name + ' (' + p.nick + ')' : p.name }));
+      all = (res.data.people || []).map(function (p) {
+        return h('option', { value: p.id, text: p.nick ? p.name + ' (' + p.nick + ')' : p.name });
       });
+      filterNames(); // also covers anything typed before the list arrived
     });
-    who.focus();
+    find.focus();
   }
 
   // v1.3: the sidebar (with the sign-out button) is hidden while signed out, so the first PIN change carries its own
