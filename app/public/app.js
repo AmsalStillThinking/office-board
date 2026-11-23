@@ -508,13 +508,13 @@
     deco(c);
     var el = h('article', { cls: 'card' + (c.age ? ' age-' + c.age : ''), 'data-id': String(c.id), 'data-status': c.status });
     el.appendChild(h('div', { cls: 'card-top' },
-      h('span', { cls: 'tag', text: t('type_' + c.type) }), h('span', { cls: 'tid', text: '#' + c.id }),
+      h('span', { cls: 'tag', text: t('type_' + c.type) }), opts.noId ? null : h('span', { cls: 'tid', text: '#' + c.id }),
       h('span', { cls: 'flags' },
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null,
         c.hard ? h('span', { cls: 'flag', text: t('lbl_hard') }) : null,
         c.routine_key ? h('span', { cls: 'flag', text: t('lbl_routine') }) : null,
         c.private ? h('span', { cls: 'flag' }, icon('lock'), h('span', { text: t('lbl_private') })) : null,
-        c.parent ? h('span', { cls: 'flag', text: tf('lbl_sub_of', { id: c.parent }) }) : null)));
+        c.parent ? h('span', { cls: 'flag', text: tf(opts.noId ? 'lbl_sub_of_title' : 'lbl_sub_of', { id: c.parent, t: c.parent_title }) }) : null)));
     var title = h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } });
     el.appendChild(title);
     var due = dueText(c);
@@ -539,7 +539,8 @@
       } }));
       if (c.status === 'jalan') {
         acts.appendChild(h('button', { type: 'button', cls: 'btn-block secondary', text: t('btn_block'), onclick: function () { clear(extra); blockForm(c, slot, extra); } }));
-        acts.appendChild(h('button', { type: 'button', cls: 'btn-proof', text: t('btn_proof'), onclick: function () { act(c.id, 'proof', {}, slot); } }));
+        // proof is sent from the task panel, where the evidence is attached (Kirim bukti lives there)
+        acts.appendChild(h('button', { type: 'button', cls: 'btn-open', text: t('btn_open'), onclick: function () { go('card', String(c.id)); } }));
       }
       if (c.status === 'tunggu') acts.appendChild(h('button', { type: 'button', cls: 'btn-unblock secondary', text: t('btn_unblock'), onclick: function () {
         act(c.id, 'unblock', {}, slot).then(function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, 'unblock', slot, 'btn_unblock_override'); });
@@ -609,13 +610,13 @@
       var jalan = by('jalan');
       view.appendChild(h('h2', { id: 'sec-jalan', text: t('st_jalan') + ' ' + jalan.length + '/' + SETTINGS.maxActive }));
       view.appendChild(meter(jalan.length, SETTINGS.maxActive));
-      view.appendChild(cardList(jalan, { quick: true, showOwner: false, showRequester: true }));
+      view.appendChild(cardList(jalan, { quick: true, showOwner: false, showRequester: true, noId: true }));
       view.appendChild(h('h2', { id: 'sec-antri', text: t('st_antri') }));
-      view.appendChild(cardList(by('antri'), { quick: true, showOwner: false, showRequester: true }));
+      view.appendChild(cardList(by('antri'), { quick: true, showOwner: false, showRequester: true, noId: true }));
       view.appendChild(h('h2', { id: 'sec-tunggu', text: t('st_tunggu') }));
-      view.appendChild(cardList(by('tunggu'), { quick: true, showOwner: false, showRequester: true }));
+      view.appendChild(cardList(by('tunggu'), { quick: true, showOwner: false, showRequester: true, noId: true }));
       view.appendChild(h('h2', { id: 'sec-bukti', text: t('st_bukti') }));
-      view.appendChild(cardList(by('bukti'), { showOwner: false, showRequester: true }));
+      view.appendChild(cardList(by('bukti'), { showOwner: false, showRequester: true, noId: true }));
     });
   };
 
