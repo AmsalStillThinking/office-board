@@ -246,6 +246,7 @@
     people: 'M9 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .7 3.2 2.5 3.8 5.5',
     help: CIRCLE + 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01',
     todo: 'M4 4h16v16H4zM8 12l3 3 5-6',
+    history: 'M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5M12 8v4l3 2', // v1.6.7 Riwayat Tugas: a clock turning back
     lock: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3',
     list: 'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
     kanban: 'M3 4h5v16H3zM10 4h5v10h-5zM17 4h4v13h-4z',
@@ -318,6 +319,7 @@
   function moreItems() {
     var dir = ME.role === 'direktur', items = [];
     items.push(['todo', 'todo']); // v1.3: everyone's own to-do list, first in Lainnya
+    items.push(['history', 'history']); // v1.6.7: the closed tasks this person received
     if (dir) items.push(['req', 'nav_req']); // FX5: Pengecualian is a director's first tab; his requests live here
     if (dir || ME.keeper === 1) items.push(['review', 'review']);
     if (dir) { items.push(['routines', 'routines']); items.push(['people', 'people']); }
@@ -632,6 +634,7 @@
     var meta = h('div', { cls: 'meta' },
       ageBadge(c.age), c.macet ? macetBadge() : null, statusBadge(c.status),
       h('span', { cls: 'due', text: t('lbl_due') + ': ' + fmtDate(c.due) + (due ? ' · ' + due : '') }),
+      opts.closed && c.closed_at ? h('span', { cls: 'closed-at', text: t('lbl_closed') + ': ' + fmtTime(c.closed_at).slice(0, 10) }) : null, // office day
       c.status === 'tunggu' && c.waiting_on ? h('span', { text: t('lbl_waiting_on') + ': ' + personName(c.waiting_on) }) : null,
       c.status === 'bukti' && c.macet ? h('span', { cls: 'waiting-confirm', text: t('waiting_confirm') + ': ' + personName(c.requester) }) : null);
     el.appendChild(meta);
@@ -933,6 +936,16 @@
       view.appendChild(cardList(wait, { confirm: true, wide: true }));
       view.appendChild(h('h2', { text: t('req_open') }));
       view.appendChild(cardList(rest, { wide: true }));
+    });
+  };
+  // v1.6.7: Riwayat Tugas, the closed tasks this person received (PIC or team), the last closed first; a tap opens the
+  // task with its own Riwayat
+  ROUTES.history = function () {
+    view.appendChild(h('h1', { text: t('history') }));
+    view.appendChild(h('p', { cls: 'muted', text: t('history_intro') }));
+    pageGet('/api/cards?view=history').then(function (r) {
+      if (!r.ok) return showErr(view, r);
+      view.appendChild(cardList(r.data.cards, { wide: true, showRequester: true, closed: true }));
     });
   };
 
@@ -1514,9 +1527,15 @@
       });
       var late = !td.done && td.due && TODAY && td.due < TODAY;
       var hint = td.done ? '' : dueText({ due: td.due, status: 'antri' }); // the board's own working-day words
+      // v1.6.7: a monthly item says so; ticked, it says when it comes back (the 1st of the month after its date)
+      var rep = '';
+      if (td.monthly && td.due && td.done) {
+        var y = Number(td.due.slice(0, 4)), mo = Number(td.due.slice(5, 7));
+        rep = tf('todo_back_on', { d: fmtDate(mo === 12 ? (y + 1) + '-01-01' : y + '-' + String(mo + 1).padStart(2, '0') + '-01') });
+      } else if (td.monthly) rep = t('todo_monthly_tag');
       return h('li', { cls: 'todo' + (late ? ' late' : ''), 'data-id': String(td.id), 'data-done': String(td.done) },
         h('label', { cls: 'check', for: box.id }, box, h('span', { cls: 'todo-t', text: td.text })),
-        td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') }) : null,
+        td.due ? h('span', { cls: 'due', text: fmtDate(td.due) + (hint ? ' · ' + hint : '') + (rep ? ' · ' + rep : '') }) : null,
         // Ubah and Hapus as one unit: on a narrow screen they wrap together instead of splitting over two lines
         h('span', { cls: 'todo-acts' },
           h('button', { type: 'button', id: 'todo-edit-' + td.id, cls: 'secondary small todo-edit', 'aria-label': tf('todo_edit_label', { text: td.text }), text: t('todo_edit'), onclick: function () {
@@ -1545,7 +1564,8 @@
           var cmsg = h('div', { cls: 'msg' });
           lists.appendChild(h('h2', { id: 'todo-done-h', text: t('st_selesai') + ' (' + done.length + ')' }));
           lists.appendChild(h('ul', { cls: 'todos', id: 'todo-done' }, done.map(item)));
-          lists.appendChild(h('button', { type: 'button', id: 'todo-clear', cls: 'secondary', text: t('todo_clear'), onclick: function () {
+          // v1.6.7: a monthly item is waiting to come back and is not cleared, so the button shows only for the others
+          if (done.some(function (x) { return !x.monthly; })) lists.appendChild(h('button', { type: 'button', id: 'todo-clear', cls: 'secondary', text: t('todo_clear'), onclick: function () {
             api('POST', '/api/todos/clear-done', {}).then(function (x) { if (!x.ok) return showErr(cmsg, x); load('todo-new'); });
           } }));
           lists.appendChild(cmsg);
@@ -1566,6 +1586,7 @@
     var text = h('input', { id: 'todo-text', type: 'text', maxlength: '200', autocomplete: 'off' });
     var desc = h('textarea', { id: 'todo-desc', rows: '3', maxlength: '1000' });
     var due = h('input', { id: 'todo-due', type: 'date' });
+    var monthly = h('input', { id: 'todo-monthly', type: 'checkbox', checked: !!(td && td.monthly), 'aria-describedby': 'todo-monthly-help' }); // v1.6.7
     if (td) { text.value = td.text; due.value = td.due || ''; desc.value = td.description || ''; }
     var dlg = h('dialog', { id: 'todo-dlg', cls: 'dlg', 'aria-labelledby': 'todo-dlg-h', onclose: function () {
       if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
@@ -1579,15 +1600,17 @@
         h('form', { id: 'todo-form', onsubmit: function (ev) {
           ev.preventDefault();
           // a half-typed date never gets here: the browser's own form check refuses it, as on Tugas baru (browser_check)
-          api('POST', td ? '/api/todos/' + td.id + '/edit' : '/api/todos', { text: text.value, description: desc.value, due: due.value }).then(function (x) {
+          api('POST', td ? '/api/todos/' + td.id + '/edit' : '/api/todos', { text: text.value, description: desc.value, due: due.value, monthly: monthly.checked }).then(function (x) {
             if (!dlg.open) { if (x.ok) added(); return; } // closed while it was on its way: still show a saved item
-            if (!x.ok) { showErr(msg, x); (x.data.error === 'bad_input' ? due : text).focus(); return; }
+            if (!x.ok) { showErr(msg, x); (x.data.error === 'bad_input' || x.data.error === 'need_todo_date' ? due : text).focus(); return; }
             dlg.close();
             added();
           });
         } },
           h('label', { for: 'todo-text', text: t('todo_text') }), text,
           h('label', { for: 'todo-due', text: t('todo_due') }), due,
+          h('label', { cls: 'check', for: 'todo-monthly' }, monthly, h('span', { text: t('todo_monthly') })),
+          h('p', { cls: 'muted fhelp', id: 'todo-monthly-help', text: t('todo_monthly_help') }),
           h('label', { for: 'todo-desc', text: t('todo_desc') }), desc,
           h('div', { cls: 'row' }, h('button', { type: 'submit', id: td ? 'todo-save' : 'todo-add', text: td ? t('btn_save') : t('todo_add') })),
           msg)));

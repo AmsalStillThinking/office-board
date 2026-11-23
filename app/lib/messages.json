@@ -3,6 +3,7 @@
  "need_due": {"id":"Tugas harus punya tenggat (tanggal)."},
  "need_title": {"id":"Judul tugas wajib diisi."},
  "need_todo_text": {"id":"Tulis to-do-nya dulu."},
+ "need_todo_date": {"id":"To-do yang diulang tiap bulan perlu tanggal."},
  "bad_source": {"id":"Sumber harus WhatsApp, Lisan, Rapat, Email, atau Lainnya."},
  "limit_active": {"id":"Sudah ada {n} tugas berjalan. Selesaikan dulu sebelum mulai yang baru."},
  "need_proof": {"id":"Tanpa bukti, belum selesai. Tulis komentar dulu, atau lampirkan file."},

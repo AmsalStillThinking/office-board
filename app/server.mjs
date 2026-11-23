@@ -132,6 +132,16 @@ export function createApp(opts) {
     return withPeople(me, q(`SELECT c.* FROM cards c WHERE c.status IN ('antri','jalan','tunggu','bukti') AND ${v.sql} ORDER BY c.due, c.id`)
       .all(...v.args)).map((c) => decorate(c, td, st));
   }
+  // v1.6.7: Riwayat Tugas, the closed tasks this person received (the PIC or on the team; a picked viewer or the
+  // requester did not receive it), newest close first. Still through visibleClause, as every card path is.
+  // ponytail: the 200 newest only; a page of older ones when someone needs them.
+  function closedReceived(me) {
+    const v = visibleClause(me);
+    const td = today(), st = settings();
+    return withPeople(me, q(`SELECT c.* FROM cards c WHERE c.status IN ('selesai','batal')
+      AND (c.owner = ? OR EXISTS (SELECT 1 FROM card_people r WHERE r.card = c.id AND r.person = ? AND r.kind = 'member')) AND ${v.sql}
+      ORDER BY c.closed_at DESC NULLS LAST, c.id DESC LIMIT 200`).all(me.id, me.id, ...v.args)).map((c) => decorate(c, td, st));
+  }
   // v1.6: every card sent to a viewer carries its team (members), and its parent only when the viewer may see the
   // parent: others must not learn a private task exists (R11).
   function withPeople(me, cards) {
@@ -383,6 +393,7 @@ export function createApp(opts) {
   add('GET', '/api/cards', (ctx) => {
     const me = ctx.me;
     const view = ctx.url.searchParams.get('view') || 'office';
+    if (view === 'history') return send(ctx.res, 200, { cards: closedReceived(me), today: today() });
     let cards = openVisible(me);
     if (view === 'my') cards = cards.filter((c) => c.owner === me.id || c.members.includes(me.id)); // v1.6: the team too
     else if (view === 'req') cards = cards.filter((c) => c.requester === me.id && c.owner !== me.id && !c.members.includes(me.id));
@@ -613,33 +624,48 @@ export function createApp(opts) {
   // ------------------------------------------------------------------ v1.3: To-Do Saya, the person's own to-do list
   // Seen and changed by that person only, a director included: every statement names the person. Not a tugas (no
   // proof, no limit, no ageing) and no events rows, because the change log shows card-less events to the directors.
-  const TODO_COLS = 'id, text, description, due, done, created_at, done_at';
+  const TODO_COLS = 'id, text, description, due, done, created_at, done_at, monthly';
   const getTodo = (me, id) => q(`SELECT ${TODO_COLS} FROM todos WHERE id = ? AND person = ?`).get(id, me.id);
   add('GET', '/api/todos', (ctx) => {
     const me = ctx.me;
+    // v1.6.7: a monthly to-do ticked done for an earlier month comes back on the 1st, unticked and dated in this
+    // month (its own day, or the month's last day). Done here, where the list is read: no other screen shows to-dos.
+    // The update re-checks the row it read, so two reads at once bring it back once.
+    const td = today();
+    for (const x of q('SELECT id, due, monthly FROM todos WHERE person = ? AND done = 1 AND monthly > 0 AND due < ?').all(me.id, td.slice(0, 8) + '01')) {
+      q('UPDATE todos SET done = 0, done_at = NULL, due = ? WHERE id = ? AND person = ? AND done = 1 AND due = ?')
+        .run(R.clampedDate(Number(td.slice(0, 4)), Number(td.slice(5, 7)), x.monthly), x.id, me.id, x.due);
+    }
     send(ctx.res, 200, {
       open: q(`SELECT ${TODO_COLS} FROM todos WHERE person = ? AND done = 0 ORDER BY due IS NULL, due, id`).all(me.id),
       done: q(`SELECT ${TODO_COLS} FROM todos WHERE person = ? AND done = 1 ORDER BY done_at DESC, id DESC`).all(me.id),
-      today: today(),
+      today: td,
     });
   });
-  // The fields of a to-do, checked the same way for an add and an edit.
-  function todoFields(body) {
+  // The fields of a to-do, checked the same way for an add and an edit. old: the stored row, for an edit.
+  function todoFields(body, old = null) {
     const text = str(body.text, 200);
     if (!text) refuse(400, 'need_todo_text');
     const due = body.due === undefined || body.due === null || body.due === '' ? null : body.due;
     if (due !== null && !R.isDate(due)) refuse(400, 'bad_input');
-    return { text, due, description: str(body.description, 1000) }; // v1.5: the description is optional
+    // v1.6.7: Ulangi tiap bulan needs a date, and the day comes from it. A page from before v1.6.7 sends no `monthly`:
+    // an edit then keeps what is stored. Unchanged, a date moved to a short month's last day keeps its day (31 stays 31).
+    if (body.monthly !== undefined && typeof body.monthly !== 'boolean') refuse(400, 'bad_input');
+    const on = body.monthly === undefined ? !!(old && old.monthly) : body.monthly;
+    if (on && due === null) refuse(400, 'need_todo_date');
+    const monthly = !on ? 0 : old && old.monthly && old.due === due ? old.monthly : Number(due.slice(8, 10));
+    return { text, due, description: str(body.description, 1000), monthly }; // v1.5: the description is optional
   }
   add('POST', '/api/todos', async (ctx) => {
     const body = await readJson(ctx);
-    const { text, due, description } = todoFields(body);
-    const info = q('INSERT INTO todos(person, text, description, due, created_at) VALUES (?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, now());
+    const { text, due, description, monthly } = todoFields(body);
+    const info = q('INSERT INTO todos(person, text, description, due, monthly, created_at) VALUES (?,?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, monthly, now());
     send(ctx.res, 201, { todo: getTodo(ctx.me, Number(info.lastInsertRowid)) });
   });
   add('POST', '/api/todos/clear-done', async (ctx) => {
     await readJson(ctx); // the body first: the session is checked again once it is in (FX11)
-    send(ctx.res, 200, { deleted: q('DELETE FROM todos WHERE person = ? AND done = 1').run(ctx.me.id).changes });
+    // v1.6.7: a monthly to-do is waiting to come back, so it stays (its own Hapus removes it)
+    send(ctx.res, 200, { deleted: q('DELETE FROM todos WHERE person = ? AND done = 1 AND monthly = 0').run(ctx.me.id).changes });
   });
   async function todoTick(ctx, id) {
     const body = await readJson(ctx);
@@ -653,8 +679,10 @@ export function createApp(opts) {
   // v1.5.2: change an item's title, date and description (not its tick). Someone else's to-do does not exist here.
   async function todoEdit(ctx, id) {
     const body = await readJson(ctx);
-    const { text, due, description } = todoFields(body);
-    const info = q('UPDATE todos SET text = ?, due = ?, description = ? WHERE id = ? AND person = ?').run(text, due, description, id, ctx.me.id);
+    const old = getTodo(ctx.me, id);
+    if (!old) refuse(404, 'not_found');
+    const { text, due, description, monthly } = todoFields(body, old);
+    const info = q('UPDATE todos SET text = ?, due = ?, description = ?, monthly = ? WHERE id = ? AND person = ?').run(text, due, description, monthly, id, ctx.me.id);
     if (info.changes !== 1) refuse(404, 'not_found');
     send(ctx.res, 200, { todo: getTodo(ctx.me, id) });
   }

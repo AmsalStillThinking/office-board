@@ -375,3 +375,30 @@ test('TM11 Tugas baru makes a task and its sub-tasks in one go; a bad row makes 
   const plain = await a.req(DEWI, 'POST', '/api/cards', { ...base, subtasks: [] });
   assert.equal(plain.status, 201, 'control: an empty list is no list');
 });
+
+test('TM12 Riwayat Tugas: the closed tasks I received (PIC or team), newest close first; not ones I only see or asked for', T, async () => {
+  const a = await signedIn();
+  const history = async (w) => { const r = await a.req(w, 'GET', '/api/cards?view=history'); assert.equal(r.status, 200, r.text); return r.json.cards; };
+  // Eko received B (on the team, made first) and A (the PIC); C is theirs but still open; they only see V, asked for
+  // Rq, and have nothing to do with O
+  const B = await a.create(DEWI, { title: 'B tim', owner: GITA, members: [EKO] });
+  const A = await a.create(DEWI, { title: 'A pic', owner: EKO });
+  const C = await a.create(DEWI, { title: 'C terbuka', owner: EKO });
+  const V = await a.create(DEWI, { title: 'V lihat', owner: GITA, private: true, viewers: [EKO] });
+  const Rq = await a.create(EKO, { title: 'R minta', owner: GITA });
+  const O = await a.create(DEWI, { title: 'O lain', owner: GITA });
+  // A closes first (accepted), B an hour later (cancelled): the close order is the reverse of the id order
+  assert.equal((await a.act(EKO, A, 'start')).status, 200);
+  assert.equal((await a.proofAndSend(EKO, A)).status, 200);
+  assert.equal((await a.act(DEWI, A, 'accept')).status, 200);
+  a.clock.t += 3600 * 1000;
+  for (const id of [B, V, Rq, O]) assert.equal((await a.act(D1, id, 'cancel', { reason: 'tidak jadi' })).status, 200);
+  assert.deepEqual([a.card(A).status, a.card(B).status, a.card(C).status], ['selesai', 'batal', 'antri'], 'fixture');
+  const eko = await history(EKO);
+  assert.deepEqual(ids(eko), [B, A], 'the two Eko received, newest close first');
+  assert.deepEqual(eko[0].members, [EKO], 'a card carries its team, as on the boards');
+  assert.deepEqual(ids(await history(GITA)), [O, Rq, V, B], 'closed at the same moment: the newest task first');
+  assert.deepEqual(await history(DEWI), [], 'the requester of them all received none of them');
+  assert.deepEqual(await history(D1), [], 'a director sees every task, but none was given to them');
+  refusal(await a.req(EKO, 'GET', '/api/cards?view=nope'), 400, 'bad_input'); // control: the views are still checked
+});

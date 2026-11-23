@@ -230,3 +230,76 @@ test('TD9 its person edits a to-do; nobody else can, and a refused edit changes 
   assert.deepEqual([row.done, row.done_at, row.created_at, row.person], [was.done, was.done_at, was.created_at, was.person], 'the tick and who it belongs to are untouched');
   assert.equal(r.json.todo.text, 'Email vendor', 'the answer carries the new item');
 });
+
+// v1.6.7: Ulangi tiap bulan. The default clock is 2026-11-18 10:00 office time (UTC+8).
+const tick = async (a, w, id) => assert.equal((await a.req(w, 'POST', `/api/todos/${id}`, { done: true })).status, 200);
+
+test('TD10 a monthly to-do comes back on the 1st, unticked, dated this month; it needs a date', T, async () => {
+  const a = await signedIn();
+  refusal(await a.req(DEWI, 'POST', '/api/todos', { text: 'Bayar listrik', monthly: true }), 400, 'need_todo_date');
+  assert.equal((await a.req(DEWI, 'POST', '/api/todos', { text: 'Bayar listrik', monthly: true })).json.message, MSG.need_todo_date.id);
+  refusal(await a.req(DEWI, 'POST', '/api/todos', { text: 'Bayar listrik', due: '2026-11-25', monthly: 'ya' }), 400, 'bad_input');
+  assert.equal(a.count(), 0, 'the refusals saved nothing');
+  const m = await a.add(DEWI, { text: 'Bayar listrik', due: '2026-11-25', monthly: true });
+  const plain = await a.add(DEWI, { text: 'Sekali saja', due: '2026-11-25' });
+  const eko = await a.add(EKO, { text: 'Punya Eko', due: '2026-11-10', monthly: true });
+  assert.deepEqual([a.todo(m).monthly, a.todo(plain).monthly, a.todo(eko).monthly], [25, 0, 10], 'the day comes from the date');
+  for (const [w, id] of [[DEWI, m], [DEWI, plain], [EKO, eko]]) await tick(a, w, id);
+  a.clock.t = at('2026-11-30T23:30:00+08:00');
+  assert.deepEqual(ids((await a.list(DEWI)).open), [], 'still November: it waits in Selesai');
+  a.clock.t = at('2026-12-01T00:30:00+08:00'); // 16:30 on 30 Nov in UTC: the office day decides
+  const dec = await a.list(DEWI);
+  assert.deepEqual(ids(dec.open), [m], 'back on the 1st');
+  assert.deepEqual([dec.open[0].due, dec.open[0].done, dec.open[0].done_at, dec.open[0].monthly], ['2026-12-25', 0, null, 25], 'unticked, on its day this month');
+  assert.deepEqual(ids(dec.done), [plain], 'a to-do that does not repeat stays done');
+  assert.equal(a.todo(eko).done, 1, "Dewi's list does not bring back Eko's");
+  assert.equal(a.todo(eko).due, '2026-11-10');
+  // ticked late, for a month that has passed: it comes straight back for this month
+  a.clock.t = at('2027-01-05T09:00:00+08:00');
+  await tick(a, DEWI, m);
+  const jan = await a.list(DEWI);
+  assert.deepEqual([ids(jan.open), jan.open[0].due], [[m], '2027-01-25'], 'December done, January due');
+  // read again only months later: one item, dated in the month it is read (missed months do not pile up)
+  await tick(a, DEWI, m);
+  a.clock.t = at('2027-04-02T09:00:00+08:00');
+  const apr = await a.list(DEWI);
+  assert.deepEqual([ids(apr.open), apr.open[0].due, a.count()], [[m], '2027-04-25', 3], 'April, still one row');
+  // turning it off, and an edit that clears the date of a repeating item
+  refusal(await a.req(DEWI, 'POST', `/api/todos/${m}/edit`, { text: 'Bayar listrik', due: '' }), 400, 'need_todo_date');
+  assert.equal(a.todo(m).monthly, 25, 'the refused edit changed nothing');
+  assert.equal((await a.req(DEWI, 'POST', `/api/todos/${m}/edit`, { text: 'Bayar listrik', due: '', monthly: false })).status, 200);
+  assert.deepEqual([a.todo(m).monthly, a.todo(m).due], [0, null], 'off, and then the date may go');
+});
+
+test('TD11 a day-31 to-do falls on a short month\'s last day and keeps its day; an old page keeps the repeat', T, async () => {
+  const a = await signedIn([DEWI]);
+  a.clock.t = at('2027-01-10T09:00:00+08:00');
+  const id = await a.add(DEWI, { text: 'Tutup buku', due: '2027-01-31', monthly: true });
+  assert.equal(a.todo(id).monthly, 31);
+  await tick(a, DEWI, id);
+  a.clock.t = at('2027-02-01T09:00:00+08:00');
+  assert.equal((await a.list(DEWI)).open[0].due, '2027-02-28', "February's last day");
+  // a page from before v1.6.7 sends no `monthly`: the edit keeps the repeat, and the clamped date keeps day 31
+  assert.equal((await a.req(DEWI, 'POST', `/api/todos/${id}/edit`, { text: 'Tutup buku bulanan', due: '2027-02-28' })).status, 200);
+  assert.deepEqual([a.todo(id).text, a.todo(id).monthly], ['Tutup buku bulanan', 31], 'still repeating, still on the 31st');
+  await tick(a, DEWI, id);
+  a.clock.t = at('2027-03-01T09:00:00+08:00');
+  assert.equal((await a.list(DEWI)).open[0].due, '2027-03-31', 'March has a 31st');
+  // a new date sets a new day
+  assert.equal((await a.req(DEWI, 'POST', `/api/todos/${id}/edit`, { text: 'Tutup buku', due: '2027-03-15', monthly: true })).status, 200);
+  assert.equal(a.todo(id).monthly, 15);
+});
+
+test('TD12 "Hapus yang selesai" leaves a monthly to-do waiting to come back', T, async () => {
+  const a = await signedIn([DEWI]);
+  const m = await a.add(DEWI, { text: 'Bayar listrik', due: '2026-11-25', monthly: true });
+  const plain = await a.add(DEWI, { text: 'Sekali saja' });
+  await tick(a, DEWI, m);
+  await tick(a, DEWI, plain);
+  const r = await a.req(DEWI, 'POST', '/api/todos/clear-done', {});
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.deleted, 1, 'only the one that does not repeat');
+  assert.equal(a.todo(plain), undefined);
+  assert.equal(a.todo(m).done, 1, 'the monthly one is still there, still done');
+  assert.equal((await a.req(DEWI, 'POST', `/api/todos/${m}/delete`, {})).status, 200, 'its own Hapus removes it');
+});

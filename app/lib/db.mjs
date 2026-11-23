@@ -91,6 +91,8 @@ export function openDb(dataDir) {
   // Columns added after v1: an existing database gains them; nothing is ever dropped.
   db.exec('ALTER TABLE routines ADD COLUMN IF NOT EXISTS active_since TEXT');
   db.exec("ALTER TABLE todos ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''"); // v1.5
+  // v1.6.7: the day of the month (1-31) a to-do comes back on; 0 = it does not repeat
+  db.exec('ALTER TABLE todos ADD COLUMN IF NOT EXISTS monthly INTEGER NOT NULL DEFAULT 0 CHECK(monthly BETWEEN 0 AND 31)');
   // v1.5: a comment is evidence too. A database made before v1.5 has the two-kind check: widen it once.
   const kinds = db.prepare("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conrelid = 'evidence'::regclass AND conname = 'evidence_kind_check'").get();
   if (!kinds || !kinds.d.includes("'comment'")) {

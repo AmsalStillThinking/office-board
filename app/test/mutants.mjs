@@ -37,6 +37,10 @@ const TM7 = 'TM7 sub-tasks: one level, added by the parent requester or a direct
 const TM8 = 'TM8 cancelling a task cancels its open sub-tasks';
 const TM9 = 'TM9 sub-tasks and parents do not reveal a private task to someone who may not see it';
 const TM11 = 'TM11 Tugas baru makes a task and its sub-tasks in one go; a bad row makes nothing at all';
+const TM12 = 'TM12 Riwayat Tugas: the closed tasks I received (PIC or team), newest close first; not ones I only see or asked for';
+const TD10 = 'TD10 a monthly to-do comes back on the 1st, unticked, dated this month; it needs a date';
+const TD11 = "TD11 a day-31 to-do falls on a short month's last day and keeps its day; an old page keeps the repeat";
+const TD12 = 'TD12 "Hapus yang selesai" leaves a monthly to-do waiting to come back';
 const V15_TESTS = path.join(HERE, 'v15.test.mjs');
 const V1 = 'V1 a comment is proof: Kirim bukti needs no file, and after a correction a new comment counts';
 const V2 = 'V2 a to-do has a title and an optional description';
@@ -121,11 +125,11 @@ const MUTANTS = [
   { name: 'todo_delete_any_person', file: 'server.mjs', test: TODO_TESTS, check: 'TD2 nobody else can tick or delete a to-do',
     edits: [["q('DELETE FROM todos WHERE id = ? AND person = ?')", "q('DELETE FROM todos WHERE id = ? AND (person = ? OR 1 = 1)')"]] },
   { name: 'todo_clear_takes_all', file: 'server.mjs', test: TODO_TESTS, check: 'TD3 tick, untick, delete and clear the finished ones',
-    edits: [["q('DELETE FROM todos WHERE person = ? AND done = 1')", "q('DELETE FROM todos WHERE (person = ? OR 1 = 1) AND done = 1')"]] },
+    edits: [["q('DELETE FROM todos WHERE person = ? AND done = 1 AND monthly = 0')", "q('DELETE FROM todos WHERE (person = ? OR 1 = 1) AND done = 1 AND monthly = 0')"]] },
   { name: 'todo_empty_text_saved', file: 'server.mjs', test: TODO_TESTS, check: 'TD4 refusals write nothing',
     edits: [["if (!text) refuse(400, 'need_todo_text');", '/* planted: an empty to-do is saved */']] },
   { name: 'todo_writes_event', file: 'server.mjs', test: TODO_TESTS, check: 'TD5 to-dos write no events and stay out of the change log',
-    edits: [["VALUES (?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, now());", "VALUES (?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
+    edits: [["VALUES (?,?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, monthly, now());", "VALUES (?,?,?,?,?,?) RETURNING id').run(ctx.me.id, text, description, due, monthly, now()); writeEvent(null, ctx.me.id, 'todo', { after: { text } });"]] },
   { name: 'todo_tick_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
     edits: [['  async function todoTick(ctx, id) {' + NL + '    const body = await readJson(ctx);', '  async function todoTick(ctx, id) {' + NL + '    const body = await readJsonRaw(ctx);']] },
   { name: 'todo_delete_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',
@@ -138,6 +142,33 @@ const MUTANTS = [
     edits: [['AND done = 0 ORDER BY due IS NULL, due, id', 'AND done = 0 ORDER BY due IS NULL, id']] },
   { name: 'todo_done_by_id', file: 'server.mjs', test: TODO_TESTS, check: 'TD3 tick, untick, delete and clear the finished ones',
     edits: [['AND done = 1 ORDER BY done_at DESC, id DESC', 'AND done = 1 ORDER BY id DESC']] },
+  // ---- v1.6.7 Ulangi tiap bulan: back on the 1st (office day), on its own day, the person's own only, never without a date
+  { name: 'todo_monthly_never_back', file: 'server.mjs', test: TODO_TESTS, check: TD10,
+    edits: [["AND person = ? AND done = 1 AND due = ?')", "AND person = ? AND 1 = 0 AND due = ?')"]] },
+  { name: 'todo_monthly_any_person', file: 'server.mjs', test: TODO_TESTS, check: TD10,
+    edits: [['FROM todos WHERE person = ? AND done = 1 AND monthly > 0', 'FROM todos WHERE (person = ? OR 1 = 1) AND done = 1 AND monthly > 0'],
+      ["WHERE id = ? AND person = ? AND done = 1 AND due = ?')", "WHERE id = ? AND (person = ? OR 1 = 1) AND done = 1 AND due = ?')"]] },
+  { name: 'todo_monthly_utc_day', file: 'server.mjs', test: TODO_TESTS, check: TD10,
+    edits: [['    const td = today();' + NL + "    for (const x of q('SELECT id, due, monthly", '    const td = new Date(now()).toISOString().slice(0, 10);' + NL + "    for (const x of q('SELECT id, due, monthly"]] },
+  { name: 'todo_monthly_no_date', file: 'server.mjs', test: TODO_TESTS, check: TD10,
+    edits: [["if (on && due === null) refuse(400, 'need_todo_date');", '/* planted: a repeat without a date */']] },
+  { name: 'todo_monthly_day_drift', file: 'server.mjs', test: TODO_TESTS, check: TD11,
+    edits: [['old && old.monthly && old.due === due ? old.monthly : Number(due.slice(8, 10))', 'Number(due.slice(8, 10))']] },
+  { name: 'todo_monthly_back_on_due_day', file: 'server.mjs', test: TODO_TESTS, check: TD11,
+    edits: [['Number(td.slice(5, 7)), x.monthly)', 'Number(td.slice(5, 7)), Number(x.due.slice(8, 10)))']] },
+  { name: 'todo_old_page_drops_repeat', file: 'server.mjs', test: TODO_TESTS, check: TD11,
+    edits: [['const on = body.monthly === undefined ? !!(old && old.monthly) : body.monthly;', 'const on = !!body.monthly;']] },
+  { name: 'todo_clear_takes_monthly', file: 'server.mjs', test: TODO_TESTS, check: TD12,
+    edits: [["AND done = 1 AND monthly = 0')", "AND done = 1')"]] },
+  // ---- v1.6.7 Riwayat Tugas: closed tasks received as PIC or team only, newest close first
+  { name: 'history_viewer_counts', file: 'server.mjs', test: TEAM_TESTS, check: TM12,
+    edits: [["r.person = ? AND r.kind = 'member')", 'r.person = ?)']] },
+  { name: 'history_open_too', file: 'server.mjs', test: TEAM_TESTS, check: TM12,
+    edits: [["WHERE c.status IN ('selesai','batal')", "WHERE c.status IN ('selesai','batal','antri')"]] },
+  { name: 'history_by_id', file: 'server.mjs', test: TEAM_TESTS, check: TM12,
+    edits: [['ORDER BY c.closed_at DESC NULLS LAST, c.id DESC LIMIT 200', 'ORDER BY c.id DESC LIMIT 200']] },
+  { name: 'history_anyone', file: 'server.mjs', test: TEAM_TESTS, check: TM12,
+    edits: [['AND (c.owner = ? OR EXISTS (SELECT 1 FROM card_people r', 'AND (c.owner = ? OR c.id > 0 OR EXISTS (SELECT 1 FROM card_people r']] },
   { name: 'todo_edit_any_person', file: 'server.mjs', test: TODO_TESTS, check: 'TD9 its person edits a to-do; nobody else can, and a refused edit changes nothing',
     edits: [["description = ? WHERE id = ? AND person = ?').run(text, due, description, id, ctx.me.id);", "description = ? WHERE id = ? AND (person = ? OR 1 = 1)').run(text, due, description, id, ctx.me.id);"]] },
   { name: 'todo_edit_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',

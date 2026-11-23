@@ -177,3 +177,30 @@ for the panel. Seven planted bugs were each caught by their own check: a click l
 a pick dropped when that person becomes the PIC, unpicked text left in the field, focus lost after removing a chip,
 Escape closing the panel (the form was gone at that check), "no match" shown when nobody is left. Not seen: a phone's
 on-screen keyboard over the list, and the sub-task form of a private task (it starts with the parent's viewers).
+
+## v1.6.7 (23 Nov 2026): a monthly to-do, and Riwayat Tugas
+The owner: "To Do List that can appear Monthly" and "Task History, that Penerima can see". Shown the options, they
+chose one item that comes back (not a new copy every month), back on the 1st of the month, and a page of the
+finished tasks a person received.
+
+**Monthly to-do.** The add and edit dialog has "Ulangi tiap bulan". It needs a date, and the day of the month comes
+from that date. Ticked done, the item waits in Selesai ("muncul lagi 01/12/2026") and comes back unticked on the 1st
+of the next month, dated on its day in that month (31 falls on a short month's last day and is 31 again the month
+after). Not ticked, it stays open with its date. Read only months later, it comes back once, dated in the month it is
+read: missed months do not pile up. Ticked late for a month that has passed, it comes straight back for this month.
+It comes back when the To-Do List is read (`GET /api/todos`, the only screen with to-dos), by the office day. "Hapus
+yang selesai" leaves monthly items alone (their own Hapus removes them) and is not offered when only monthly items
+are done. A page opened before v1.6.7 sends no repeat field; an edit from it keeps the stored repeat. Database:
+`todos.monthly` (the day 1-31, 0 = no repeat), added on start. New server message `need_todo_date`.
+
+**Riwayat Tugas.** A new page under Lainnya, after To-Do List (sidebar and the phone's Lainnya page): the tasks the
+person received, as PIC or on the team, that are Selesai or Batal, the last closed first, with "dari <Pemberi>" and
+"Ditutup: <date>" (office day). A tap opens the task with its own Riwayat. A picked viewer or the requester did not
+receive the task, so it is not listed there; a director sees only what was given to them. `GET
+/api/cards?view=history`, through `visibleClause`; the 200 newest only.
+
+Needs a restart: `server.mjs`, `lib/db.mjs` and `lib/messages.json` changed. Checks (owner-approved, one throwaway
+test PostgreSQL, stopped afterwards): the to-do, team, v1.5 and PostgreSQL-move test files 34/34 (TD10-TD12 and TM12
+are new); 14 planted bugs each caught by their own named test (two existing ones re-pointed to the changed lines); a
+stub browser check 18/18 in headless Chrome 157 and Edge 157. Not run: `server.test`, `rules.test`, `fx.test`,
+`browser_check.py`, the seat checks.
