@@ -17,9 +17,9 @@ for width, height, mobile in ((390, 844, True), (1280, 900, False)):
     ch = Chrome(width, height, mobile=mobile, scale=1)
     try:
         ch.goto_url(URL)
-        # v1.2: the names are the options of the sign-in list (the first option is the prompt)
-        got = ch.wait_for("document.querySelectorAll('#login-name option').length > 1", 10)
-        n = ch.eval("document.querySelectorAll('#login-name option').length - 1")
+        # v1.6.5: the names are the rows of the list that opens under the one name field (a click on the field opens it)
+        got = ch.wait_for("(function(){var s=document.getElementById('login-name'); if(!s) return false; s.click(); return document.querySelectorAll('#login-names li[role=option]').length > 0;})()", 10)
+        n = ch.eval("document.querySelectorAll('#login-names li[role=option]').length")
         cw = ch.eval("document.documentElement.clientWidth")
         sw = ch.eval("document.documentElement.scrollWidth")
         title = ch.eval("document.title")
@@ -31,7 +31,7 @@ for width, height, mobile in ((390, 844, True), (1280, 900, False)):
         errs = list(ch.errors)
         print(json.dumps({"width": width, "names": n, "clientWidth": cw, "scrollWidth": sw, "title": title, "h1": h1, "lang": lang,
                           "nav_hidden": nav_hidden, "console_errors": errs[:3], "shot": p, "bytes": size}, ensure_ascii=False), flush=True)
-        ok = ok and bool(got) and n == 13 and cw == width and sw <= cw and not errs and nav_hidden
+        ok = ok and bool(got) and n > 0 and cw == width and sw <= cw and not errs and nav_hidden  # the head count changes; it is printed
     finally:
         ch.close()
 print("RESULT: " + ("PASS" if ok else "FAIL"))

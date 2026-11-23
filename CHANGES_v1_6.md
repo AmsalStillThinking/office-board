@@ -143,3 +143,16 @@ names, no database) and one headless browser typing real keys: 14/14 in Chrome 1
 bugs (stale name kept, single match not chosen, Enter submits) each turned their own checks red. Not checked: what
 the browsers' saved-password and saved-entry pop-ups do with the new box (headless shows neither), and
 `browser_check.py` was not run (its focus check now expects the search box).
+
+## v1.6.5 (23 Nov 2026): one name field on the sign-in page
+The owner, after v1.6.4 went live: "Dont show 2 field, only show 1 field for username field". The search box and
+the dropdown list are now one field, "Ketik atau pilih nama Anda". Typing opens a list under it with the names (or
+nicknames) that contain the text, ignoring capitals; clicking the empty field lists everyone, and the list scrolls.
+A click, a tap, or Enter (on the marked row; a sole match is marked) picks the name, fills in the full name and moves
+to the PIN. Changed from v1.6.4: a sole match is no longer chosen by itself while typing; it takes Enter or a tap.
+Text that is not a full name (a part of one, or a name picked then edited) picks nobody, and Masuk then refuses
+with "Pilih nama Anda dulu." as before, without a sign-in attempt. No match: the list says "Tidak ada nama yang
+cocok". The list is drawn in the page (not the browser's own suggestions), so it looks the same in Chrome, Edge and
+on a phone. Screen only (`app.js`, `i18n.json`, `style.css`): live on merge, no restart. `browser_check.py`
+(`choose_name`, the sign-in card checks, `NAMES_READY`) and `seat_checks/live_look.py` now open the list and click
+a row; neither was run.

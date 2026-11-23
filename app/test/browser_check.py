@@ -18,6 +18,10 @@ FIXTURE = os.path.join(HERE, "fixture")
 PNG_FILE = os.path.join(TMP, "bukti-foto.png")
 DICT = json.load(open(os.path.join(APP, "public", "i18n.json"), encoding="utf-8"))
 MSG = json.load(open(os.path.join(APP, "lib", "messages.json"), encoding="utf-8"))
+# v1.6.5: the sign-in names live in a list that opens under the one name field; open it, count the rows, close it
+NAMES_READY = ("(function(){var s=document.getElementById('login-name'); if(!s) return false; s.click();"
+               " var n=document.querySelectorAll('#login-names li[role=option]').length;"
+               " s.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return n > 0;})()")
 NEWPIN = "246810"
 NOW1, NOW2, NOW3 = "2026-11-18T10:00:00+08:00", "2026-11-20T10:00:00+08:00", "2026-11-24T10:00:00+08:00"
 D1, DEWI, EKO = "T01", "T03", "T04"
@@ -205,10 +209,11 @@ def wait(ch, expr, what, timeout=10):
 
 
 def choose_name(ch, who):
-    """v1.2: the name comes from a list. A native list cannot be opened and tapped in headless Chrome, so the value is
-    set as a pick would set it; the page reads the list only when Masuk is pressed."""
-    wait(ch, "!!document.querySelector('#login-name option[value=\"%s\"]')" % who, "name option " + who)
-    return ch.eval("(function(){var s=document.getElementById('login-name'); s.value=%s; s.dispatchEvent(new Event('change',{bubbles:true})); return s.value;})()" % json.dumps(who))
+    """v1.6.5: the name is one field; a click on it opens the list of names under it and a click on a row picks that
+    person (the row ids are 'lo-' + the person's id)."""
+    row = json.dumps("lo-" + who)
+    wait(ch, "(function(){document.getElementById('login-name').click(); return !!document.getElementById(%s);})()" % row, "name row " + who)
+    return ch.eval("(function(){document.getElementById(%s).click(); return document.getElementById('login-name').value;})()" % row)
 
 
 def sign_in(ch, who, pin, new_pin=None):
@@ -230,22 +235,24 @@ def signin_card_checks(ch, width, lang, pins):
     d = DICT[lang]
     tag = "signin %d %s" % (width, lang)
     want = sorted(p["id"] for p in json.load(open(os.path.join(FIXTURE, "people.json"), encoding="utf-8"))["people"])
-    s = ch.eval("""(function(){var s=document.getElementById('login-name'), p=document.getElementById('login-pin');
+    s = ch.eval("""(function(){var s=document.getElementById('login-name'), p=document.getElementById('login-pin'), l=document.getElementById('login-names');
       var card=document.querySelector('#signin.signin-card'), lab=document.querySelector('label[for="login-name"]');
-      return {card:!!card && !!s && !!p && card.contains(s) && card.contains(p), tag:s && s.tagName, label:lab && lab.textContent,
-        first:s && [s.options[0].value, s.options[0].textContent],
-        ids:s ? Array.prototype.slice.call(s.options, 1).map(function(o){return o.value;}).sort() : null,
-        pin:p && [p.type, p.getClientRects().length > 0], side:getComputedStyle(document.getElementById('side')).display,
-        focus:document.activeElement && document.activeElement.id};})()""")
-    check(tag + ": one card holds the name list and the PIN field", s["card"] and s["tag"] == "SELECT" and s["pin"] == ["password", True], s)
-    check(tag + ": the list is labelled and starts with the prompt", s["label"] == d["name_label"] and s["first"] == ["", d["pick_name"]], s)
+      var r={card:!!card && !!s && !!p && card.contains(s) && card.contains(p), tag:s && s.tagName, label:lab && lab.textContent,
+        prompt:s && s.placeholder, closed:!!l && l.hidden, pin:p && [p.type, p.getClientRects().length > 0],
+        side:getComputedStyle(document.getElementById('side')).display, focus:document.activeElement && document.activeElement.id};
+      s.click();
+      r.ids=Array.prototype.map.call(l.querySelectorAll('li[role=option]'), function(li){return li.id.slice(3);}).sort();
+      s.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+      return r;})()""")
+    check(tag + ": one card holds the name field and the PIN field", s["card"] and s["tag"] == "INPUT" and s["pin"] == ["password", True], s)
+    check(tag + ": the name field is labelled, shows the prompt, its list starts closed", s["label"] == d["name_label"] and s["prompt"] == d["pick_name"] and s["closed"], s)
     check(tag + ": the list holds every person of the fixture", s["ids"] == want, s["ids"])
     check(tag + ": no sidebar on the sign-in page", s["side"] == "none", s["side"])
-    check(tag + ": the focus starts on the name search box", s["focus"] == "login-find", s["focus"])
+    check(tag + ": the focus starts on the name field", s["focus"] == "login-name", s["focus"])
     ch.hold_requests("*/api/login*")  # a sign-in attempt that is sent is caught here
     ch.tap("#login-btn")
     got = ch.eval("(function(){var e=document.querySelector('#login-form .err'); return [e && e.getAttribute('data-code'), e && e.textContent, document.activeElement.id];})()")
-    check(tag + ": no name chosen is refused in the page, focus on the list", got == ["client_no_name", d["login_need_name"], "login-name"], got)
+    check(tag + ": no name chosen is refused in the page, focus on the name field", got == ["client_no_name", d["login_need_name"], "login-name"], got)
     choose_name(ch, DEWI)
     ch.tap("#login-btn")
     got = ch.eval("(function(){var e=document.querySelector('#login-form .err'); return [e && e.getAttribute('data-code'), e && e.textContent, document.activeElement.id];})()")
@@ -270,7 +277,7 @@ def close_panel(ch):
 def sign_out(ch):
     close_panel(ch)
     ch.tap("#logout-btn")
-    wait(ch, "document.querySelectorAll('#login-name option').length > 1", "sign-in page after logout")
+    wait(ch, NAMES_READY, "sign-in page after logout")
 
 
 def nav(ch, tab):
@@ -491,11 +498,11 @@ def run(width, lang):
         ch = Chrome(width, 900 if not mobile else 844, mobile=mobile, scale=1)
         ch.base = srv.base
         ch.goto_url(srv.base + "/")
-        wait(ch, "document.querySelectorAll('#login-name option').length > 1", "sign-in names")
+        wait(ch, NAMES_READY, "sign-in names")
         if lang == "en":
             ch.tap("#lang-btn")
             wait(ch, "document.documentElement.lang==='en'", "English chosen on the sign-in page")
-            wait(ch, "document.querySelectorAll('#login-name option').length > 1", "sign-in names in English")
+            wait(ch, NAMES_READY, "sign-in names in English")
         page_checks(ch, width, lang, "signin")
         shot(ch, width, lang, "01_signin")
         signin_card_checks(ch, width, lang, pins)

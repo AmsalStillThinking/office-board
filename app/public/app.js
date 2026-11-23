@@ -353,22 +353,60 @@
     setChrome();
     clear(view);
     var msg = h('div', { cls: 'msg' });
-    var who = h('select', { id: 'login-name' }, h('option', { value: '', text: t('pick_name') }));
+    // v1.6.5: ONE name field. Typing opens a list of the names (or nicknames) that contain the text; a click, a tap or
+    // Enter picks one and fills in the full name; a click on the empty field lists everyone. The person sent is kept
+    // apart from the text (`chosen`) and is set only by a pick or by a full name typed out, and any keystroke that
+    // changes the text drops it, so the name in the field is always the one signed in.
+    var who = h('input', { id: 'login-name', type: 'text', role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false',
+      'aria-controls': 'login-names', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: '160', placeholder: t('pick_name') });
+    var list = h('ul', { id: 'login-names', cls: 'name-list', role: 'listbox', 'aria-label': t('name_label'), hidden: true });
     var pin = h('input', { id: 'login-pin', type: 'password', inputmode: 'numeric', autocomplete: 'current-password', maxlength: '12' });
-    // typing in the box above the list keeps only the names that contain it; a single match is chosen at once.
-    // A chosen name that no longer matches is dropped, so the name sent is always the one the list shows.
-    var all = [];
-    var filterNames = function () {
-      var q = find.value.trim().toLowerCase(), was = who.value;
-      var keep = all.filter(function (o) { return o.textContent.toLowerCase().indexOf(q) >= 0; });
-      while (who.options.length > 1) who.remove(1);
-      keep.forEach(function (o) { who.appendChild(o); });
-      who.options[0].textContent = keep.length || !q ? t('pick_name') : t('no_name_match');
-      who.value = q && keep.length === 1 ? keep[0].value : keep.some(function (o) { return o.value === was; }) ? was : '';
+    var all = [], shown = [], chosen = '', active = -1;
+    var mark = function () {
+      Array.prototype.forEach.call(list.children, function (li, i) { li.classList.toggle('on', i === active); });
+      if (active < 0) return who.removeAttribute('aria-activedescendant');
+      who.setAttribute('aria-activedescendant', list.children[active].id);
+      list.children[active].scrollIntoView({ block: 'nearest' });
     };
-    var find = h('input', { id: 'login-find', type: 'search', autocomplete: 'off', 'aria-label': t('find_name'), placeholder: t('find_name_ph'), maxlength: '40',
-      oninput: filterNames,
-      onkeydown: function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); (who.value ? pin : who).focus(); } } });
+    var hideList = function () { list.hidden = true; who.setAttribute('aria-expanded', 'false'); active = -1; mark(); };
+    var showList = function () {
+      var q = who.value.trim().toLowerCase();
+      shown = all.filter(function (p) { return p.text.toLowerCase().indexOf(q) >= 0; });
+      active = shown.length === 1 ? 0 : -1; // a sole match is marked, so Enter takes it
+      clear(list);
+      shown.forEach(function (p) {
+        list.appendChild(h('li', { id: 'lo-' + p.id, role: 'option', 'aria-selected': p.id === chosen ? 'true' : 'false', text: p.text, onclick: function () { pick(p); } }));
+      });
+      if (!shown.length) list.appendChild(h('li', { cls: 'none', text: t('no_name_match') }));
+      list.hidden = false;
+      who.setAttribute('aria-expanded', 'true');
+      mark();
+    };
+    var pick = function (p) { chosen = p.id; who.value = p.text; hideList(); pin.focus(); };
+    var typed = function () {
+      var q = who.value.trim().toLowerCase();
+      var full = all.filter(function (p) { return p.text.toLowerCase() === q; });
+      chosen = full.length === 1 ? full[0].id : '';
+      showList();
+    };
+    who.addEventListener('input', typed);
+    who.addEventListener('click', showList);
+    who.addEventListener('blur', hideList);
+    who.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        if (list.hidden) return showList();
+        if (!shown.length) return;
+        active = ev.key === 'ArrowDown' ? Math.min(active + 1, shown.length - 1) : Math.max(active - 1, 0);
+        mark();
+      } else if (ev.key === 'Enter') {
+        ev.preventDefault(); // Enter here never sends the form: it picks, or moves on to the PIN
+        if (!list.hidden && active >= 0) pick(shown[active]);
+        else if (chosen) pin.focus();
+      } else if (ev.key === 'Escape') hideList();
+    });
+    // a press on the list must not take the focus from the field: blur would close the list before the click lands
+    list.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
     // a missing name or PIN is said here, in the page's language, and costs no sign-in attempt
     var missing = function (code, key, field) {
       clear(msg);
@@ -377,14 +415,14 @@
     };
     var form = h('form', { id: 'login-form', onsubmit: function (ev) {
       ev.preventDefault();
-      if (!who.value) return missing('client_no_name', 'login_need_name', who);
+      if (!chosen) return missing('client_no_name', 'login_need_name', who);
       if (!pin.value) return missing('client_no_pin', 'login_need_pin', pin);
-      api('POST', '/api/login', { id: who.value, pin: pin.value }).then(function (r) {
+      api('POST', '/api/login', { id: chosen, pin: pin.value }).then(function (r) {
         if (!r.ok) return showErr(msg, r);
         boot();
       });
     } },
-      h('label', { for: 'login-name', text: t('name_label') }), find, who,
+      h('label', { for: 'login-name', text: t('name_label') }), h('div', { cls: 'name-pick' }, who, list),
       h('label', { for: 'login-pin', text: t('pin') }), pin,
       h('button', { type: 'submit', id: 'login-btn', text: t('signin_btn') }),
       msg);
@@ -394,12 +432,10 @@
       h('p', { cls: 'muted', text: t('framing') }),
       form));
     api('GET', '/api/people-public').then(function (res) {
-      all = (res.data.people || []).map(function (p) {
-        return h('option', { value: p.id, text: p.nick ? p.name + ' (' + p.nick + ')' : p.name });
-      });
-      filterNames(); // also covers anything typed before the list arrived
+      all = (res.data.people || []).map(function (p) { return { id: p.id, text: p.nick ? p.name + ' (' + p.nick + ')' : p.name }; });
+      if (who.value && document.activeElement === who) typed(); // something was typed before the names arrived
     });
-    find.focus();
+    who.focus(); // the list stays closed until the field is clicked or typed in, so it never covers the PIN on load
   }
 
   // v1.3: the sidebar (with the sign-out button) is hidden while signed out, so the first PIN change carries its own

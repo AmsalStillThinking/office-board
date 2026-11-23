@@ -58,9 +58,15 @@
 - Names on the sign-in page were tap-buttons (pick your name), not a dropdown. v1.2 (owner's request, 20 Nov 2026):
   one card with a name list (`#login-name`, a native select) and the PIN field below it at once; a missing name or PIN
   is refused in the page without a sign-in attempt. `GET /api/session` (public, yes/no only) lets the page decide
-  sign-in vs board without provoking a 401 in the console. 23 Nov 2026 (owner's request): a search box
-  (`#login-find`) above the list keeps only the names that contain the typed text; one match is chosen at once, and a
-  chosen name that stops matching is dropped. Enter in the box moves to the PIN (or the list if no name is chosen).
+  sign-in vs board without provoking a 401 in the console. 23 Nov 2026 (owner's request, v1.6.5; v1.6.4's separate
+  search box was dropped the same day, "only 1 field"): `#login-name` is now ONE text field (role combobox) with a
+  list drawn in the page under it (`#login-names`, rows `lo-<id>`), not the browser's own suggestion list, so it looks
+  the same in every browser and the checks can see it. Typing lists the names or nicknames that contain the text; a
+  click on the empty field lists everyone; a click, a tap or Enter picks a row and fills in the full name. The person
+  sent is held apart from the text and set only by a pick or by a full name typed out; any keystroke that changes the
+  text drops it, so partial text sends nothing. The list is closed on load (focus is in the field) so it never
+  covers the PIN; a press on the list keeps the focus in the field (mousedown preventDefault) so blur cannot eat
+  the click.
 - FOUND by looking at a screenshot: the native file input shows the browser's own English "Choose File / No file
   chosen" on an Indonesian page, and no dictionary check can see it. Replaced by a visually hidden input plus a
   dictionary-labelled button and file-name line.
