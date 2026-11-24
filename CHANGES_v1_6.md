@@ -219,9 +219,10 @@ approve first. The sub-task form has no Pemberi field.
 **While it waits** (status `usul`, "Menunggu persetujuan"): it is on the Penerima's Papan Saya (a section shown only
 when there is one) and on the Pemberi's Permintaan Saya under "Perlu persetujuan Anda", with Setujui and Tolak. A
 director who is its Pemberi gets it under Pengecualian > Menunggu Anda. It is on no office board, and only the two of
-them and the directors can open it. Nothing else can be done on it: it cannot be started, does not age, does not count
-toward the limit and is not on the Friday list. The task panel says it waits for the Pemberi, and its step bar stands
-at Catat. Unanswered for more than 2 working days it is Macet, so any director finds it under Pengecualian > Macet.
+them and the directors can open it. Nothing else can be done on it: it cannot be started, does not age, is never
+Macet, does not count toward the limit and is not on the Friday list. The task panel says it waits for the Pemberi,
+and its step bar stands at Catat. One whose Pemberi never answers is taken back by its Penerima (the owner chose this
+over showing it to every director as Macet). A director who is not its Pemberi can still open it from its link.
 
 **It ends** when the Pemberi named presses Setujui: it becomes an ordinary Antri task from that Pemberi (event
 `approve`), and the Pemberi judges its proof as usual. A director cannot approve in the Pemberi's place. Tolak (the
@@ -234,18 +235,18 @@ works as before. Someone else must be active (`need_requester`), the sender must
 task carries no team, privacy, viewers, sub-tasks or parent (`propose_plain`). So nobody, the Pemberi included, can be
 put on its team and close it with a proof nobody judged (R4). New actions `approve` and `reject`; `can.approve` and
 `can.reject`. `visibleClause` hides a waiting task from everyone but its owner, its requester and the directors.
-`view=my`, `view=req` and `/api/exceptions` add the waiting tasks; `view=office` does not. `isMacet` counts a waiting
-task from `created_at`. Database: the status check on `cards` gains `usul`, widened on start; its name is read from
+`view=my`, `view=req` and `/api/exceptions` (its `waiting` list) add the waiting tasks; `view=office` does not.
+Database: the status check on `cards` gains `usul`, widened on start; its name is read from
 the catalogue. Wording: "Peminta" is "Pemberi" in the card details, the list column, the help rules, the viewers help,
 the `own_proof` message and the printed sheet (`SOP_Papan_Tugas_Kantor.html`, rebuilt with `make_sop_sheet.py`; only
 those two words changed).
 
-Needs a restart: `server.mjs`, `lib/db.mjs`, `lib/rules.mjs` and `lib/messages.json` changed. Checks (the owner allowed
-the new test file only): `pemberi.test.mjs` 6/6 on one throwaway test PostgreSQL, stopped afterwards. PB1-PB6 cover
-the lists and who can open it, every other action refused with the row unchanged, the endings, the refused creates
-writing nothing, Macet and no ageing, and a database from before v1.6.8 gaining the status under a check of another
-name. The planted-bug entry `bukti_never_macet` was re-pointed to the changed `isMacet` line. Not run (the owner's
-choice): the other test files, planted-bug checks, any browser look.
+Needs a restart: `server.mjs`, `lib/db.mjs` and `lib/messages.json` changed. Checks (the owner allowed the new test
+file only): `pemberi.test.mjs` 6/6 on one throwaway test PostgreSQL, stopped afterwards. PB1-PB6 cover the lists and who
+can open them, every other action refused with the row unchanged, the endings, the refused creates writing nothing,
+never Macet and never ageing (with a blocked ordinary task as the control that does turn Macet), and a database
+from before v1.6.8 gaining the status under a check of another name. Not run (the owner's choice): the other test
+files, planted-bug checks, any browser look; the screens have not been seen.
 
 Known, not changed: once turned down or taken back, the task is an ordinary Batal one. Anyone who may see a public
 task can then open it by its link (no list shows it to them).

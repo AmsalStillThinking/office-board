@@ -482,8 +482,8 @@ export function createApp(opts) {
   add('GET', '/api/exceptions', (ctx) => {
     const me = ctx.me;
     if (!isDir(me)) refuse(403, 'forbidden');
-    // v1.6.8: with the tasks waiting for approval: the ones this director is to approve, and any left unanswered for
-    // more than 2 working days (Macet), so a task whose Pemberi left or never answers can still be turned down
+    // v1.6.8: with the tasks waiting for approval, for "Menunggu Anda" when this director is their Pemberi. They never
+    // age and are never Macet (the owner, 24 Nov 2026): one whose Pemberi never answers is taken back by its Penerima.
     const all = openVisible(me).concat(openVisible(me, true));
     send(ctx.res, 200, {
       aged: all.filter((c) => c.age === 'layu' || c.age === 'busuk'),
@@ -838,8 +838,8 @@ export function createApp(opts) {
     if (c.status !== 'usul') refuse(409, 'bad_state');
     changeCard(c, { status: 'antri' }, me.id, 'approve');
   });
-  // ...or it ends, always with a reason: turned down by its Pemberi or a director (for a Pemberi who left or never
-  // answers), or taken back by the Penerima who added it (its PIC).
+  // ...or it ends, always with a reason: turned down by its Pemberi or a director (from its link: it is on no list of
+  // theirs), or taken back by the Penerima who added it (its PIC).
   ACTIONS.set('reject', (me, c, body) => {
     if (!(c.requester === me.id || c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
     if (c.status !== 'usul') refuse(409, 'bad_state');

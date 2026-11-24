@@ -142,25 +142,29 @@ test('PB4 a task for another Pemberi holds only what is the Penerima\'s to say; 
   }
 });
 
-test('PB5 unanswered for more than 2 working days it is Macet, and a director finds it; it never ages', T, async () => {
+test('PB5 a director sees a waiting task only as its Pemberi; it is never Macet and never ages', T, async () => {
   const a = await signedIn([D1, D2, DEWI, EKO]);
   a.clock.t = at('2026-11-18T10:00:00+08:00'); // a Wednesday
   const id = await propose(a); // due 2026-11-25
   const mine = await a.create(EKO, { owner: EKO, requester: D1 }); // a director is the Pemberi
+  const stuck = await a.create(DEWI, { owner: EKO }); // control: an ordinary task waiting on someone does turn Macet
+  assert.equal((await a.act(EKO, stuck, 'start')).status, 200);
+  assert.equal((await a.act(EKO, stuck, 'block', { waiting_on: D2, note: 'menunggu tanda tangan' })).status, 200);
   let e = await a.exc(D1);
   assert.ok(e.waiting.some((c) => c.id === mine) && !e.waiting.some((c) => c.id === id), 'a director\'s own approval waits for them');
   assert.ok(!(await a.exc(D2)).waiting.some((c) => c.id === mine), 'not another director\'s');
-  a.clock.t = at('2026-11-20T10:00:00+08:00'); // 2 working days later: not yet
-  assert.ok(!(await a.exc(D2)).macet.some((c) => c.id === id), 'not Macet after 2 working days');
-  a.clock.t = at('2026-11-21T10:00:00+08:00'); // 3
+  a.clock.t = at('2026-11-21T10:00:00+08:00'); // 3 working days later
   e = await a.exc(D2);
-  assert.ok(e.macet.some((c) => c.id === id) && e.macet.some((c) => c.id === mine), 'Macet after more than 2, for any director');
+  assert.ok(e.macet.some((c) => c.id === stuck), 'control: the blocked task is Macet');
+  assert.ok(!e.macet.some((c) => c.id === id || c.id === mine), 'a waiting task is not (the owner, 24 Nov 2026)');
   const onMy = (await a.req(EKO, 'GET', '/api/cards?view=my')).json.cards.find((c) => c.id === id);
-  assert.deepEqual([onMy.macet, onMy.age], [true, null], 'the Penerima sees it stuck');
+  assert.deepEqual([onMy.macet, onMy.age], [false, null], 'no badge on the Penerima\'s Papan Saya');
   a.clock.t = at('2026-12-10T10:00:00+08:00'); // long past its due date
   e = await a.exc(D2);
   assert.ok(!e.aged.some((c) => c.id === id), 'a waiting task never ages');
+  assert.ok([e.aged, e.macet, e.waiting].every((l) => !l.some((c) => c.id === id || c.id === mine)), 'on no list of another director');
   assert.ok(!(await a.req(D2, 'GET', '/api/review')).json.list.some((c) => c.id === id), 'not on the Friday list');
+  assert.equal((await a.detail(D2, id)).status, 200, 'a director may still open it from its link (rule 9)');
 });
 
 test('PB6 a database from before v1.6.8 gains the waiting status, whatever its check is called', T, async () => {

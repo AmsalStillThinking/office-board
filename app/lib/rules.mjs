@@ -95,10 +95,10 @@ export function ageing(card, today, settings = DEFAULT_SETTINGS) {
   return 'segar';
 }
 
-/** R6 + FX14: waiting on someone for more than 2 working days: in `tunggu` since waiting_since, in `bukti`
- * (proof nobody confirms) since proof_at, or (v1.6.8) in `usul` (a Pemberi who has not approved) since created_at. */
+/** R6 + FX14: waiting on someone for more than 2 working days: in `tunggu` since waiting_since, or in `bukti`
+ * (proof nobody confirms) since proof_at. */
 export function isMacet(card, today) {
-  const since = card.status === 'tunggu' ? card.waiting_since : card.status === 'bukti' ? card.proof_at : card.status === 'usul' ? card.created_at : null;
+  const since = card.status === 'tunggu' ? card.waiting_since : card.status === 'bukti' ? card.proof_at : null;
   if (since == null) return false;
   return workdaysBetween(localDate(since), today) > 2;
 }
