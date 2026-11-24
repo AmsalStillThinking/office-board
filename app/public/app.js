@@ -215,7 +215,8 @@
   }
   // urgency is computed, never typed in (R5): Busuk, then Layu (legal deadline first), Macet, waiting for me, the rest
   function deco(c) {
-    c.waitingYou = !!ME && ((c.status === 'tunggu' && c.waiting_on === ME.id) || (c.status === 'bukti' && c.requester === ME.id && !onTeam(c, ME.id)));
+    c.waitingYou = !!ME && ((c.status === 'tunggu' && c.waiting_on === ME.id) || (c.status === 'bukti' && c.requester === ME.id && !onTeam(c, ME.id)) ||
+      (c.status === 'usul' && c.requester === ME.id)); // v1.6.8: a task waiting for my approval as its Pemberi
     c.rank = c.age === 'busuk' ? 0 : c.age === 'layu' ? (c.hard ? 1 : 2) : c.macet ? 3 : c.waitingYou ? 4 : c.status === 'bukti' ? 6 : 5;
     return c;
   }
@@ -607,6 +608,15 @@
     sel.focus();
   }
 
+  // v1.6.8: turn down (the Pemberi, a director) or take back (the Penerima) a task waiting for approval, with a reason
+  function rejectForm(c, slot, wrap, labelKey) {
+    clear(wrap);
+    var reason = h('input', { cls: 'reject-reason', id: 'reject-reason-' + c.id, type: 'text', maxlength: '1000' });
+    wrap.appendChild(h('form', { cls: 'inline-form reject-form', onsubmit: function (ev) { ev.preventDefault(); act(c.id, 'reject', { reason: reason.value }, slot); } },
+      h('label', { for: reason.id, text: t('f_reason') }), reason, h('button', { type: 'submit', cls: 'danger reject-send', text: t(labelKey) })));
+    reason.focus();
+  }
+
   function overrideRetry(c, action, slot, labelKey) {
     if (!ME || ME.role !== 'direktur') return;
     var reason = h('input', { cls: 'override-reason', id: 'override-' + c.id, type: 'text', maxlength: '1000' });
@@ -672,6 +682,11 @@
         reason.focus();
       } }));
     }
+    // v1.6.8: a task a Penerima added, waiting for my approval as its Pemberi
+    if (opts.confirm && c.status === 'usul' && ME && c.requester === ME.id) {
+      acts.appendChild(h('button', { type: 'button', cls: 'btn-approve', text: t('btn_approve'), onclick: function () { act(c.id, 'approve', {}, slot); } }));
+      acts.appendChild(h('button', { type: 'button', cls: 'btn-reject secondary', text: t('btn_reject'), onclick: function () { rejectForm(c, slot, extra, 'btn_reject'); } }));
+    }
     if (acts.firstChild) el.appendChild(acts);
     el.appendChild(extra);
     el.appendChild(slot);
@@ -700,7 +715,7 @@
   // Catat > Sanggupi > Kerjakan > Buktikan > Selesai, with the current stage marked
   function stepsBar(status) {
     var keys = ['step_catat', 'step_sanggupi', 'step_kerjakan', 'step_buktikan', 'st_selesai'];
-    var cur = status === 'antri' ? 1 : status === 'jalan' || status === 'tunggu' ? 2 : status === 'bukti' ? 3 : status === 'selesai' ? 5 : -1;
+    var cur = status === 'usul' ? 0 : status === 'antri' ? 1 : status === 'jalan' || status === 'tunggu' ? 2 : status === 'bukti' ? 3 : status === 'selesai' ? 5 : -1;
     var ol = h('ol', { cls: 'steps', 'aria-label': t('steps_label') });
     keys.forEach(function (k, i) {
       ol.appendChild(h('li', { cls: i < cur ? 'done' : i === cur ? 'cur' : '', 'aria-current': i === cur ? 'step' : null }, h('i', {}), h('span', { text: t(k) })));
@@ -731,6 +746,12 @@
       view.appendChild(cardList(by('tunggu'), { quick: true, showOwner: false, showRequester: true, noId: true }));
       view.appendChild(h('h2', { id: 'sec-bukti', text: t('st_bukti') }));
       view.appendChild(cardList(by('bukti'), { showOwner: false, showRequester: true, noId: true }));
+      // v1.6.8: the tasks I added myself, waiting for their Pemberi's approval (shown only when there are some)
+      var usul = by('usul');
+      if (usul.length) {
+        view.appendChild(h('h2', { id: 'sec-usul', text: t('st_usul') }));
+        view.appendChild(cardList(usul, { showOwner: false, showRequester: true, noId: true }));
+      }
     });
   };
 
@@ -931,7 +952,13 @@
       if (!r.ok) return showErr(view, r);
       var cards = r.data.cards;
       var wait = cards.filter(function (c) { return c.status === 'bukti'; });
-      var rest = cards.filter(function (c) { return c.status !== 'bukti'; });
+      var rest = cards.filter(function (c) { return c.status !== 'bukti' && c.status !== 'usul'; });
+      // v1.6.8: tasks a Penerima added and named me as their Pemberi (shown only when there are some)
+      var usul = cards.filter(function (c) { return c.status === 'usul'; });
+      if (usul.length) {
+        view.appendChild(h('h2', { id: 'req-usul', text: t('req_approve') }));
+        view.appendChild(cardList(usul, { confirm: true, wide: true }));
+      }
       view.appendChild(h('h2', { text: t('st_bukti') }));
       view.appendChild(cardList(wait, { confirm: true, wide: true }));
       view.appendChild(h('h2', { text: t('req_open') }));
@@ -1029,6 +1056,25 @@
     };
     var addRow = h('button', { type: 'button', id: 'new-add-sub', cls: 'secondary small', text: t('btn_add_sub_row'), onclick: addSub });
     var subBox = parent ? null : h('fieldset', { cls: 'new-subs', id: 'new-subs' }, h('legend', { text: t('f_subtasks') }), subList, addRow, subFull);
+    // v1.6.8: the Pemberi, the person the task is from (not on a sub-task: only the parent's Pemberi or a director adds
+    // those). Someone else: the task waits for their approval, and the one adding it is its PIC with no team, sub-tasks,
+    // files or privacy (the server refuses them). What was filled in there stays, in case the Pemberi is set back to me.
+    var requester = parent ? null : peopleSelect('new-requester', null, false);
+    var propHelp = h('p', { cls: 'muted fhelp', id: 'new-requester-help', 'aria-live': 'polite', hidden: true });
+    var proposal = function () { return !!requester && requester.value !== ME.id; };
+    var filesLabel = h('label', { for: 'new-files', text: t('f_files') });
+    var privLabel = h('label', { cls: 'check', for: 'new-private' }, priv, h('span', { text: t('f_private') }));
+    var setMode = function () {
+      var p = proposal();
+      if (p) owner.value = ME.id;
+      owner.disabled = p;
+      members.hidden = filesLabel.hidden = files.wrap.hidden = privLabel.hidden = subBox.hidden = p;
+      viewers.hidden = p || !priv.checked;
+      propHelp.hidden = !p;
+      propHelp.textContent = p ? tf('f_requester_help', { name: personName(requester.value) }) : '';
+      hideOwner();
+    };
+    if (requester) { requester.value = ME.id; requester.addEventListener('change', setMode); }
     var form = h('form', { id: 'new-form', onsubmit: function (ev) {
       ev.preventDefault();
       // FX17i: the button stays disabled for the whole create + attachments chain; a second tap creates nothing.
@@ -1037,13 +1083,14 @@
       submit.setAttribute('data-hold', '1');
       submit.disabled = true;
       ARMED = null;
-      api('POST', '/api/cards', { title: title.value, owner: owner.value, due: due.value, type: type.value, hard: hard.checked,
-        source: source.value, body: body.value, 'private': priv.checked, members: members.picked(),
-        viewers: priv.checked ? viewers.picked() : [], parent: parent ? parent.id : null,
-        subtasks: subRows.map(function (s) { return { title: s.title.value, owner: s.owner.value, due: s.due.value }; }) }).then(function (r) {
+      var p = proposal(); // the hidden parts are not sent
+      api('POST', '/api/cards', { title: title.value, owner: owner.value, requester: requester ? requester.value : undefined, due: due.value, type: type.value, hard: hard.checked,
+        source: source.value, body: body.value, 'private': !p && priv.checked, members: p ? [] : members.picked(),
+        viewers: !p && priv.checked ? viewers.picked() : [], parent: parent ? parent.id : null,
+        subtasks: p ? [] : subRows.map(function (s) { return { title: s.title.value, owner: s.owner.value, due: s.due.value }; }) }).then(function (r) {
         if (!r.ok) { submit.removeAttribute('data-hold'); submit.disabled = false; return showErr(msg, r); }
         var id = r.data.card.id;
-        var list = Array.prototype.slice.call(files.input.files || []);
+        var list = p ? [] : Array.prototype.slice.call(files.input.files || []);
         var chain = Promise.resolve(true);
         var refusal = h('div', {});
         list.forEach(function (f) { chain = chain.then(function (okSoFar) { return okSoFar ? uploadOne(id, f, 'lampiran', refusal) : false; }); });
@@ -1058,16 +1105,18 @@
       parent ? h('p', { cls: 'muted', id: 'new-parent', text: tf('new_sub_for', { id: parent.id, title: parent.title }) }) : null,
       h('div', { cls: 'grid2' },
         h('div', {}, h('label', { for: 'new-title', text: t('f_title') }), title),
+        requester ? h('div', {}, h('label', { for: 'new-requester', text: t('f_requester') }), requester) : null,
         h('div', {}, h('label', { for: 'new-owner', text: t('f_owner') }), owner),
         h('div', {}, h('label', { for: 'new-due', text: t('f_due') }), due),
         h('div', {}, h('label', { for: 'new-type', text: t('f_type') }), type),
         h('div', {}, h('label', { for: 'new-source', text: t('f_source') }), source),
         h('div', {}, h('label', { cls: 'check', for: 'new-hard' }, hard, h('span', { text: t('f_hard') })))),
+      propHelp,
       members,
       subBox,
       h('label', { for: 'new-body', text: t('f_body') }), body,
-      h('label', { for: 'new-files', text: t('f_files') }), files.wrap,
-      h('label', { cls: 'check', for: 'new-private' }, priv, h('span', { text: t('f_private') })),
+      filesLabel, files.wrap,
+      privLabel,
       viewers,
       h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'new-submit', text: t('btn_create') })),
       msg);
@@ -1118,8 +1167,10 @@
 
   function eventLine(e) {
     var d = e.detail || {};
-    var bits = [fmtTime(e.at), (e.actor ? personName(e.actor) : t('by_system')), t('ev_' + e.kind)];
     var after = d.after || {};
+    // v1.6.8: a task a Penerima added for a Pemberi reads "Diusulkan, menunggu persetujuan <Pemberi>"
+    var kind = e.kind === 'create' && after.status === 'usul' ? 'propose' : e.kind;
+    var bits = [fmtTime(e.at), (e.actor ? personName(e.actor) : t('by_system')), kind === 'propose' ? tf('ev_propose', { name: personName(after.requester) }) : t('ev_' + kind)];
     if (e.kind === 'block' && after.waiting_on) bits.push(personName(after.waiting_on) + ': ' + (after.waiting_note || ''));
     if (e.kind === 'due') bits.push(fmtDate(d.before && d.before.due) + ' -> ' + fmtDate(after.due));
     if (e.kind === 'owner') bits.push(personName(d.before && d.before.owner) + ' -> ' + personName(after.owner));
@@ -1157,6 +1208,8 @@
         c.on_time === false ? h('span', { cls: 'badge age-busuk', text: t('lbl_late') }) : null,
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null));
       box.appendChild(stepsBar(c.status));
+      // v1.6.8: added by its Penerima; nothing can be done on it until its Pemberi approves
+      if (c.status === 'usul') box.appendChild(h('p', { cls: 'muted', id: 'd-pending', text: tf('pending_line', { name: personName(c.requester) }) }));
       var dl = h('table', { cls: 'facts' });
       var row = function (k, v) { dl.appendChild(h('tr', {}, h('th', { text: t(k) }), h('td', { text: v }))); };
       row('lbl_owner', personName(c.owner));
@@ -1198,6 +1251,10 @@
       if (can.team) acts.appendChild(h('button', { type: 'button', id: 'd-team', cls: 'secondary', text: t('btn_team'), onclick: function () { clear(extra); extra.appendChild(teamForm(c, slot)); } }));
       if (can.viewers) acts.appendChild(h('button', { type: 'button', id: 'd-viewers', cls: 'secondary', text: t('btn_viewers'), onclick: function () { clear(extra); extra.appendChild(viewersForm(c, r.data.viewers, slot)); } }));
       if (can.cancel) acts.appendChild(h('button', { type: 'button', id: 'd-cancel', cls: 'danger', text: t('btn_cancel_card'), onclick: function () { clear(extra); extra.appendChild(cancelForm(c, slot)); } }));
+      // v1.6.8: its Pemberi approves or turns it down; a director may turn it down; the Penerima who added it takes it back
+      if (can.approve) acts.appendChild(h('button', { type: 'button', id: 'd-approve', text: t('btn_approve'), onclick: function () { act(c.id, 'approve', {}, slot); } }));
+      var rejectKey = c.owner === ME.id ? 'btn_withdraw' : 'btn_reject';
+      if (can.reject) acts.appendChild(h('button', { type: 'button', id: 'd-reject', cls: 'secondary', text: t(rejectKey), onclick: function () { rejectForm(c, slot, extra, rejectKey); } }));
       if (acts.firstChild) box.appendChild(acts);
       box.appendChild(extra);
       box.appendChild(slot);

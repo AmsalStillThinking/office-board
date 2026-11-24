@@ -204,3 +204,51 @@ test PostgreSQL, stopped afterwards): the to-do, team, v1.5 and PostgreSQL-move 
 are new); 14 planted bugs each caught by their own named test (two existing ones re-pointed to the changed lines); a
 stub browser check 18/18 in headless Chrome 157 and Edge 157. Not run: `server.test`, `rules.test`, `fx.test`,
 `browser_check.py`, the seat checks.
+
+## v1.6.8 (24 Nov 2026): a Penerima adds their own task, the Pemberi approves it
+The owner: "Pemberi are sometimes forget to give a task to Penerima ... so that Penerima can add his own task. So
+there will be one field at Task Form, called Pemberi, but Pemberi have to approve the task that arent inputted by
+himself." Shown the options, they chose: "Pemberi" on every screen (it said "Peminta"); a waiting task shown only to
+the two people; only the Pemberi named approves.
+
+**Tugas baru** has a "Pemberi" field, set to the person filling it in, so nothing changes until someone else is
+picked. When someone else is picked, "Untuk siapa (PIC)" is fixed to the person filling it in. The team, sub-tasks,
+files and "Tugas pribadi" are hidden (the Pemberi's choices since v1.6.2/v1.6.3), and a line says the Pemberi has to
+approve first. The sub-task form has no Pemberi field.
+
+**While it waits** (status `usul`, "Menunggu persetujuan"): it is on the Penerima's Papan Saya (a section shown only
+when there is one) and on the Pemberi's Permintaan Saya under "Perlu persetujuan Anda", with Setujui and Tolak. A
+director who is its Pemberi gets it under Pengecualian > Menunggu Anda. It is on no office board, and only the two of
+them and the directors can open it. Nothing else can be done on it: it cannot be started, does not age, does not count
+toward the limit and is not on the Friday list. The task panel says it waits for the Pemberi, and its step bar stands
+at Catat. Unanswered for more than 2 working days it is Macet, so any director finds it under Pengecualian > Macet.
+
+**It ends** when the Pemberi named presses Setujui: it becomes an ordinary Antri task from that Pemberi (event
+`approve`), and the Pemberi judges its proof as usual. A director cannot approve in the Pemberi's place. Tolak (the
+Pemberi or a director) or Tarik usulan (the Penerima) close it as Batal, always with a reason (events `reject` and
+`withdraw`); it then shows in the Penerima's Riwayat Tugas. The history line of its creation reads "Diusulkan,
+menunggu persetujuan <Pemberi>".
+
+**Server.** `POST /api/cards` takes `requester`. Left out (a page opened before v1.6.8) or the person sending it, it
+works as before. Someone else must be active (`need_requester`), the sender must be the PIC (`propose_own`), and the
+task carries no team, privacy, viewers, sub-tasks or parent (`propose_plain`). So nobody, the Pemberi included, can be
+put on its team and close it with a proof nobody judged (R4). New actions `approve` and `reject`; `can.approve` and
+`can.reject`. `visibleClause` hides a waiting task from everyone but its owner, its requester and the directors.
+`view=my`, `view=req` and `/api/exceptions` add the waiting tasks; `view=office` does not. `isMacet` counts a waiting
+task from `created_at`. Database: the status check on `cards` gains `usul`, widened on start; its name is read from
+the catalogue. Wording: "Peminta" is "Pemberi" in the card details, the list column, the help rules, the viewers help,
+the `own_proof` message and the printed sheet (`SOP_Papan_Tugas_Kantor.html`, rebuilt with `make_sop_sheet.py`; only
+those two words changed).
+
+Needs a restart: `server.mjs`, `lib/db.mjs`, `lib/rules.mjs` and `lib/messages.json` changed. Checks (the owner allowed
+the new test file only): `pemberi.test.mjs` 6/6 on one throwaway test PostgreSQL, stopped afterwards. PB1-PB6 cover
+the lists and who can open it, every other action refused with the row unchanged, the endings, the refused creates
+writing nothing, Macet and no ageing, and a database from before v1.6.8 gaining the status under a check of another
+name. The planted-bug entry `bukti_never_macet` was re-pointed to the changed `isMacet` line. Not run (the owner's
+choice): the other test files, planted-bug checks, any browser look.
+
+Known, not changed: once turned down or taken back, the task is an ordinary Batal one. Anyone who may see a public
+task can then open it by its link (no list shows it to them).
+
+Undo: `git revert` the commit, then restart. Before that, approve or turn down every waiting task. The old code lists
+none of them and refuses every action on them, so they would sit unseen.

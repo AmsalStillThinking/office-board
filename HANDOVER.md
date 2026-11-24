@@ -131,12 +131,18 @@ changing what they say:
 3. A card closes only with proof (a file, photo or link added as proof; since v1.5, the owner's decision, a written
    comment counts too). A requester's attachment is not proof. A director cannot close without proof either.
 4. The person who asked accepts the proof or sends it back with a reason. Nobody judges their own proof, a director
-   included. After "Minta koreksi", new proof is required before sending again.
+   included. After "Minta koreksi", new proof is required before sending again. Since v1.6.8 (24 Nov 2026, the app
+   owner's decision; the owner tells the director) the screen calls that person the Pemberi (it said "Peminta"), and
+   a Penerima may add a task nobody gave them and name its Pemberi. Such a task waits ("Menunggu persetujuan"): only
+   its Penerima as PIC, no team, no sub-tasks, not private, not startable, not ageing, seen by the two of them and the
+   directors only. It becomes an ordinary task only when the Pemberi named presses Setujui; a director cannot approve
+   in their place, but may turn it down (Tolak, with a reason), as the Pemberi may. The Penerima may take it back.
 5. Ageing is computed, never edited: Due from the due date, Overdue from 3 working days late; cards with a legal
    deadline (tax, BPJS) are Due 3 working days before. Working days Monday to Saturday, time zone Asia/Makassar.
    The limits are director settings in the app. (Until 22 Nov 2026 the screen called the three states Segar, Layu
    and Busuk; the owner renamed them to On track, Due and Overdue. The rule is unchanged.)
-6. Macet: waiting on someone, or proof not yet confirmed, for more than 2 working days.
+6. Macet: waiting on someone, or proof not yet confirmed, for more than 2 working days. Since v1.6.8 also a
+   self-added task its Pemberi has not approved; that is how a director finds one whose Pemberi left or never answers.
 7. A director's first screen is Pengecualian: "Menunggu Anda" first, then Layu and Busuk, then Macet.
 8. Per-person numbers are visible to directors only; everyone else sees the office total and their own row.
 9. Private cards are seen only by their owner, their requester and the directors. Since v1.6 also by the card's team

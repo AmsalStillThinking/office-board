@@ -23,7 +23,7 @@
  "pin_throttled": {"id":"Terlalu banyak percobaan. Tunggu 5 menit, lalu coba lagi."},
  "pin_weak": {"id":"PIN harus 6 sampai 12 angka."},
  "pin_same": {"id":"PIN baru harus berbeda dari PIN yang sekarang."},
- "own_proof": {"id":"Bukti Anda sendiri diperiksa orang lain: peminta tugas atau Direktur lain."},
+ "own_proof": {"id":"Bukti Anda sendiri diperiksa orang lain: Pemberi tugas atau Direktur lain."},
  "need_new_proof": {"id":"Setelah diminta koreksi, tambahkan bukti baru dulu (komentar atau file)."},
  "has_routines": {"id":"Orang ini pemilik {n} rutin aktif. Ganti pemilik rutin itu dulu."},
  "owner_is_waited_on": {"id":"Tugas ini sedang menunggu orang itu. Lanjutkan tugasnya dulu, baru pindahkan."},
@@ -37,5 +37,8 @@
  "bad_subtask": {"id":"Sub-tugas ke-{n} belum lengkap: isi judul, PIC yang aktif, dan tenggatnya."},
  "subtasks_open": {"id":"Selesaikan dulu {n} sub-tugas yang masih terbuka."},
  "member_is_waited_on": {"id":"Tugas ini sedang menunggu orang itu. Lanjutkan tugasnya dulu, baru masukkan ke tim."},
- "sub_private": {"id":"Sub-tugas dari tugas pribadi tetap pribadi."}
+ "sub_private": {"id":"Sub-tugas dari tugas pribadi tetap pribadi."},
+ "need_requester": {"id":"Pilih Pemberi tugas yang masih aktif."},
+ "propose_own": {"id":"Kalau Pemberinya orang lain, tugas ini untuk Anda sendiri: pilih diri Anda sebagai PIC."},
+ "propose_plain": {"id":"Tugas yang menunggu persetujuan belum bisa punya tim, sub-tugas, atau dibuat pribadi. Pemberi mengaturnya setelah menyetujui."}
 }

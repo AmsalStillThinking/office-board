@@ -106,7 +106,7 @@ const MUTANTS = [
   { name: 'correction_no_new_proof', file: 'server.mjs', test: FX_TESTS, check: 'FX12 correction needs new proof',
     edits: [["      if (fresh === 0) refuse(409, 'need_new_proof');", '      /* planted: old proof accepted again */']] },
   { name: 'bukti_never_macet', file: path.join('lib', 'rules.mjs'), test: FX_TESTS, check: 'FX14 unconfirmed proof is macet',
-    edits: [["const since = card.status === 'tunggu' ? card.waiting_since : card.status === 'bukti' ? card.proof_at : null;", "const since = card.status === 'tunggu' ? card.waiting_since : null;"]] },
+    edits: [["card.status === 'bukti' ? card.proof_at : card.status === 'usul'", "card.status === 'bukti' ? null : card.status === 'usul'"]] },
   // ---- v1.1.1 (second review)
   { name: 'schedule_edit_replays', file: 'server.mjs', test: FX_TESTS, check: 'FY1 a schedule edit never re-creates periods already served',
     edits: [['    else if (next.active === 1 && scheduleChanged) next.active_since = today();', '    /* planted: a date change keeps the old back-fill floor */']] },

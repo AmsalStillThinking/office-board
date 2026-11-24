@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS cards(
   id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '',
   requester TEXT NOT NULL REFERENCES people(id), owner TEXT NOT NULL REFERENCES people(id), due TEXT NOT NULL,
   hard INTEGER NOT NULL DEFAULT 0, type TEXT NOT NULL DEFAULT 'umum', source TEXT NOT NULL, private INTEGER NOT NULL DEFAULT 0,
-  status TEXT NOT NULL CHECK(status IN ('antri','jalan','tunggu','bukti','selesai','batal')),
+  status TEXT NOT NULL CHECK(status IN ('usul','antri','jalan','tunggu','bukti','selesai','batal')),
   waiting_on TEXT REFERENCES people(id), waiting_note TEXT, waiting_since BIGINT,
   koreksi INTEGER NOT NULL DEFAULT 0, moved INTEGER NOT NULL DEFAULT 0, self_closed INTEGER NOT NULL DEFAULT 0,
   created_at BIGINT NOT NULL, started_at BIGINT, proof_at BIGINT, closed_at BIGINT, routine_key TEXT UNIQUE);
@@ -97,6 +97,12 @@ export function openDb(dataDir) {
   const kinds = db.prepare("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conrelid = 'evidence'::regclass AND conname = 'evidence_kind_check'").get();
   if (!kinds || !kinds.d.includes("'comment'")) {
     db.exec("ALTER TABLE evidence DROP CONSTRAINT IF EXISTS evidence_kind_check; ALTER TABLE evidence ADD CONSTRAINT evidence_kind_check CHECK (kind IN ('file','link','comment'))");
+  }
+  // v1.6.8: 'usul', a task a Penerima added for themselves, waiting for its Pemberi's approval. A database made before
+  // v1.6.8 has the six-status check: widen it once. Its name is read from the catalogue, not assumed.
+  const st = db.prepare("SELECT conname AS n, pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conrelid = 'cards'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%status%'").get();
+  if (st && !st.d.includes("'usul'")) {
+    db.exec(`ALTER TABLE cards DROP CONSTRAINT "${st.n}"; ALTER TABLE cards ADD CONSTRAINT cards_status_check CHECK (status IN ('usul','antri','jalan','tunggu','bukti','selesai','batal'))`);
   }
   // v1.6: the task a sub-task belongs to (one level only)
   db.exec('ALTER TABLE cards ADD COLUMN IF NOT EXISTS parent BIGINT REFERENCES cards(id); CREATE INDEX IF NOT EXISTS cards_parent ON cards(parent)');

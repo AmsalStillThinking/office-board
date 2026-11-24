@@ -119,17 +119,20 @@ export function createApp(opts) {
   function visibleClause(me) {
     if (isDir(me)) return { sql: '1 = 1', args: [] };
     // v1.6: also its team and picked people, and for a sub-task the parent's PIC, team and requester (the parent closes
-    // after its sub-tasks, so they always see what holds it back)
+    // after its sub-tasks, so they always see what holds it back). v1.6.8: a task waiting for its Pemberi's approval
+    // ('usul') is seen by that Pemberi and the Penerima who added it (its PIC) only, until it is approved.
     return {
       sql: '(c.private = 0 OR c.owner = ? OR c.requester = ? OR EXISTS (SELECT 1 FROM card_people cp WHERE cp.card = c.id AND cp.person = ?)' +
-        " OR EXISTS (SELECT 1 FROM cards p WHERE p.id = c.parent AND (p.owner = ? OR p.requester = ? OR EXISTS (SELECT 1 FROM card_people pp WHERE pp.card = p.id AND pp.person = ? AND pp.kind = 'member'))))",
-      args: [me.id, me.id, me.id, me.id, me.id, me.id],
+        " OR EXISTS (SELECT 1 FROM cards p WHERE p.id = c.parent AND (p.owner = ? OR p.requester = ? OR EXISTS (SELECT 1 FROM card_people pp WHERE pp.card = p.id AND pp.person = ? AND pp.kind = 'member'))))" +
+        " AND (c.status <> 'usul' OR c.owner = ? OR c.requester = ?)",
+      args: [me.id, me.id, me.id, me.id, me.id, me.id, me.id, me.id],
     };
   }
-  function openVisible(me) {
+  // pending: the tasks waiting for a Pemberi's approval (v1.6.8), which are on no office board and never age
+  function openVisible(me, pending = false) {
     const v = visibleClause(me);
     const td = today(), st = settings();
-    return withPeople(me, q(`SELECT c.* FROM cards c WHERE c.status IN ('antri','jalan','tunggu','bukti') AND ${v.sql} ORDER BY c.due, c.id`)
+    return withPeople(me, q(`SELECT c.* FROM cards c WHERE c.status ${pending ? "= 'usul'" : "IN ('antri','jalan','tunggu','bukti')"} AND ${v.sql} ORDER BY c.due, c.id`)
       .all(...v.args)).map((c) => decorate(c, td, st));
   }
   // v1.6.7: Riwayat Tugas, the closed tasks this person received (the PIC or on the team; a picked viewer or the
@@ -395,6 +398,8 @@ export function createApp(opts) {
     const view = ctx.url.searchParams.get('view') || 'office';
     if (view === 'history') return send(ctx.res, 200, { cards: closedReceived(me), today: today() });
     let cards = openVisible(me);
+    // v1.6.8: a task waiting for approval: on the Penerima's Papan Saya (its PIC) and the Pemberi's Permintaan Saya
+    if (view === 'my' || view === 'req') cards = cards.concat(openVisible(me, true));
     if (view === 'my') cards = cards.filter((c) => c.owner === me.id || c.members.includes(me.id)); // v1.6: the team too
     else if (view === 'req') cards = cards.filter((c) => c.requester === me.id && c.owner !== me.id && !c.members.includes(me.id));
     else if (view !== 'office') refuse(400, 'bad_input');
@@ -427,10 +432,19 @@ export function createApp(opts) {
     }
     // a sub-task of a private task is private too; the parent's people see it by the visibility rule, not as viewers
     const priv = body.private || (parent && parent.private) ? 1 : 0;
+    // v1.6.8: the Pemberi (requester). Left out (a page from before v1.6.8) or the person adding it: as before. Someone
+    // else: a Penerima adding a task nobody gave them. It waits ('usul') for that Pemberi's Setujui and holds only what
+    // is the Penerima's to say: they are its PIC, with no team, privacy or sub-tasks (the Pemberi's choices since
+    // v1.6.2/v1.6.3). So no team member, and no Pemberi put on the team, can close it with a proof nobody judged (R4).
+    const requester = body.requester === undefined || body.requester === null || body.requester === '' ? me : getPerson(str(body.requester, 40));
+    if (!requester || !requester.active) refuse(400, 'need_requester');
+    const proposal = requester.id !== me.id;
+    if (proposal && owner.id !== me.id) refuse(400, 'propose_own');
+    if (proposal && (members.length || parent || priv || (Array.isArray(body.subtasks) && body.subtasks.length))) refuse(400, 'propose_plain');
     const viewers = (priv ? peopleList(body.viewers) : []).filter((p) => p !== owner.id && p !== me.id && !members.includes(p));
     const card = {
-      title, body: str(body.body, 5000), requester: me.id, owner: owner.id, due: body.due, hard: body.hard ? 1 : 0,
-      type, source: body.source, private: priv,
+      title, body: str(body.body, 5000), requester: requester.id, owner: owner.id, due: body.due, hard: body.hard ? 1 : 0,
+      type, source: body.source, private: priv, status: proposal ? 'usul' : 'antri',
     };
     // v1.6.1: sub-tasks made together with a new task (Tugas baru). Each row needs a title, an active PIC and a date;
     // every row is checked before anything is written, so a bad row never leaves a half-made task. A row has no type
@@ -444,21 +458,21 @@ export function createApp(opts) {
         const row = s && typeof s === 'object' ? s : {};
         const subTitle = str(row.title, 200), subOwner = getPerson(str(row.owner, 40));
         if (!subTitle || !subOwner || !subOwner.active || !R.isDate(row.due)) refuse(400, 'bad_subtask', { n: i + 1 });
-        return { title: subTitle, body: '', requester: me.id, owner: subOwner.id, due: row.due, hard: 0, type, source: body.source, private: priv };
+        return { status: 'antri', title: subTitle, body: '', requester: me.id, owner: subOwner.id, due: row.due, hard: 0, type, source: body.source, private: priv };
       });
     }
     const insertCard = (c, parentId) => Number(q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at, parent)
-        VALUES (?,?,?,?,?,?,?,?,?,'antri',?,?) RETURNING id`).run(c.title, c.body, c.requester, c.owner, c.due, c.hard, c.type, c.source, c.private, now(), parentId).lastInsertRowid);
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`).run(c.title, c.body, c.requester, c.owner, c.due, c.hard, c.type, c.source, c.private, c.status, now(), parentId).lastInsertRowid);
     const id = tx(() => {
       const cid = insertCard(card, parent ? parent.id : null);
       for (const p of members) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'member')").run(cid, p);
       for (const p of viewers) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'viewer')").run(cid, p);
       // the parent is not in the event: its viewers may not be allowed to know the parent exists
-      writeEvent(cid, me.id, 'create', { after: { ...card, status: 'antri', members, viewers } });
+      writeEvent(cid, me.id, 'create', { after: { ...card, members, viewers } });
       for (const sc of subCards) {
         const sid = insertCard(sc, cid), subViewers = viewers.filter((p) => p !== sc.owner);
         for (const p of subViewers) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'viewer')").run(sid, p);
-        writeEvent(sid, me.id, 'create', { after: { ...sc, status: 'antri', members: [], viewers: subViewers } });
+        writeEvent(sid, me.id, 'create', { after: { ...sc, members: [], viewers: subViewers } });
       }
       return cid;
     });
@@ -468,11 +482,14 @@ export function createApp(opts) {
   add('GET', '/api/exceptions', (ctx) => {
     const me = ctx.me;
     if (!isDir(me)) refuse(403, 'forbidden');
-    const all = openVisible(me);
+    // v1.6.8: with the tasks waiting for approval: the ones this director is to approve, and any left unanswered for
+    // more than 2 working days (Macet), so a task whose Pemberi left or never answers can still be turned down
+    const all = openVisible(me).concat(openVisible(me, true));
     send(ctx.res, 200, {
       aged: all.filter((c) => c.age === 'layu' || c.age === 'busuk'),
       macet: all.filter((c) => c.macet),
-      waiting: all.filter((c) => (c.status === 'tunggu' && c.waiting_on === me.id) || (c.status === 'bukti' && c.requester === me.id)),
+      waiting: all.filter((c) => (c.status === 'tunggu' && c.waiting_on === me.id) || (c.status === 'bukti' && c.requester === me.id) ||
+        (c.status === 'usul' && c.requester === me.id)),
       today: today(),
     });
   });
@@ -726,6 +743,8 @@ export function createApp(opts) {
       // v1.6
       team: (req || dir) && movable, viewers: req || dir, // v1.6.3: the team is the requester's choice too, not the PIC's
       sub: c.parent == null && (req || dir) && ['antri', 'jalan', 'tunggu'].includes(c.status), // v1.6.2: not the PIC or team
+      // v1.6.8: a task waiting for approval: its Pemberi approves; the Pemberi, a director or the Penerima ends it
+      approve: req && c.status === 'usul', reject: (req || dir || c.owner === me.id) && c.status === 'usul',
     };
   }
 
@@ -811,6 +830,21 @@ export function createApp(opts) {
     if (c.status !== 'bukti') refuse(409, 'bad_state');
     const reason = needReason(body);
     changeCard(c, { status: 'jalan', koreksi: c.koreksi + 1 }, me.id, 'return', { reason, evidence_max: highestEvidence(c.id) }); // above the limit is allowed (R2)
+  });
+  // v1.6.8: a task a Penerima added for themselves ('usul') becomes a task only when its Pemberi says yes: the person
+  // named, not a director in their place (the owner, 24 Nov 2026), because the Pemberi is the one who judges its proof.
+  ACTIONS.set('approve', (me, c) => {
+    if (c.requester !== me.id) refuse(403, 'forbidden');
+    if (c.status !== 'usul') refuse(409, 'bad_state');
+    changeCard(c, { status: 'antri' }, me.id, 'approve');
+  });
+  // ...or it ends, always with a reason: turned down by its Pemberi or a director (for a Pemberi who left or never
+  // answers), or taken back by the Penerima who added it (its PIC).
+  ACTIONS.set('reject', (me, c, body) => {
+    if (!(c.requester === me.id || c.owner === me.id || isDir(me))) refuse(403, 'forbidden');
+    if (c.status !== 'usul') refuse(409, 'bad_state');
+    const reason = needReason(body);
+    changeCard(c, { status: 'batal', closed_at: now() }, me.id, c.owner === me.id ? 'withdraw' : 'reject', { reason });
   });
   ACTIONS.set('due', (me, c, body) => {
     if (!(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');

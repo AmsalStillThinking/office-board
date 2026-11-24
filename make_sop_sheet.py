@@ -44,7 +44,7 @@ steps = [
     ("Catat", "Setiap permintaan jadi tugas, termasuk yang datang lewat WhatsApp atau lisan. Tombol: Tugas baru."),
     ("Sanggupi", "Satu pemilik, satu tenggat. Paling banyak %d tugas berjalan per orang. Tombol: Mulai." % max_active),
     ("Kerjakan", "Tertahan orang lain? Tekan Macet dan tulis menunggu siapa."),
-    ("Buktikan", "Buka tugasnya, tulis komentar (Tambah komentar) atau lampirkan file atau foto (Unggah file), lalu tekan Kirim bukti. Peminta tugas menekan Terima atau Minta koreksi. Diminta koreksi? Tambahkan bukti baru."),
+    ("Buktikan", "Buka tugasnya, tulis komentar (Tambah komentar) atau lampirkan file atau foto (Unggah file), lalu tekan Kirim bukti. Pemberi tugas menekan Terima atau Minta koreksi. Diminta koreksi? Tambahkan bukti baru."),
     ("Tinjau", "Jumat, 20 menit. Hanya tugas due, overdue, dan macet."),
 ]
 colours = [
