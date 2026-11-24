@@ -1103,10 +1103,13 @@
       });
     } },
       parent ? h('p', { cls: 'muted', id: 'new-parent', text: tf('new_sub_for', { id: parent.id, title: parent.title }) }) : null,
+      // v1.6.9 (owner): Pemberi | PIC, Judul | Tenggat, Jenis | Sumber. A sub-task has no Pemberi field: an empty
+      // cell keeps PIC on the first row alone, so the other pairs stay as asked.
       h('div', { cls: 'grid2' },
-        h('div', {}, h('label', { for: 'new-title', text: t('f_title') }), title),
         requester ? h('div', {}, h('label', { for: 'new-requester', text: t('f_requester') }), requester) : null,
         h('div', {}, h('label', { for: 'new-owner', text: t('f_owner') }), owner),
+        requester ? null : h('div', {}),
+        h('div', {}, h('label', { for: 'new-title', text: t('f_title') }), title),
         h('div', {}, h('label', { for: 'new-due', text: t('f_due') }), due),
         h('div', {}, h('label', { for: 'new-type', text: t('f_type') }), type),
         h('div', {}, h('label', { for: 'new-source', text: t('f_source') }), source),

@@ -253,3 +253,12 @@ task can then open it by its link (no list shows it to them).
 
 Undo: `git revert` the commit, then restart. Before that, approve or turn down every waiting task. The old code lists
 none of them and refuses every action on them, so they would sit unseen.
+
+## v1.6.9 (25 Nov 2026): Tugas baru field order
+
+The owner asked for this order: Pemberi | PIC, Judul | Tenggat, Jenis | Sumber. The "Tenggat hukum (wajib tepat)" tick
+stays on the last row. On a sub-task, which has no Pemberi field, PIC sits alone on the first row so the other pairs stay the same.
+On a phone the fields stack in that same order. Only `app/public/app.js` changed, so no restart is needed. Checks: the
+file parses (`node --check`); no test was run and the screen has not been seen. The checks that fill this form
+(`browser_check.py`, `seat_checks/v16_browser_look.mjs`) find each field by its id, so the new order does not affect
+them.
