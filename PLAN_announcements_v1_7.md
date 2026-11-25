@@ -49,8 +49,9 @@ day ("Im happy with that"). The mockup is a private design canvas, so it is not 
     answer 200.
   - `POST /api/announcements/:id/file` takes a raw body, like task files.
   - `GET /fa/:id` serves the file to anyone signed in.
-- **Shared upload code:** the file-receiving and file-sending code of task files becomes two helpers that both
-  routes use (`receiveFile`, `sendStoredFile`). The new test file includes a task-upload control for that.
+- **Shared file code:** the file-sending code of task files becomes one helper both routes use (`sendStoredFile`).
+  The new test file includes a task-file control for that. (Planned too: a shared receiving helper. As built, the post
+  upload repeats the task one instead, because `mutants.mjs` pins that code by its text.)
 - **New messages:** need_ann_title, need_ann_body, ann_until_past, ann_closed. Existing ones reused: forbidden,
   not_found, need_file, too_large.
 

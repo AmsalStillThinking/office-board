@@ -1811,7 +1811,7 @@
       flags.length ? h('div', { cls: 'ann-flags' }, flags) : null,
       h('h2', { text: a.title }),
       h('div', { cls: 'meta' },
-        h('span', { cls: 'who' }, avatar(a.author, 'sm'), h('span', { text: personName(a.author) })),
+        h('span', { cls: 'who' }, avatar(a.author, 'sm'), h('span', { text: personName(a.author) + (a.author === ME.id ? ' ' + t('ann_you') : '') })),
         author && author.role === 'direktur' ? h('span', { text: t('role_direktur') }) : null,
         h('span', { text: fmtDate(dayOf(a.created_at)) }),
         a.until ? h('span', { text: tf('ann_until_line', { d: fmtDate(a.until) }) }) : null,
@@ -1872,7 +1872,8 @@
           a && a.file ? h('p', { cls: 'muted fhelp', id: 'ann-file-now', text: tf('ann_f_file_now', { name: a.file.name }) }) : null,
           file.wrap,
           h('p', { cls: 'muted fhelp', text: t('ann_f_file_help') }),
-          h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'ann-save', text: t('btn_save') })),
+          h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'ann-save', text: t('btn_save') }),
+            h('button', { type: 'button', id: 'ann-cancel', cls: 'secondary', text: t('ann_cancel'), onclick: function () { dlg.close(); } })),
           msg)));
     layer.appendChild(dlg);
     dlg.showModal();

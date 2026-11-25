@@ -353,6 +353,7 @@
   "ann_f_file_now": "Lampiran sekarang: {name}. Pilih file lain untuk menggantinya.",
   "ann_strip": "{n} pengumuman baru",
   "ann_read": "Baca",
-  "ann_count_label": "baru"
+  "ann_count_label": "baru",
+  "ann_you": "(Anda)"
  }
 }

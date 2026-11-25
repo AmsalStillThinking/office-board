@@ -791,7 +791,7 @@ export function createApp(opts) {
     send(ctx.res, 200, { announcement: pubAnn(ctx.me, getAnn(id)) });
   }
   async function annArchive(ctx, id) {
-    await readJson(ctx); // the body first: the session is checked again once it is in (FX11)
+    await readJson(ctx); // FX11: read the body, then check the session and the post again
     annForChange(ctx, id);
     const info = q('UPDATE announcements SET archived_at = ?, archived_by = ? WHERE id = ? AND archived_at IS NULL').run(now(), ctx.me.id, id);
     if (info.changes !== 1) refuse(409, 'ann_closed');

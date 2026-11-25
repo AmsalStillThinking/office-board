@@ -21,7 +21,8 @@ and changes no rule about tasks.
 - **The page:** Aktif and Arsip tabs. Pinned posts come first, then the newest. A post shows:
   - Disematkan and/or BARU;
   - the title;
-  - who posted it ("Direktur" beside a director), the date, "Berlaku s/d" and "diubah" when they apply;
+  - who posted it ("Direktur" beside a director, "(Anda)" on your own), the date, "Berlaku s/d" and "diubah" when
+    they apply;
   - the text with its line breaks;
   - the file (a photo as a thumbnail).
 - **What counts as a visit:** opening the Aktif tab. Opening Arsip does not count.
@@ -32,7 +33,7 @@ and changes no rule about tasks.
   - Sematkan di atas;
   - one file.
 
-  A file over 15 MB is refused before anything is sent.
+  Simpan and Batal at the bottom. A file over 15 MB is refused before anything is sent.
 - **Ubah and Arsipkan:**
   - Who: any director, or the author while they may still post. A keeper who is no longer the keeper cannot change
     their old posts; a director can.
@@ -40,6 +41,17 @@ and changes no rule about tasks.
     BARU again.
   - Arsipkan: asks once in the page, with Batal focused. An archived post never comes back and cannot be changed.
   - Expiry: a post with a date moves to Arsip by itself the day after that date. Nothing is deleted.
+
+## How it differs from the approved mockup
+
+- **Dates read 25/11/2026, not "25 Nov 2026":** the board writes every date that way.
+- **"diubah <date>" is new:** an edited post says so, so nobody reads changed text as the original.
+- **What reaches people:** the strip and the count show what was new when the page was loaded. Nothing pushes a post
+  to a page that is already open.
+- **Who can post today:** the directors, and anyone a director ticks as the board keeper ("Boleh buka Review
+  Jumat"). That tick also opens Review Jumat to them.
+- **What the database still holds:** nobody can see in the app who opened the page. The time of each person's last
+  visit is still in the database and in the nightly backup files.
 
 ## Server and database
 
@@ -87,7 +99,15 @@ The owner allowed one new test file and one browser look.
 
   The first run stopped at the dialog because my Enter key event carried no Enter character (the harness, not the
   page). The second run, with that fixed, passed.
-- **Not run (the owner's PC):** the other test files, planted-bug checks, `browser_check.py`, the seat checks.
+- **Added after the browser look:** the dialog's Batal button and "(Anda)" on your own posts. Each is one line, checked
+  only by `node --check`.
+- **Planted-bug anchors, counted, not run:** every text a planted bug in `mutants.mjs` looks for was counted in this
+  branch's files: 114 texts, with a control that must be reported.
+  - One anchor matched twice: the archive route had copied a To-Do comment word for word. That comment was reworded.
+  - Two anchors (`todo_edit_any_person`, `todo_description_dropped`) are not found on master either. They broke with
+    the v1.6.7 to-do change and are left as they are.
+- **Not run (the owner's PC):** the other test files (`pg.test.mjs` walks the table list, which grew), planted-bug
+  checks, `browser_check.py`, the seat checks. No separate code review ran on the change.
 
 ## Undo
 
