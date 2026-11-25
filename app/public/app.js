@@ -1458,52 +1458,104 @@
     });
   };
 
+  // v1.7.2: the routines are one table (Rutin | Pemilik | Jadwal | Dibuat | Status | Pengaturan), as the people page is;
+  // a row's Atur opens routineDialog, which holds the fields the old panel had.
+  function routineType(rt) { return t('type_' + rt.type) + (rt.hard ? ' · ' + t('lbl_hard') : ''); }
+  function scheduleText(s) {
+    var two = function (n) { return (n < 10 ? '0' : '') + n; };
+    if (s.kind === 'yearly') return tf('r_sum_yearly', { d: two(s.day) + '/' + two(s.month) });
+    if (s.kind === 'quarterly') return tf('r_sum_quarterly', { d: s.day, m: (s.months || []).join(', ') });
+    return tf('r_sum_monthly', { d: s.day });
+  }
   ROUTES.routines = function () {
-    view.appendChild(h('h1', { text: t('routines') }));
-    pageGet('/api/routines').then(function (r) {
-      if (!r.ok) return showErr(view, r);
-      r.data.routines.forEach(function (rt) {
-        var msg = h('div', { cls: 'msg' });
-        var owner = peopleSelect('rt-owner-' + rt.id, null, true);
-        owner.options[0].textContent = t('r_nobody');
-        owner.value = rt.owner || '';
-        var kind = h('select', { id: 'rt-kind-' + rt.id });
-        ['monthly', 'quarterly', 'yearly'].forEach(function (k) { kind.appendChild(h('option', { value: k, text: t('r_' + k) })); });
-        kind.value = rt.schedule.kind;
-        var day = h('input', { id: 'rt-day-' + rt.id, type: 'number', min: '1', max: '31', step: '1', value: String(rt.schedule.day) });
-        var month = h('input', { id: 'rt-month-' + rt.id, type: 'number', min: '1', max: '12', step: '1', value: String(rt.schedule.month || 1) });
-        var months = h('input', { id: 'rt-months-' + rt.id, type: 'text', value: (rt.schedule.months || [1, 4, 7, 10]).join(',') });
-        var lead = h('input', { id: 'rt-lead-' + rt.id, type: 'number', min: '0', max: '365', step: '1', value: String(rt.lead_days) });
-        var active = h('input', { id: 'rt-active-' + rt.id, type: 'checkbox', checked: rt.active === 1 });
-        var monthBox = h('div', { cls: 'rt-month' }, h('label', { for: month.id, text: t('r_month') }), month);
-        var monthsBox = h('div', { cls: 'rt-months' }, h('label', { for: months.id, text: t('r_months') }), months);
-        var showKind = function () { monthBox.hidden = kind.value !== 'yearly'; monthsBox.hidden = kind.value !== 'quarterly'; };
-        kind.addEventListener('change', showKind);
-        showKind();
-        var save = function () {
-          var sched = { kind: kind.value, day: parseInt(day.value, 10) };
-          if (kind.value === 'yearly') sched.month = parseInt(month.value, 10);
-          if (kind.value === 'quarterly') sched.months = months.value.split(',').map(function (x) { return parseInt(x, 10); });
-          api('POST', '/api/routines/' + rt.id, { owner: owner.value || null, schedule: sched, lead_days: parseInt(lead.value, 10), active: active.checked }).then(function (x) {
-            if (!x.ok) return showErr(msg, x);
-            showOk(msg, t('saved'));
-          });
-        };
-        view.appendChild(h('section', { cls: 'panel routine', 'data-routine': String(rt.id) },
-          h('h2', { text: rt.title }),
-          h('p', { cls: 'muted', text: t('type_' + rt.type) + (rt.hard ? ' · ' + t('lbl_hard') : '') }),
-          rt.note ? h('p', { cls: 'muted', text: rt.note }) : null,
-          h('div', { cls: 'grid2' },
-            h('div', {}, h('label', { for: owner.id, text: t('r_owner') }), owner),
-            h('div', {}, h('label', { for: kind.id, text: t('r_kind') }), kind),
-            h('div', {}, h('label', { for: day.id, text: t('r_day') }), day),
-            monthBox, monthsBox,
-            h('div', {}, h('label', { for: lead.id, text: t('r_lead') }), lead)),
-          h('label', { cls: 'check', for: active.id }, active, h('span', { text: t('r_active') })),
-          h('button', { type: 'button', cls: 'rt-save', text: t('btn_save'), onclick: save }), msg));
+    var rmsg = h('div', { cls: 'msg', id: 'routines-msg' });
+    var tableBox = h('div', { cls: 'table-wrap', id: 'routines-table-wrap' });
+    var drawTable = function (list) {
+      var tb = h('tbody');
+      list.forEach(function (rt) {
+        var on = rt.active === 1;
+        tb.appendChild(h('tr', { 'data-routine': String(rt.id) },
+          h('td', {}, h('div', { cls: 'rt-title', text: rt.title }), h('div', { cls: 'muted', text: routineType(rt) }),
+            rt.note ? h('div', { cls: 'muted rt-note', text: rt.note }) : null),
+          h('td', { cls: 'nowrap' }, rt.owner ? personName(rt.owner) : h('span', { cls: 'muted', text: t('r_nobody') })),
+          h('td', { text: scheduleText(rt.schedule) }),
+          h('td', { cls: 'nowrap', text: tf('r_lead_short', { n: rt.lead_days }) }),
+          h('td', {}, h('span', { cls: 'badge ' + (on ? 'r-on' : 'status'), text: t(on ? 'r_active' : 'r_inactive') })),
+          h('td', {}, h('button', { type: 'button', id: 'rt-open-' + rt.id, cls: 'small secondary', 'aria-label': t('p_open') + ' ' + rt.title, text: t('p_open'),
+            onclick: function () { routineDialog(rt, reload, rmsg); } }))));
       });
-    });
+      var a = document.activeElement, keep = a && tableBox.contains(a) ? a.id : ''; // an Atur that had the cursor keeps it
+      clear(tableBox);
+      tableBox.appendChild(h('table', { id: 'routines-table' },
+        h('thead', {}, h('tr', {}, ['r_col_routine', 'r_owner', 'r_schedule', 'r_col_lead', 'r_col_status', 'p_col_settings'].map(function (k) { return h('th', { scope: 'col', text: t(k) }); }))), tb));
+      if (keep && document.getElementById(keep)) document.getElementById(keep).focus();
+    };
+    var reload = function () {
+      pageGet('/api/routines').then(function (r) { if (!r.ok) return showErr(rmsg, r); drawTable(r.data.routines); });
+    };
+    view.appendChild(h('h1', { text: t('routines') }));
+    view.appendChild(rmsg);
+    view.appendChild(tableBox);
+    reload();
   };
+  // v1.7.2: one routine's dialog, with the same fields and the same request as the old panel. Simpan keeps it open with
+  // "Tersimpan." (as personDialog does) and draws the table again; an answer that lands after it was closed goes to the
+  // page (rmsg), naming the routine.
+  function routineDialog(rt, reload, rmsg) {
+    var openerId = 'rt-open-' + rt.id;
+    var msg = h('div', { cls: 'msg' });
+    var owner = peopleSelect('rt-owner', null, true);
+    owner.options[0].textContent = t('r_nobody');
+    owner.value = rt.owner || '';
+    var kind = h('select', { id: 'rt-kind' });
+    ['monthly', 'quarterly', 'yearly'].forEach(function (k) { kind.appendChild(h('option', { value: k, text: t('r_' + k) })); });
+    kind.value = rt.schedule.kind;
+    var day = h('input', { id: 'rt-day', type: 'number', min: '1', max: '31', step: '1', value: String(rt.schedule.day) });
+    var month = h('input', { id: 'rt-month', type: 'number', min: '1', max: '12', step: '1', value: String(rt.schedule.month || 1) });
+    var months = h('input', { id: 'rt-months', type: 'text', value: (rt.schedule.months || [1, 4, 7, 10]).join(',') });
+    var lead = h('input', { id: 'rt-lead', type: 'number', min: '0', max: '365', step: '1', value: String(rt.lead_days) });
+    var active = h('input', { id: 'rt-active', type: 'checkbox', checked: rt.active === 1 });
+    var monthBox = h('div', { cls: 'rt-month' }, h('label', { for: month.id, text: t('r_month') }), month);
+    var monthsBox = h('div', { cls: 'rt-months' }, h('label', { for: months.id, text: t('r_months') }), months);
+    var showKind = function () { monthBox.hidden = kind.value !== 'yearly'; monthsBox.hidden = kind.value !== 'quarterly'; };
+    kind.addEventListener('change', showKind);
+    showKind();
+    var save = function () {
+      var sched = { kind: kind.value, day: parseInt(day.value, 10) };
+      if (kind.value === 'yearly') sched.month = parseInt(month.value, 10);
+      if (kind.value === 'quarterly') sched.months = months.value.split(',').map(function (x) { return parseInt(x, 10); });
+      api('POST', '/api/routines/' + rt.id, { owner: owner.value || null, schedule: sched, lead_days: parseInt(lead.value, 10), active: active.checked }).then(function (x) {
+        var open = dlg.open, at = open ? msg : rmsg;
+        if (!x.ok) return showErr(at, x);
+        showOk(at, (open ? '' : rt.title + ': ') + t('saved'));
+        reload();
+      });
+    };
+    var dlg = h('dialog', { id: 'routine-dlg', cls: 'dlg', 'aria-labelledby': 'routine-dlg-h', onclose: function () {
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
+      var o = document.getElementById(openerId); // the row was drawn again: find its button by id
+      if (o) o.focus();
+    } },
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'routine-dlg-h', cls: 'dr-title', text: rt.title }),
+        h('button', { type: 'button', id: 'routine-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
+      h('div', { cls: 'dr-body' },
+        h('p', { cls: 'muted', text: routineType(rt) }),
+        rt.note ? h('p', { cls: 'muted', text: rt.note }) : null,
+        // novalidate: a hidden Bulan box holding a bad number would block Simpan with no message; the server checks
+        // every field, as it did for the old panel's button
+        h('form', { id: 'routine-form', novalidate: true, onsubmit: function (ev) { ev.preventDefault(); save(); } },
+          h('label', { for: owner.id, text: t('r_owner') }), owner,
+          h('label', { for: kind.id, text: t('r_kind') }), kind,
+          h('label', { for: day.id, text: t('r_day') }), day,
+          monthBox, monthsBox,
+          h('label', { for: lead.id, text: t('r_lead') }), lead,
+          h('label', { cls: 'check', for: active.id }, active, h('span', { text: t('r_active') })),
+          h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'rt-save', text: t('btn_save') })),
+          msg)));
+    layer.appendChild(dlg);
+    dlg.showModal();
+    owner.focus();
+  }
 
   // v1.7.1: the people are one table (Nama | Panggilan | Peran | Pengaturan); a row's Atur opens personDialog, and
   // Tambah orang sits at the top right and opens the same dialog empty.

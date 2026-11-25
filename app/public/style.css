@@ -284,6 +284,15 @@ th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vert
 th { background: var(--bg); font-weight: 600; }
 .facts th { width: 38%; color: var(--muted); font-weight: 600; }
 #people-table td { vertical-align: middle; } /* v1.7.1: the name sits level with its Atur button */
+/* v1.7.2: Rutin as a table; the owner and "N hari sebelum" stay on one line. On a phone the table keeps its width and
+   scrolls sideways in .table-wrap, instead of breaking "Bulanan · tanggal 10" into one word per line */
+#routines-table { min-width: 760px; }
+#routines-table td { vertical-align: middle; }
+#routine-dlg .dr-body > p { margin: 0 0 6px; }
+#routines-table .rt-title { font-weight: 600; }
+#routines-table .rt-note { font-size: 13px; }
+#routines-table .nowrap { white-space: nowrap; }
+.badge.r-on { color: var(--segar); background: var(--segar-bg); }
 /* v1.7.1: Pengaturan and Tambah orang side by side; on a narrow screen they go under the title instead of squeezing it */
 .people-head { flex-wrap: wrap; }
 .head-acts { display: flex; flex-wrap: wrap; gap: 8px; }
