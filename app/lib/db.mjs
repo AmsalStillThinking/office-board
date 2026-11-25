@@ -50,10 +50,14 @@ CREATE TABLE IF NOT EXISTS todos(
   id BIGSERIAL PRIMARY KEY, person TEXT NOT NULL REFERENCES people(id), text TEXT NOT NULL, due TEXT,
   done INTEGER NOT NULL DEFAULT 0 CHECK(done IN (0,1)), created_at BIGINT NOT NULL, done_at BIGINT);
 CREATE INDEX IF NOT EXISTS todos_person ON todos(person, done);
+CREATE TABLE IF NOT EXISTS announcements(
+  id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL, author TEXT NOT NULL REFERENCES people(id),
+  pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0,1)), until TEXT, created_at BIGINT NOT NULL, edited_at BIGINT,
+  archived_at BIGINT, archived_by TEXT REFERENCES people(id), file_name TEXT, file_mime TEXT, file_size BIGINT, file_stored TEXT);
 `;
 // Load order for a move or a restore (a table after the ones it refers to), and the tables with an id sequence.
-export const TABLES = ['people', 'cards', 'card_people', 'evidence','events', 'routines', 'reviews', 'settings', 'sessions', 'todos'];
-export const SERIAL_TABLES = ['cards', 'evidence', 'events', 'routines', 'reviews', 'todos'];
+export const TABLES = ['people', 'cards', 'card_people', 'evidence','events', 'routines', 'reviews', 'settings', 'sessions', 'todos', 'announcements'];
+export const SERIAL_TABLES = ['cards', 'evidence', 'events', 'routines', 'reviews', 'todos', 'announcements'];
 
 export function hashPin(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -93,6 +97,8 @@ export function openDb(dataDir) {
   db.exec("ALTER TABLE todos ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''"); // v1.5
   // v1.6.7: the day of the month (1-31) a to-do comes back on; 0 = it does not repeat
   db.exec('ALTER TABLE todos ADD COLUMN IF NOT EXISTS monthly INTEGER NOT NULL DEFAULT 0 CHECK(monthly BETWEEN 0 AND 31)');
+  // v1.7: when the person last opened Pengumuman (Aktif); a post by someone else after it is new. Never sent to anyone.
+  db.exec('ALTER TABLE people ADD COLUMN IF NOT EXISTS ann_seen_at BIGINT NOT NULL DEFAULT 0');
   // v1.5: a comment is evidence too. A database made before v1.5 has the two-kind check: widen it once.
   const kinds = db.prepare("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conrelid = 'evidence'::regclass AND conname = 'evidence_kind_check'").get();
   if (!kinds || !kinds.d.includes("'comment'")) {

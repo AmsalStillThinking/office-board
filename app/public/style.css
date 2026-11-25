@@ -342,3 +342,34 @@ fieldset.new-subs legend { font-weight: 600; padding: 0 4px; }
 .sub-row select, .sub-row .sub-due { flex: 1 1 9rem; min-width: 0; }
 .sub-row .sub-del { flex: 0 0 auto; }
 #new-add-sub { margin-top: 8px; }
+
+/* v1.7: Pengumuman. The count of new posts in the menu, the strip on the first page, the posts. The count is
+   position: relative so its hidden word (.vh) has a positioned box to sit in. */
+.nav-n { position: relative; margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: #fff; color: var(--ink);
+  font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+.menu .nav-n { background: var(--accent); color: #fff; }
+.seg .n { font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 999px; background: rgba(63, 114, 175, .16); }
+.strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; max-width: 880px; margin: 0 0 8px; padding: 10px 12px 10px 14px;
+  border: 1px solid #7fa3cf; border-radius: 12px; background: var(--bukti-bg); }
+.strip > .ic { width: 20px; height: 20px; color: var(--bukti); }
+.strip p { flex: 1 1 240px; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+#ann-tabs { margin-bottom: 14px; }
+.ann-list { display: flex; flex-direction: column; gap: 12px; max-width: 880px; }
+.ann { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0;
+  display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 2px rgba(17, 45, 78, .06); }
+.ann.is-new { border-color: var(--line-2); }
+.ann h2 { margin: 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+.ann-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-new { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  color: #fff; background: var(--accent); }
+.ann .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 14px; color: var(--muted); }
+.ann .meta .who { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
+.ann .body { margin: 0; }
+.ann-file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--bg); font-size: 14px; }
+.ann-file > .ic { width: 20px; height: 20px; color: var(--accent); }
+.ann-file .file-link { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 899px) {
+  #nav #nav-menu { position: relative; }
+  #nav .nav-n { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; background: var(--accent); color: #fff; }
+}

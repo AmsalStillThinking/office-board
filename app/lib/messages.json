@@ -40,5 +40,9 @@
  "sub_private": {"id":"Sub-tugas dari tugas pribadi tetap pribadi."},
  "need_requester": {"id":"Pilih Pemberi tugas yang masih aktif."},
  "propose_own": {"id":"Kalau Pemberinya orang lain, tugas ini untuk Anda sendiri: pilih diri Anda sebagai PIC."},
- "propose_plain": {"id":"Tugas yang menunggu persetujuan belum bisa punya tim, sub-tugas, atau dibuat pribadi. Pemberi mengaturnya setelah menyetujui."}
+ "propose_plain": {"id":"Tugas yang menunggu persetujuan belum bisa punya tim, sub-tugas, atau dibuat pribadi. Pemberi mengaturnya setelah menyetujui."},
+ "need_ann_title": {"id":"Tulis judul pengumuman."},
+ "need_ann_body": {"id":"Tulis isi pengumuman."},
+ "ann_until_past": {"id":"Tanggal berlaku sudah lewat. Pilih hari ini atau sesudahnya, atau kosongkan."},
+ "ann_closed": {"id":"Pengumuman ini sudah di Arsip, jadi tidak bisa diubah lagi."}
 }

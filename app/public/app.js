@@ -17,6 +17,7 @@
   var OFFICE = Object.assign({}, OFFICE_START); // Papan Kantor filters survive opening and closing a task
   var PAGE_SIZE = 10;
   var AVATAR_BG = ['#112D4E', '#2E5A88', '#3F72AF', '#4D6A92', '#1D4E7A', '#365F91'];
+  var ANN_NEW = 0; // v1.7: posts by others since my last visit to Pengumuman (the count beside it in the menu)
 
   // v1.5: one language only (Indonesian, with the English words the office uses); no switch.
 
@@ -253,7 +254,11 @@
     kanban: 'M3 4h5v16H3zM10 4h5v10h-5zM17 4h4v13h-4z',
     timeline: 'M3 5h10M7 12h12M5 19h8',
     close: 'M6 6l12 12M18 6L6 18',
-    search: 'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-3.5-3.5'
+    search: 'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-3.5-3.5',
+    ann: 'M3 10v4h3l6 4V6L6 10zM15.5 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10', // v1.7 Pengumuman: a megaphone
+    pin: 'M9 3h6M10 3v6l-3 4h10l-3-4V3M12 13v8',
+    file: 'M14 3H6v18h12V7zM14 3v4h4',
+    bell: 'M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9M10 20a2 2 0 0 0 4 0'
   };
   function icon(kind) {
     var s = document.createElementNS(SVGNS, 'svg');
@@ -307,19 +312,33 @@
     tabs.forEach(function (tb) {
       var on = cur === tb[0] || (tb[0] === 'menu' && inTabs.indexOf(cur) < 0);
       nav.appendChild(h('button', { type: 'button', id: 'nav-' + tb[0], cls: on ? 'on' : '', 'aria-current': on ? 'page' : null, onclick: function () { go(tb[0]); } },
-        icon(tb[0]), h('span', { text: t(tb[1]) })));
+        icon(tb[0]), h('span', { text: t(tb[1]) }), tb[0] === 'menu' ? annBadge(ANN_NEW) : null));
     });
     // v1.2: on a desktop the Lainnya destinations are listed in the sidebar (the phone keeps the Lainnya page)
     more.appendChild(h('p', { cls: 'nav-label', text: t('nav_menu') }));
     moreItems().forEach(function (it) {
       var on = cur === it[0];
       more.appendChild(h('button', { type: 'button', id: 'more-' + it[0], cls: on ? 'on' : '', 'aria-current': on ? 'page' : null, onclick: function () { go(it[0]); } },
-        icon(it[0]), h('span', { text: t(it[1]) })));
+        icon(it[0]), h('span', { text: t(it[1]) }), it[0] === 'ann' ? annBadge(ANN_NEW) : null));
+    });
+  }
+  // v1.7: the count of new posts beside Pengumuman (sidebar, Lainnya page) and on the phone's Lainnya button
+  function annBadge(n) { return n > 0 ? h('span', { cls: 'nav-n' }, String(n), h('span', { cls: 'vh', text: ' ' + t('ann_count_label') })) : null; }
+  function annCount(n) { // drawn again in place: rebuilding the menu would take the focus from a button in it
+    ANN_NEW = n;
+    ['more-ann', 'nav-menu', 'menu-ann'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      var old = b.querySelector('.nav-n');
+      if (old) b.removeChild(old);
+      var c = annBadge(n);
+      if (c) b.appendChild(c);
     });
   }
   function moreItems() {
     var dir = ME.role === 'direktur', items = [];
     items.push(['todo', 'todo']); // v1.3: everyone's own to-do list, first in Lainnya
+    items.push(['ann', 'ann']); // v1.7: Pengumuman, for everyone
     items.push(['history', 'history']); // v1.6.7: the closed tasks this person received
     if (dir) items.push(['req', 'nav_req']); // FX5: Pengecualian is a director's first tab; his requests live here
     if (dir || ME.keeper === 1) items.push(['review', 'review']);
@@ -566,12 +585,12 @@
     return api('GET', '/api/me').then(function (r) {
       if (!r.ok) { ME = null; return showSignin(); }
       ME = r.data.me;
-      if (!ME.must_change_pin) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; }
+      if (!ME.must_change_pin) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; ANN_NEW = r.data.ann_new || 0; }
       render();
     });
   }
   function refreshMe() {
-    return api('GET', '/api/me').then(function (r) { if (r.ok && r.data.people) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; } });
+    return api('GET', '/api/me').then(function (r) { if (r.ok && r.data.people) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; annCount(r.data.ann_new || 0); } });
   }
 
   // ------------------------------------------------------------------ card list items
@@ -733,6 +752,7 @@
       newDay(r);
       clear(view);
       view.appendChild(h('h1', { text: t('nav_my') }));
+      view.appendChild(annStrip());
       if (!r.ok) return showErr(view, r);
       var cards = r.data.cards;
       var by = function (st) { return cards.filter(function (c) { return c.status === st; }); };
@@ -1364,6 +1384,7 @@
 
   ROUTES.exc = function () {
     view.appendChild(h('h1', { text: t('exc') }));
+    view.appendChild(annStrip());
     view.appendChild(h('p', { cls: 'muted', text: t('framing') }));
     pageGet('/api/exceptions').then(function (r) {
       if (!r.ok) return showErr(view, r);
@@ -1693,10 +1714,170 @@
     view.appendChild(h('h1', { text: t('nav_menu') }));
     var m = h('div', { cls: 'menu' });
     moreItems().forEach(function (it) {
-      m.appendChild(h('button', { type: 'button', id: 'menu-' + it[0], cls: 'secondary', onclick: function () { go(it[0]); } }, icon(it[0]), h('span', { text: t(it[1]) })));
+      m.appendChild(h('button', { type: 'button', id: 'menu-' + it[0], cls: 'secondary', onclick: function () { go(it[0]); } }, icon(it[0]), h('span', { text: t(it[1]) }),
+        it[0] === 'ann' ? annBadge(ANN_NEW) : null));
     });
     view.appendChild(m);
   };
+
+  // ------------------------------------------------------------------ v1.7: Pengumuman
+  function fmtSize(n) { return n >= 1048576 ? String(Math.round(n / 104857.6) / 10).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  // On a person's first page (Papan Saya, Pengecualian), while someone else has posted since their last visit.
+  function annStrip() {
+    var slot = h('div', { id: 'ann-strip-slot' });
+    pageGet('/api/announcements/new').then(function (r) {
+      if (!r.ok) return;
+      annCount(r.data.n);
+      if (!r.data.n) return;
+      slot.appendChild(h('div', { cls: 'strip', id: 'ann-strip', role: 'status' }, icon('bell'),
+        h('p', {}, h('strong', { text: tf('ann_strip', { n: r.data.n }) }), ' · ', h('span', { text: r.data.title })),
+        h('button', { type: 'button', id: 'ann-strip-read', cls: 'small', text: t('ann_read'), onclick: function () { go('ann'); } })));
+    });
+    return slot;
+  }
+  // #ann = Aktif (opening it is the visit: the server marks it, so what is BARU now is not BARU next time), #ann/arsip.
+  ROUTES.ann = function (arg) {
+    var arch = arg === 'arsip';
+    var poster = ME.role === 'direktur' || ME.keeper === 1; // the server decides again on every write
+    var msg = h('div', { cls: 'msg', id: 'ann-msg' });
+    var tabs = h('div', { cls: 'seg', id: 'ann-tabs', role: 'group', 'aria-label': t('ann_tabs') });
+    var list = h('div', { id: 'ann-list' });
+    var seq = 0;
+    // err: an upload refused after its post was saved. The focus goes back to the control that had it (Ubah is drawn again).
+    var load = function (err) {
+      var mine = ++seq;
+      pageGet('/api/announcements?view=' + (arch ? 'archive' : 'active')).then(function (r) {
+        if (!ME || mine !== seq) return;
+        var fid = document.activeElement && document.activeElement.id;
+        clear(tabs); clear(list);
+        if (err) showErr(msg, err); else clear(msg);
+        if (!r.ok) return showErr(list, r);
+        if (!arch) annCount(0);
+        tabs.appendChild(h('button', { type: 'button', id: 'ann-tab-active', 'aria-pressed': arch ? 'false' : 'true', onclick: function () { go('ann'); } },
+          t('ann_tab_active') + ' ', h('span', { cls: 'n', text: String(r.data.active_n) })));
+        tabs.appendChild(h('button', { type: 'button', id: 'ann-tab-archive', 'aria-pressed': arch ? 'true' : 'false', onclick: function () { go('ann', 'arsip'); } }, t('ann_tab_archive')));
+        var items = r.data.announcements;
+        list.appendChild(items.length ? h('div', { cls: 'ann-list' }, items.map(function (a) { return annItem(a, load); }))
+          : h('p', { cls: 'muted empty', id: 'ann-empty', text: t(arch ? 'ann_empty_archive' : 'ann_empty') }));
+        list.appendChild(h('p', { cls: 'muted fhelp', id: 'ann-hint', text: t('ann_archive_hint') }));
+        if (fid && document.activeElement === document.body) { var f = document.getElementById(fid); if (f) f.focus(); else view.focus(); }
+      });
+    };
+    view.appendChild(h('div', { cls: 'page-head' }, h('h1', { text: t('ann') }),
+      poster ? h('button', { type: 'button', id: 'ann-new', onclick: function () { openAnnForm(load); } }, icon('new'), h('span', { text: t('ann_new_btn') })) : null));
+    view.appendChild(tabs);
+    view.appendChild(msg);
+    view.appendChild(list);
+    load();
+  };
+  function annItem(a, reload) {
+    var slot = h('div', { cls: 'msg' });
+    var author = PEOPLE.filter(function (p) { return p.id === a.author; })[0];
+    var flags = [];
+    if (a.pinned) flags.push(h('span', { cls: 'flag', 'data-pinned': '1' }, icon('pin'), h('span', { text: t('ann_pinned') })));
+    if (a.is_new) flags.push(h('span', { cls: 'tag-new', text: t('ann_new_tag') }));
+    var file = null;
+    if (a.file) {
+      var href = '/fa/' + a.id;
+      var img = /^image\/(png|jpeg|gif|webp)$/.test(a.file.mime || '');
+      file = h('div', { cls: 'ann-file' },
+        img ? h('a', { href: href, target: '_blank', rel: 'noopener' }, h('img', { cls: 'thumb', src: href, alt: a.file.name })) : icon('file'),
+        h('a', { href: href, cls: 'file-link', text: a.file.name }),
+        h('span', { cls: 'muted', text: fmtSize(a.file.size) }));
+    }
+    var acts = null;
+    if (a.can_change) {
+      acts = h('div', { cls: 'row ann-acts' });
+      var ask; // Arsipkan asks once, in the page: an archived post cannot come back
+      var plain = function () {
+        clear(acts);
+        acts.appendChild(h('button', { type: 'button', id: 'ann-edit-' + a.id, cls: 'secondary small', 'aria-label': tf('ann_edit_label', { title: a.title }), text: t('ann_edit'),
+          onclick: function () { openAnnForm(reload, a); } }));
+        acts.appendChild(h('button', { type: 'button', id: 'ann-arch-' + a.id, cls: 'secondary small', 'aria-label': tf('ann_archive_label', { title: a.title }), text: t('ann_archive'), onclick: ask }));
+      };
+      ask = function () {
+        clear(acts);
+        var no = h('button', { type: 'button', id: 'ann-arch-no-' + a.id, cls: 'secondary small', text: t('ann_cancel'), onclick: function () { plain(); document.getElementById('ann-arch-' + a.id).focus(); } });
+        acts.appendChild(h('p', { cls: 'fhelp', id: 'ann-arch-q-' + a.id, text: t('ann_archive_q') }));
+        acts.appendChild(h('button', { type: 'button', id: 'ann-arch-yes-' + a.id, cls: 'danger small', 'aria-describedby': 'ann-arch-q-' + a.id, text: t('ann_archive_yes'), onclick: function () {
+          api('POST', '/api/announcements/' + a.id + '/archive', {}).then(function (x) { if (!x.ok) return showErr(slot, x); reload(); });
+        } }));
+        acts.appendChild(no);
+        no.focus(); // the safe choice under the finger
+      };
+      plain();
+    }
+    return h('article', { cls: 'ann' + (a.is_new ? ' is-new' : ''), id: 'ann-' + a.id, 'data-id': String(a.id) },
+      flags.length ? h('div', { cls: 'ann-flags' }, flags) : null,
+      h('h2', { text: a.title }),
+      h('div', { cls: 'meta' },
+        h('span', { cls: 'who' }, avatar(a.author, 'sm'), h('span', { text: personName(a.author) })),
+        author && author.role === 'direktur' ? h('span', { text: t('role_direktur') }) : null,
+        h('span', { text: fmtDate(dayOf(a.created_at)) }),
+        a.until ? h('span', { text: tf('ann_until_line', { d: fmtDate(a.until) }) }) : null,
+        a.edited_at ? h('span', { text: tf('ann_edited', { d: fmtDate(dayOf(a.edited_at)) }) }) : null,
+        a.archived_at ? h('span', { text: tf('ann_archived_on', { d: fmtDate(dayOf(a.archived_at)) }) }) : null),
+      h('p', { cls: 'body', text: a.body }),
+      file, acts, slot);
+  }
+  // The post form in a native <dialog>, as To-Do's. added(err): the page draws its list again; err is an upload refused
+  // after the post itself was saved (shown on the page). a: a post to edit instead.
+  function openAnnForm(added, a) {
+    var openerId = a ? 'ann-edit-' + a.id : 'ann-new';
+    var msg = h('div', { cls: 'msg' });
+    var title = h('input', { id: 'ann-title', type: 'text', maxlength: '200', autocomplete: 'off' });
+    var body = h('textarea', { id: 'ann-body', rows: '6', maxlength: '5000' });
+    var until = h('input', { id: 'ann-until', type: 'date', min: TODAY || null, 'aria-describedby': 'ann-until-help' });
+    var pin = h('input', { id: 'ann-pin', type: 'checkbox', checked: !!(a && a.pinned), 'aria-describedby': 'ann-pin-help' });
+    var file = fileField('ann-file', false);
+    if (a) { title.value = a.title; body.value = a.body; until.value = a.until || ''; }
+    var dlg = h('dialog', { id: 'ann-dlg', cls: 'dlg', 'aria-labelledby': 'ann-dlg-h', onclose: function () {
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
+      var o = document.getElementById(openerId);
+      if (o) o.focus(); // back to the button that opened it
+    } },
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'ann-dlg-h', cls: 'dr-title', text: t(a ? 'ann_dlg_edit' : 'ann_dlg_new') }),
+        h('button', { type: 'button', id: 'ann-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
+      h('div', { cls: 'dr-body' },
+        h('p', { cls: 'muted', id: 'ann-note', text: t('ann_dlg_note') }),
+        h('form', { id: 'ann-form', onsubmit: function (ev) {
+          ev.preventDefault();
+          var f = file.input.files && file.input.files[0];
+          if (f && f.size > 15 * 1024 * 1024) { clear(msg); msg.appendChild(h('p', { cls: 'err', role: 'alert', 'data-code': 'client_big', text: t('err_file_big') })); return; }
+          // FX17i: the button stays disabled for the whole save + upload chain; a second tap saves nothing twice
+          var submit = document.getElementById('ann-save');
+          if (submit.getAttribute('data-hold') === '1') return;
+          submit.setAttribute('data-hold', '1');
+          submit.disabled = true;
+          ARMED = null;
+          api('POST', a ? '/api/announcements/' + a.id + '/edit' : '/api/announcements', { title: title.value, body: body.value, until: until.value, pinned: pin.checked }).then(function (x) {
+            if (!x.ok) {
+              submit.removeAttribute('data-hold'); submit.disabled = false;
+              showErr(msg, x);
+              (x.data.error === 'need_ann_body' ? body : x.data.error === 'ann_until_past' || x.data.error === 'bad_input' ? until : title).focus();
+              return;
+            }
+            var id = x.data.announcement.id;
+            var up = f ? api('POST', '/api/announcements/' + id + '/file', f, { 'X-File-Name': encodeURIComponent(f.name), 'Content-Type': f.type || 'application/octet-stream' }) : Promise.resolve({ ok: true });
+            up.then(function (y) { if (dlg.open) dlg.close(); added(y.ok ? null : y); });
+          });
+        } },
+          h('label', { for: 'ann-title', text: t('ann_f_title') }), title,
+          h('label', { for: 'ann-body', text: t('ann_f_body') }), body,
+          h('label', { for: 'ann-until', text: t('ann_f_until') }), until,
+          h('p', { cls: 'muted fhelp', id: 'ann-until-help', text: t('ann_f_until_help') }),
+          h('label', { cls: 'check', for: 'ann-pin' }, pin, h('span', { text: t('ann_f_pin') })),
+          h('p', { cls: 'muted fhelp', id: 'ann-pin-help', text: t('ann_f_pin_help') }),
+          h('p', { cls: 'field-title', text: t('ann_f_file') }),
+          a && a.file ? h('p', { cls: 'muted fhelp', id: 'ann-file-now', text: tf('ann_f_file_now', { name: a.file.name }) }) : null,
+          file.wrap,
+          h('p', { cls: 'muted fhelp', text: t('ann_f_file_help') }),
+          h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'ann-save', text: t('btn_save') })),
+          msg)));
+    layer.appendChild(dlg);
+    dlg.showModal();
+    title.focus();
+  }
 
   // ------------------------------------------------------------------ start
   function start() {

@@ -390,6 +390,7 @@ export function createApp(opts) {
     send(ctx.res, 200, {
       me: mine, settings: settings(), today: today(), types: R.TYPES,
       people: q('SELECT * FROM people ORDER BY name').all().map(pubPerson),
+      ann_new: annNew(me).n, // v1.7: the count beside Pengumuman in the menu
     });
   }, 'pinchange');
 
@@ -709,6 +710,152 @@ export function createApp(opts) {
     send(ctx.res, 200, { ok: true });
   }
 
+  // ------------------------------------------------------------------ v1.7: Pengumuman, the announcement board
+  // Everyone signed in reads it. A director or the board keeper posts; a director, or the author while they may still
+  // post, changes or archives a post. Active = not archived by hand, and its until date (if any) not yet passed; the
+  // rest is the Arsip. Nothing is deleted and nothing comes back. people.ann_seen_at (never sent) decides what is new
+  // for a person: a post by someone else made after their last visit to the Aktif tab. No events rows: the row itself
+  // says who posted it and when it was edited and archived.
+  const canPost = (me) => isDir(me) || me.keeper === 1;
+  const canChangeAnn = (me, a) => isDir(me) || (a.author === me.id && canPost(me));
+  const ANN_ACTIVE = '(archived_at IS NULL AND (until IS NULL OR until >= ?))';
+  const annActive = (a) => a.archived_at === null && (a.until === null || a.until >= today());
+  const getAnn = (id) => q('SELECT * FROM announcements WHERE id = ?').get(id);
+  const seenAt = (me) => q('SELECT ann_seen_at AS s FROM people WHERE id = ?').get(me.id).s;
+  // seen: the reader's last visit, to mark what is new for them (undefined: nothing is marked)
+  const pubAnn = (me, a, seen) => ({
+    id: a.id, title: a.title, body: a.body, author: a.author, pinned: a.pinned, until: a.until,
+    created_at: a.created_at, edited_at: a.edited_at, archived_at: a.archived_at,
+    file: a.file_stored ? { name: a.file_name, mime: a.file_mime, size: a.file_size } : null,
+    active: annActive(a), is_new: seen !== undefined && a.author !== me.id && a.created_at > seen,
+    can_change: annActive(a) && canChangeAnn(me, a),
+  });
+  // what the first-page strip and the menu count show: how many are new, and the newest one's title
+  function annNew(me) {
+    const rows = q(`SELECT title FROM announcements WHERE ${ANN_ACTIVE} AND author <> ? AND created_at > ? ORDER BY created_at DESC, id DESC`)
+      .all(today(), me.id, seenAt(me));
+    return { n: rows.length, title: rows.length ? rows[0].title : '' };
+  }
+  add('GET', '/api/announcements/new', (ctx) => send(ctx.res, 200, annNew(ctx.me)));
+  add('GET', '/api/announcements', (ctx) => {
+    const me = ctx.me, td = today();
+    const archive = ctx.url.searchParams.get('view') === 'archive';
+    const seen = seenAt(me);
+    const rows = archive
+      ? q(`SELECT * FROM announcements WHERE NOT ${ANN_ACTIVE} ORDER BY created_at DESC, id DESC LIMIT 200`).all(td)
+      : q(`SELECT * FROM announcements WHERE ${ANN_ACTIVE} ORDER BY pinned DESC, created_at DESC, id DESC`).all(td);
+    // Opening the Aktif tab is the visit: what is new now is not new next time (GREATEST: two tabs opened at once).
+    if (!archive) q('UPDATE people SET ann_seen_at = GREATEST(ann_seen_at, ?) WHERE id = ?').run(now(), me.id);
+    const activeN = archive ? q(`SELECT COUNT(*) AS n FROM announcements WHERE ${ANN_ACTIVE}`).get(td).n : rows.length;
+    send(ctx.res, 200, { announcements: rows.map((a) => pubAnn(me, a, archive ? undefined : seen)), active_n: activeN, can_post: canPost(me) });
+  });
+  // The fields of a post, checked the same way for a new one and an edit. old: the stored row; a key left out keeps it.
+  function annFields(body, old = null) {
+    const title = str(body.title, 200);
+    if (!title) refuse(400, 'need_ann_title');
+    const text = str(body.body, 5000);
+    if (!text) refuse(400, 'need_ann_body');
+    let until = old ? old.until : null;
+    if (body.until !== undefined) until = body.until === null || body.until === '' ? null : body.until;
+    if (until !== null && !R.isDate(until)) refuse(400, 'bad_input');
+    if (until !== null && until < today()) refuse(400, 'ann_until_past');
+    if (body.pinned !== undefined && typeof body.pinned !== 'boolean') refuse(400, 'bad_input');
+    const pinned = body.pinned === undefined ? (old ? old.pinned : 0) : (body.pinned ? 1 : 0);
+    return { title, body: text, until, pinned };
+  }
+  add('POST', '/api/announcements', async (ctx) => {
+    if (!canPost(ctx.me)) refuse(403, 'forbidden'); // shortcut only; repeated after the body (FX11)
+    const body = await readJson(ctx);
+    const me = ctx.me;
+    if (!canPost(me)) refuse(403, 'forbidden');
+    const f = annFields(body);
+    const info = q('INSERT INTO announcements(title, body, author, pinned, until, created_at) VALUES (?,?,?,?,?,?) RETURNING id')
+      .run(f.title, f.body, me.id, f.pinned, f.until, now());
+    send(ctx.res, 201, { announcement: pubAnn(me, getAnn(Number(info.lastInsertRowid))) });
+  });
+  // A post this person may change now: it exists, they may change it, and it is still active.
+  function annForChange(ctx, id) {
+    const a = getAnn(id);
+    if (!a) refuse(404, 'not_found');
+    if (!canChangeAnn(ctx.me, a)) refuse(403, 'forbidden');
+    if (!annActive(a)) refuse(409, 'ann_closed');
+    return a;
+  }
+  async function annEdit(ctx, id) {
+    const body = await readJson(ctx);
+    const f = annFields(body, annForChange(ctx, id));
+    // archived_at IS NULL: an archive at the same moment wins, and the edit says so
+    const info = q('UPDATE announcements SET title = ?, body = ?, pinned = ?, until = ?, edited_at = ? WHERE id = ? AND archived_at IS NULL')
+      .run(f.title, f.body, f.pinned, f.until, now(), id);
+    if (info.changes !== 1) refuse(409, 'ann_closed');
+    send(ctx.res, 200, { announcement: pubAnn(ctx.me, getAnn(id)) });
+  }
+  async function annArchive(ctx, id) {
+    await readJson(ctx); // the body first: the session is checked again once it is in (FX11)
+    annForChange(ctx, id);
+    const info = q('UPDATE announcements SET archived_at = ?, archived_by = ? WHERE id = ? AND archived_at IS NULL').run(now(), ctx.me.id, id);
+    if (info.changes !== 1) refuse(409, 'ann_closed');
+    send(ctx.res, 200, { announcement: pubAnn(ctx.me, getAnn(id)) });
+  }
+  // One file or photo per post; a new upload replaces it (the old file stays in data\files: nothing is deleted).
+  // ponytail: this repeats uploadFile's stream, which mutants.mjs (upload_no_recheck) pins by its text; make it one
+  // shared helper when that mutant is pointed at the helper.
+  function annUpload(ctx, id) {
+    const { req } = ctx;
+    annForChange(ctx, id);
+    let name = '';
+    try { name = decodeURIComponent(String(req.headers['x-file-name'] || '')); } catch { name = ''; }
+    name = name.replace(/[\u0000-\u001f\u007f/\\]/g, '_').trim().slice(0, 200);
+    if (!name) refuse(400, 'need_file');
+    const len = Number(req.headers['content-length'] || 0);
+    if (len > FILE_CAP) refuse(413, 'too_large');
+    const ctype = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    const mime = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(ctype) ? ctype : 'application/octet-stream';
+    const dir = path.join(filesDir, 'ann-' + id);
+    fs.mkdirSync(dir, { recursive: true });
+    const stored = crypto.randomBytes(16).toString('hex');
+    const full = path.join(dir, stored);
+    return new Promise((resolve, reject) => {
+      const out = fs.createWriteStream(full, { flags: 'wx' });
+      let size = 0, failed = false;
+      const fail = (e) => {
+        if (failed) return;
+        failed = true;
+        out.destroy();
+        fs.rm(full, { force: true }, () => {});
+        reject(e);
+      };
+      out.on('error', fail);
+      req.on('error', fail);
+      req.on('data', (ch) => {
+        if (failed) return;
+        size += ch.length;
+        if (size > FILE_CAP) { ctx.bodyUnread = true; req.unpipe(out); fail(new Refusal(413, 'too_large')); }
+      });
+      req.pipe(out);
+      out.on('finish', () => {
+        if (failed) return;
+        if (size === 0) { fs.rm(full, { force: true }, () => {}); return reject(new Refusal(400, 'need_file')); }
+        try {
+          // FX11: the body is in; decide again on current data (session, the post, permission)
+          ctx.bodyUnread = false;
+          revalidate(ctx);
+          annForChange(ctx, id);
+          const info = q('UPDATE announcements SET file_name = ?, file_mime = ?, file_size = ?, file_stored = ? WHERE id = ? AND archived_at IS NULL')
+            .run(name, mime, size, stored, id);
+          if (info.changes !== 1) refuse(409, 'ann_closed');
+          send(ctx.res, 200, { announcement: pubAnn(ctx.me, getAnn(id)) });
+          resolve();
+        } catch (e) { fs.rm(full, { force: true }, () => {}); reject(e); }
+      });
+    });
+  }
+  function serveAnnFile(ctx, id) {
+    const a = getAnn(id);
+    if (!a || !/^[0-9a-f]{32}$/.test(a.file_stored || '')) refuse(404, 'not_found');
+    return sendStoredFile(ctx, path.join(filesDir, 'ann-' + a.id, a.file_stored), a.file_name, a.file_mime);
+  }
+
   // ------------------------------------------------------------------ parametric routes (numeric / fixed-charset ids)
   function cardForViewer(ctx, id) {
     const c = getCard(id);
@@ -1008,12 +1155,15 @@ export function createApp(opts) {
   const rfc5987 = (s) => Array.from(encodeURIComponent(s)).map((ch) => RFC5987_EXTRA.get(ch) || ch).join('');
 
   function serveEvidence(ctx, id) {
-    const { res } = ctx;
     const ev = q('SELECT * FROM evidence WHERE id = ?').get(id);
     if (!ev || ev.kind !== 'file') refuse(404, 'not_found');
     cardForViewer(ctx, ev.card);
     if (!/^[0-9a-f]{32}$/.test(ev.stored || '')) refuse(404, 'not_found');
-    const full = path.join(filesDir, String(ev.card), ev.stored);
+    return sendStoredFile(ctx, path.join(filesDir, String(ev.card), ev.stored), ev.name, ev.mime);
+  }
+  // A stored file to the browser: a photo shown in place, anything else as a download (v1.7: tasks and announcements).
+  function sendStoredFile(ctx, full, name, mime) {
+    const { res } = ctx;
     return new Promise((resolve) => {
       fs.stat(full, (err) => {
         if (err) { send(res, 404, { error: 'file_missing', message: message('file_missing', ctx.lang) }); return resolve(); }
@@ -1025,11 +1175,11 @@ export function createApp(opts) {
           resolve();
         });
         s.on('open', () => {
-          const inline = INLINE_IMAGES.has(ev.mime);
-          const ascii = ev.name.replace(/[^A-Za-z0-9._ -]/g, '_');
+          const inline = INLINE_IMAGES.has(mime);
+          const ascii = name.replace(/[^A-Za-z0-9._ -]/g, '_');
           res.writeHead(200, {
-            'Content-Type': inline ? ev.mime : 'application/octet-stream',
-            'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${rfc5987(ev.name)}`,
+            'Content-Type': inline ? mime : 'application/octet-stream',
+            'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${rfc5987(name)}`,
             'Cache-Control': 'private, no-store',
           });
           s.pipe(res);
@@ -1130,6 +1280,10 @@ export function createApp(opts) {
     ['POST', /^\/api\/todos\/(\d{1,12})$/, (ctx, m) => todoTick(ctx, Number(m[1]))],
     ['POST', /^\/api\/todos\/(\d{1,12})\/delete$/, (ctx, m) => todoDelete(ctx, Number(m[1]))],
     ['POST', /^\/api\/todos\/(\d{1,12})\/edit$/, (ctx, m) => todoEdit(ctx, Number(m[1]))],
+    ['POST', /^\/api\/announcements\/(\d{1,12})\/edit$/, (ctx, m) => annEdit(ctx, Number(m[1]))],
+    ['POST', /^\/api\/announcements\/(\d{1,12})\/archive$/, (ctx, m) => annArchive(ctx, Number(m[1]))],
+    ['POST', /^\/api\/announcements\/(\d{1,12})\/file$/, (ctx, m) => annUpload(ctx, Number(m[1]))],
+    ['GET', /^\/fa\/(\d{1,12})$/, (ctx, m) => serveAnnFile(ctx, Number(m[1]))],
   ];
 
   // ------------------------------------------------------------------ dispatcher
