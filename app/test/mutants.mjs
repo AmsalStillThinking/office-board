@@ -111,7 +111,7 @@ const MUTANTS = [
   { name: 'schedule_edit_replays', file: 'server.mjs', test: FX_TESTS, check: 'FY1 a schedule edit never re-creates periods already served',
     edits: [['    else if (next.active === 1 && scheduleChanged) next.active_since = today();', '    /* planted: a date change keeps the old back-fill floor */']] },
   { name: 'schedule_key_order_counts', file: 'server.mjs', test: FX_TESTS, check: 'FY1 a schedule edit never re-creates periods already served',
-    edits: [['const scheduleChanged = schedKey(next.schedule) !== schedKey(JSON.parse(r.schedule));', 'const scheduleChanged = JSON.stringify(next.schedule) !== r.schedule;']] },
+    edits: [['const scheduleChanged = !r || schedKey(next.schedule) !== schedKey(JSON.parse(r.schedule));', 'const scheduleChanged = !r || JSON.stringify(next.schedule) !== r.schedule;']] },
   { name: 'inactive_owner_switched_on', file: 'server.mjs', test: FX_TESTS, check: 'FY2 a routine cannot be switched on for an inactive owner',
     edits: [["if (!ow || !ow.active) refuse(400, 'need_owner'); }", "if (!ow) refuse(400, 'need_owner'); }"]] },
   { name: 'staff_may_cancel', file: 'server.mjs', test: SERVER_TESTS, check: 'R11 role matrix byte-identical',

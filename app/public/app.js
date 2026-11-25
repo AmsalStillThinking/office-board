@@ -1504,17 +1504,28 @@
     var reload = function () {
       pageGet('/api/routines').then(function (r) { if (!r.ok) return showErr(rmsg, r); drawTable(r.data.routines); });
     };
-    view.appendChild(h('h1', { text: t('routines') }));
+    // v1.7.4: Tambah rutin at the top right, as Tambah orang is
+    view.appendChild(h('div', { cls: 'page-head' }, h('h1', { text: t('routines') }),
+      h('button', { type: 'button', id: 'rt-add-open', onclick: function () { routineDialog(null, reload, rmsg); } }, icon('new'), h('span', { text: t('r_add') }))));
     view.appendChild(rmsg);
     view.appendChild(tableBox);
     reload();
   };
   // v1.7.2: one routine's dialog, with the same fields and the same request as the old panel. Simpan keeps it open with
   // "Tersimpan." (as personDialog does) and draws the table again; an answer that lands after it was closed goes to the
-  // page (rmsg), naming the routine.
+  // page (rmsg), naming the routine. v1.7.4: rt null adds one (the same dialog, empty; it closes once added, so a second
+  // Simpan cannot add it twice), and Judul, Jenis, Tenggat hukum and Catatan are fields in both.
   function routineDialog(rt, reload, rmsg) {
-    var openerId = 'rt-open-' + rt.id;
+    var isNew = !rt;
+    var openerId = isNew ? 'rt-add-open' : 'rt-open-' + rt.id;
+    rt = rt || { title: '', type: 'umum', hard: 0, note: '', owner: null, schedule: { kind: 'monthly', day: '' }, lead_days: 5, active: 0 };
     var msg = h('div', { cls: 'msg' });
+    var title = h('input', { id: 'rt-title', type: 'text', maxlength: '200', autocomplete: 'off', value: rt.title });
+    var type = h('select', { id: 'rt-type' });
+    TYPES.forEach(function (x) { type.appendChild(h('option', { value: x, text: t('type_' + x) })); });
+    type.value = rt.type;
+    var hard = h('input', { id: 'rt-hard', type: 'checkbox', checked: rt.hard === 1 });
+    var note = h('textarea', { id: 'rt-note', maxlength: '1000', rows: '2', value: rt.note });
     var owner = peopleSelect('rt-owner', null, true);
     owner.options[0].textContent = t('r_nobody');
     owner.value = rt.owner || '';
@@ -1535,26 +1546,31 @@
       var sched = { kind: kind.value, day: parseInt(day.value, 10) };
       if (kind.value === 'yearly') sched.month = parseInt(month.value, 10);
       if (kind.value === 'quarterly') sched.months = months.value.split(',').map(function (x) { return parseInt(x, 10); });
-      api('POST', '/api/routines/' + rt.id, { owner: owner.value || null, schedule: sched, lead_days: parseInt(lead.value, 10), active: active.checked }).then(function (x) {
+      api('POST', isNew ? '/api/routines' : '/api/routines/' + rt.id, { title: title.value, type: type.value, hard: hard.checked, note: note.value,
+        owner: owner.value || null, schedule: sched, lead_days: parseInt(lead.value, 10), active: active.checked }).then(function (x) {
         var open = dlg.open, at = open ? msg : rmsg;
         if (!x.ok) return showErr(at, x);
-        showOk(at, (open ? '' : rt.title + ': ') + t('saved'));
+        if (isNew) { if (open) dlg.close(); showOk(rmsg, tf('r_added', { t: x.data.routine.title })); }
+        else { head.textContent = x.data.routine.title; showOk(at, (open ? '' : x.data.routine.title + ': ') + t('saved')); }
         reload();
       });
     };
+    var head = h('h1', { id: 'routine-dlg-h', cls: 'dr-title', text: isNew ? t('r_add') : rt.title });
     var dlg = h('dialog', { id: 'routine-dlg', cls: 'dlg', 'aria-labelledby': 'routine-dlg-h', onclose: function () {
       if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
       var o = document.getElementById(openerId); // the row was drawn again: find its button by id
       if (o) o.focus();
     } },
-      h('div', { cls: 'dr-head' }, h('h1', { id: 'routine-dlg-h', cls: 'dr-title', text: rt.title }),
+      h('div', { cls: 'dr-head' }, head,
         h('button', { type: 'button', id: 'routine-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
       h('div', { cls: 'dr-body' },
-        h('p', { cls: 'muted', text: routineType(rt) }),
-        rt.note ? h('p', { cls: 'muted', text: rt.note }) : null,
         // novalidate: a hidden Bulan box holding a bad number would block Simpan with no message; the server checks
         // every field, as it did for the old panel's button
         h('form', { id: 'routine-form', novalidate: true, onsubmit: function (ev) { ev.preventDefault(); save(); } },
+          h('label', { for: title.id, text: t('f_title') }), title,
+          h('label', { for: type.id, text: t('f_type') }), type,
+          h('label', { cls: 'check', for: hard.id }, hard, h('span', { text: t('lbl_hard') })),
+          h('label', { for: note.id, text: t('f_body') }), note,
           h('label', { for: owner.id, text: t('r_owner') }), owner,
           h('label', { for: kind.id, text: t('r_kind') }), kind,
           h('label', { for: day.id, text: t('r_day') }), day,
@@ -1565,7 +1581,7 @@
           msg)));
     layer.appendChild(dlg);
     dlg.showModal();
-    owner.focus();
+    (isNew ? title : owner).focus();
   }
 
   // v1.7.1: the people are one table (Nama | Panggilan | Peran | Pengaturan); a row's Atur opens personDialog, and

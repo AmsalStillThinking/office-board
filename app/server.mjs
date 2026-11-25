@@ -583,6 +583,7 @@ export function createApp(opts) {
     if (!isDir(ctx.me)) refuse(403, 'forbidden');
     send(ctx.res, 200, { routines: q('SELECT * FROM routines ORDER BY id').all().map((r) => ({ ...r, schedule: JSON.parse(r.schedule) })) });
   });
+  add('POST', '/api/routines', (ctx) => routineUpdate(ctx, null)); // v1.7.4: Tambah rutin
 
   add('GET', '/api/people', (ctx) => {
     if (!isDir(ctx.me)) refuse(403, 'forbidden');
@@ -1193,14 +1194,20 @@ export function createApp(opts) {
   // The same schedule whatever the order of its keys or of its months.
   const schedKey = (s) => [s.kind, s.day ?? '', s.month ?? '', Array.isArray(s.months) ? [...s.months].sort((x, y) => x - y).join(',') : ''].join('|');
 
+  // v1.7.4: id null adds a routine (POST /api/routines; it needs a title and a schedule, the rest takes the table's
+  // defaults). Title, type and note can be changed on an existing one too; cards already made keep their own title.
   async function routineUpdate(ctx, id) {
     if (!isDir(ctx.me)) refuse(403, 'forbidden'); // shortcut only; repeated after the body (FX11)
     const body = await readJson(ctx);
     const me = ctx.me;
     if (!isDir(me)) refuse(403, 'forbidden');
-    const r = q('SELECT * FROM routines WHERE id = ?').get(id);
-    if (!r) refuse(404, 'not_found');
-    const next = { ...r, schedule: JSON.parse(r.schedule) };
+    const r = id === null ? null : q('SELECT * FROM routines WHERE id = ?').get(id);
+    if (id !== null && !r) refuse(404, 'not_found');
+    const next = r ? { ...r, schedule: JSON.parse(r.schedule) }
+      : { title: '', type: 'umum', note: '', owner: null, schedule: null, lead_days: 5, hard: 0, active: 0, requester: null, active_since: null };
+    if (!r || body.title !== undefined) { next.title = str(body.title, 200); if (!next.title) refuse(400, 'need_title'); }
+    if (body.type !== undefined) { if (!R.TYPES.includes(body.type)) refuse(400, 'bad_input'); next.type = body.type; }
+    if (body.note !== undefined) next.note = str(body.note, 1000);
     if (body.owner !== undefined) {
       if (body.owner === null || body.owner === '') next.owner = null;
       else { const p = getPerson(str(body.owner, 40)); if (!p || !p.active) refuse(400, 'need_owner'); next.owner = p.id; }
@@ -1209,23 +1216,32 @@ export function createApp(opts) {
     if (body.lead_days !== undefined) { if (!Number.isInteger(body.lead_days) || body.lead_days < 0 || body.lead_days > 365) refuse(400, 'bad_input'); next.lead_days = body.lead_days; }
     if (body.hard !== undefined) next.hard = body.hard ? 1 : 0;
     if (body.active !== undefined) next.active = body.active ? 1 : 0;
+    if (!next.schedule) refuse(400, 'bad_input'); // a new routine sent none
     // FY2: an active routine needs an owner who is there and active, whether or not this request names one.
     if (next.active === 1) { const ow = next.owner ? getPerson(next.owner) : null; if (!ow || !ow.active) refuse(400, 'need_owner'); }
     // FY1: cards are keyed on the due date, so a changed date would look like periods never served. A date change
     // on a running routine therefore moves the back-fill floor to today: nothing before the edit is created again.
-    const scheduleChanged = schedKey(next.schedule) !== schedKey(JSON.parse(r.schedule));
-    if (next.active === 1 && !r.active) { next.requester = me.id; next.active_since = today(); } // FX3: back-fill floor
+    const scheduleChanged = !r || schedKey(next.schedule) !== schedKey(JSON.parse(r.schedule));
+    if (next.active === 1 && !(r && r.active)) { next.requester = me.id; next.active_since = today(); } // FX3: back-fill floor
     else if (next.active === 1 && scheduleChanged) next.active_since = today();
     if (next.active === 0) next.active_since = null;
+    const shown = (x) => ({ title: x.title, type: x.type, note: x.note, owner: x.owner, schedule: x.schedule, lead_days: x.lead_days, hard: x.hard, active: x.active });
+    let rid = r && r.id;
     tx(() => {
-      q('UPDATE routines SET owner = ?, schedule = ?, lead_days = ?, hard = ?, active = ?, requester = ?, active_since = ? WHERE id = ?')
-        .run(next.owner, JSON.stringify(next.schedule), next.lead_days, next.hard, next.active, next.requester, next.active_since ?? null, r.id);
-      writeEvent(null, me.id, 'routine', { routine: r.id, before: { owner: r.owner, schedule: JSON.parse(r.schedule), lead_days: r.lead_days, hard: r.hard, active: r.active },
-        after: { owner: next.owner, schedule: next.schedule, lead_days: next.lead_days, hard: next.hard, active: next.active } });
+      if (r) {
+        q('UPDATE routines SET title = ?, type = ?, note = ?, owner = ?, schedule = ?, lead_days = ?, hard = ?, active = ?, requester = ?, active_since = ? WHERE id = ?')
+          .run(next.title, next.type, next.note, next.owner, JSON.stringify(next.schedule), next.lead_days, next.hard, next.active, next.requester, next.active_since ?? null, r.id);
+        writeEvent(null, me.id, 'routine', { routine: r.id, before: shown({ ...r, schedule: JSON.parse(r.schedule) }), after: shown(next) });
+      } else {
+        rid = Number(q(`INSERT INTO routines(title, type, note, owner, schedule, lead_days, hard, active, requester, active_since)
+          VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING id`).run(next.title, next.type, next.note, next.owner, JSON.stringify(next.schedule), next.lead_days, next.hard,
+          next.active, next.requester, next.active_since ?? null).lastInsertRowid);
+        writeEvent(null, me.id, 'routine_add', { routine: rid, after: shown(next) });
+      }
     });
     const created = runRoutines();
-    const out = q('SELECT * FROM routines WHERE id = ?').get(r.id);
-    send(ctx.res, 200, { routine: { ...out, schedule: JSON.parse(out.schedule) }, created });
+    const out = q('SELECT * FROM routines WHERE id = ?').get(rid);
+    send(ctx.res, r ? 200 : 201, { routine: { ...out, schedule: JSON.parse(out.schedule) }, created });
   }
 
   async function personUpdate(ctx, id) {
