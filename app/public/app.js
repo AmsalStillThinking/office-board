@@ -733,6 +733,16 @@
     for (var i = 0; i < max; i++) m.appendChild(h('i', { cls: i < n ? 'on' : '' }));
     return m;
   }
+  // v1.7.3: Papan Saya's summary card, how many of my open tasks carry each badge the cards below carry. A task
+  // waiting for confirmation or approval has no age, and a Menunggu task can be both Due and Macet.
+  function mySummary(cards) {
+    var tile = function (n, badge) { return h('li', { cls: 'sum-tile' }, h('strong', { text: String(n) }), badge); };
+    var count = function (age) { return cards.filter(function (c) { return c.age === age; }).length; };
+    return h('section', { cls: 'panel my-sum', id: 'my-sum', 'aria-labelledby': 'my-sum-h' },
+      h('h2', { id: 'my-sum-h', text: t('my_sum') }),
+      h('ul', {}, tile(count('busuk'), ageBadge('busuk')), tile(count('layu'), ageBadge('layu')), tile(count('segar'), ageBadge('segar')),
+        tile(cards.filter(function (c) { return c.macet; }).length, macetBadge())));
+  }
   // Catat > Sanggupi > Kerjakan > Buktikan > Selesai, with the current stage marked
   function stepsBar(status) {
     var keys = ['step_catat', 'step_sanggupi', 'step_kerjakan', 'step_buktikan', 'st_selesai'];
@@ -757,6 +767,7 @@
       view.appendChild(annStrip());
       if (!r.ok) return showErr(view, r);
       var cards = r.data.cards;
+      view.appendChild(mySummary(cards));
       var by = function (st) { return cards.filter(function (c) { return c.status === st; }); };
       var jalan = by('jalan');
       view.appendChild(h('h2', { id: 'sec-jalan', text: t('st_jalan') + ' ' + jalan.length + '/' + SETTINGS.maxActive }));
