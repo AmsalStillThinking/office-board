@@ -246,6 +246,8 @@
   "err_file_big": "File lebih dari 15 MB. Kecilkan dulu.",
   "uploading": "Mengunggah...",
   "sop_intro": "Tiga aturan kerja papan ini.",
+  "tut_title": "Video tutorial",
+  "tut_intro": "Cara memakai Office Board, langkah demi langkah. Tekan judulnya untuk memutar videonya.",
   "sop1_t": "Cek tugas harian.",
   "sop1_b": "Setiap hari kerja, sebelum pulang, buka Papan Saya. Untuk tiap tugas pilih satu: masih jalan, macet (tulis menunggu siapa), atau selesai (kirim bukti). Paling banyak 3 tugas berjalan sekaligus: selesaikan dulu sebelum mulai yang baru. Tugas yang sampai tenggat menjadi Due, lalu Overdue.",
   "sop2_t": "Aturan bukti.",

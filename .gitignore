@@ -6,3 +6,4 @@ __pycache__/
 /_backup-*/
 /LMN_Office_Task_Monitor.html
 /app/seed/people.json
+/app/tutorial/

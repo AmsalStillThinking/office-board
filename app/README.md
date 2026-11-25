@@ -113,6 +113,10 @@ board PC. For a new installation, write it yourself in the shape of `test\fixtur
 The placeholders `BOARD-PC`, `BOARD-PC-LAN-IP` and `BOARD-PC-TAILSCALE-IP` in the docs stand for the board PC's name
 and addresses; give `make_sop_sheet.py --address` the real one when building the staff sheet.
 
+`tutorial\` (also not in git, about 50 MB) holds the tutorial videos and `videos.json`, copied from the `videos`
+folder of `F:\Office Board Tutorial`. Cara pakai lists them; without the folder the list is simply not shown. The
+server reads the file names when it starts: a video replaced under the same name needs no restart, a new name does.
+
 All routine templates start INACTIVE. A director opens Lainnya -> Rutin, sets the owner and the date, ticks Aktif and
 saves. Cards are created `lead_days` (calendar days) before each due date, checked at start and every hour. If the
 server was off for a whole creation window, the missed card is still created when it comes back (marked as

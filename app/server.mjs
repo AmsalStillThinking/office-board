@@ -67,6 +67,15 @@ export function createApp(opts) {
   }
   staticFiles.set('/', staticFiles.get('/index.html'));
   if (staticFiles.has('/favicon.svg')) staticFiles.set('/favicon.ico', staticFiles.get('/favicon.svg'));
+  // v1.7.5: the recorded tutorials, from app\tutorial\ (MP4s plus their list, videos.json). The folder is git-ignored
+  // (about 50 MB, kept out of the public repo); a board without it shows no Video tutorial list on Cara pakai.
+  const tutorialDir = path.join(HERE, 'tutorial');
+  if (fs.existsSync(tutorialDir)) {
+    for (const name of fs.readdirSync(tutorialDir)) {
+      const type = name === 'videos.json' ? STATIC_TYPES.get('.json') : name.endsWith('.mp4') ? 'video/mp4' : null;
+      if (type) staticFiles.set('/tutorial/' + name, { file: path.join(tutorialDir, name), type });
+    }
+  }
 
   // ------------------------------------------------------------------ helpers
   const q = (sql) => db.prepare(sql);
@@ -321,11 +330,23 @@ export function createApp(opts) {
   }
 
   function serveStatic(ctx, entry) {
-    const { res } = ctx;
-    const s = fs.createReadStream(entry.file);
+    const { req, res } = ctx;
+    // A video player asks for byte ranges so it can seek: one "bytes=a-b" / "bytes=a-" / "bytes=-n" range is answered
+    // with 206; no header, or several ranges, gets the whole file as before.
+    const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    let range = null, size = 0;
+    if (m && (m[1] || m[2])) {
+      try { size = fs.statSync(entry.file).size; } catch { return send(res, 404, { error: 'not_found', message: message('not_found', ctx.lang) }); }
+      const start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
+      const end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+      if (start > end || (!m[1] && Number(m[2]) === 0)) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
+      range = { start, end };
+    }
+    const s = fs.createReadStream(entry.file, range || undefined);
     s.on('error', () => { if (!res.headersSent) send(res, 404, { error: 'not_found', message: message('not_found', ctx.lang) }); else res.destroy(); });
     s.on('open', () => {
-      res.writeHead(200, { 'Content-Type': entry.type, 'Cache-Control': 'no-cache' });
+      res.writeHead(range ? 206 : 200, { 'Content-Type': entry.type, 'Cache-Control': 'no-cache', 'Accept-Ranges': 'bytes',
+        ...(range ? { 'Content-Length': range.end - range.start + 1, 'Content-Range': `bytes ${range.start}-${range.end}/${size}` } : {}) });
       s.pipe(res);
     });
     res.on('close', () => s.destroy());

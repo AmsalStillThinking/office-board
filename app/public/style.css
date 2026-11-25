@@ -304,6 +304,8 @@ th { background: var(--bg); font-weight: 600; }
 .menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .menu button { justify-content: flex-start; text-align: left; }
 .sop li { margin: 10px 0; }
+.tut summary { cursor: pointer; }
+.tut video { display: block; width: 100%; margin-top: 10px; border-radius: 8px; background: #000; }
 
 /* v1.3: To-Do Saya (v1.5.1: the list only; the add form in #todo-dlg, opened from the button at the top right) */
 .page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }

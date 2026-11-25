@@ -1864,6 +1864,22 @@
     var ol = h('ol', { cls: 'sop', id: 'sop' });
     [1, 2, 3].forEach(function (i) { ol.appendChild(h('li', { id: 'sop' + i }, h('b', { text: t('sop' + i + '_t') }), ' ', h('span', { text: t('sop' + i + '_b') }))); });
     view.appendChild(ol);
+    // v1.7.5: the recorded tutorials, when this board has them (app\tutorial\ on the server, git-ignored); one plays at a time
+    var tut = h('section', { id: 'tutorials' });
+    view.appendChild(tut);
+    pageGet('/tutorial/videos.json').then(function (r) {
+      if (!r.ok || !Array.isArray(r.data) || !r.data.length) return;
+      tut.appendChild(h('h2', { text: t('tut_title') }));
+      tut.appendChild(h('p', { cls: 'muted', text: t('tut_intro') }));
+      r.data.forEach(function (v, i) {
+        var player = h('video', { controls: true, preload: 'none', src: '/tutorial/' + encodeURIComponent(v.file) });
+        var d = h('details', { cls: 'panel tut', id: 'tut-' + i, ontoggle: function () {
+          if (!d.open) { player.pause(); return; }
+          Array.prototype.forEach.call(tut.querySelectorAll('details[open]'), function (o) { if (o !== d) o.open = false; });
+        } }, h('summary', {}, v.label ? h('b', { text: v.label + ' ' }) : null, h('span', { text: v.title + ' ' }), h('span', { cls: 'muted', text: v.len })), player);
+        tut.appendChild(d);
+      });
+    });
   };
 
   ROUTES.menu = function () {

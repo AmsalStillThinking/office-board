@@ -147,3 +147,27 @@ server tests (no server change), `browser_check.py` and the seat checks (out of 
 PC).
 
 Undo: `git revert` the commit. The screen files are live as soon as they are saved, so no restart is needed.
+
+# v1.7.5 (25 Nov 2026): Video tutorial on Cara pakai
+
+The app owner asked to watch the tutorial videos inside Office Board (picked from two choices on 25 Nov 2026).
+
+- **Cara pakai** ends with a "Video tutorial" list: the 11 recorded tutorials, one line each (title and length).
+  Pressing a line opens its player; opening another closes the first and stops its sound. Nothing loads until a
+  video is played (`preload="none"`).
+- **The videos** live in `app\tutorial\` (MP4s plus `videos.json`, the list with titles and lengths, written by
+  `F:\Office Board Tutorial\recorder\make-index.mjs`). The folder is git-ignored (about 50 MB, not for the public
+  repository). Without it the list is not shown at all.
+- **Server:** the files in `app\tutorial\` join the fixed list of static files at start, as `/tutorial/<name>`
+  (only `.mp4` and `videos.json`; anything else, or a path out of the folder, is a 404). Static files now answer a
+  single byte range (`Range: bytes=a-b`, `a-` or `-n`) with 206, and a range past the end with 416, so the player
+  can seek. Without a Range header a file is sent whole exactly as before. Needs a restart.
+
+**Checks:** a scratch board (fictional people, its own PostgreSQL schema) and one headless Chrome: 21/21. Ranges
+(start, suffix, open end, past the end, two ranges), a 404 for an unknown video and for a path out of the folder,
+app.js still served whole; then signed in, Cara pakai lists the 11 videos with their titles, a real click opens
+one, it plays muted and seeks to 1:40, and opening another closes and pauses the first. A planted bug (ranges off)
+made 5 checks fail, among them the seek (it stayed at 0:00). Not run: the server test suite and `browser_check.py`
+(heavy for this PC).
+
+Undo: `git revert` the commit and restart; the `app\tutorial\` folder can stay or be deleted.
