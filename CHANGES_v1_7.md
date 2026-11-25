@@ -121,7 +121,8 @@ Modal, to setting the Active, Reset PIN, Boleh buka Review Jumat)", "Tambah oran
 Screen files only (`app.js`, `i18n.json`, `style.css`): no server change and no restart.
 
 - **The people** are one table, Nama | Panggilan | Peran | Pengaturan, in place of one card per person. Nama still
-  says "· Nonaktif" and "· belum ganti PIN" where they apply.
+  says "· Nonaktif" for a person who is switched off. "belum ganti PIN" (shown in the old card's title) is no longer
+  shown anywhere, at the owner's request ("dont show · belum ganti PIN"); its key `p_must_change` was removed.
 - **Atur** on a row opens a dialog with Aktif, Boleh buka Review Jumat and Reset PIN. It also keeps Nama, Panggilan and
   Peran, so a name or a role can still be changed (the owner's list did not name them; dropping them would remove
   the only way to edit them). Simpan sends the same fields as the old card.

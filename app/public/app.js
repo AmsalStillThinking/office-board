@@ -1515,8 +1515,7 @@
       people.forEach(function (p) {
         tb.appendChild(h('tr', { 'data-person': p.id },
           h('td', {}, p.name,
-            p.active === 1 ? null : h('span', { cls: 'muted', text: ' · ' + t('r_inactive') }),
-            p.must_change_pin ? h('span', { cls: 'muted', text: ' · ' + t('p_must_change') }) : null),
+            p.active === 1 ? null : h('span', { cls: 'muted', text: ' · ' + t('r_inactive') })),
           h('td', { text: p.nick }),
           h('td', { text: t('role_' + p.role) }),
           h('td', {}, h('button', { type: 'button', id: 'p-open-' + p.id, cls: 'small secondary', 'aria-label': t('p_open') + ' ' + p.name, text: t('p_open'),
