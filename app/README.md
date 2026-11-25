@@ -169,10 +169,10 @@ database, load the backup into it and start a second copy on another port, e.g.
 
 ## Reset a PIN
 
-A director signs in, opens Lainnya -> Orang & Pengaturan, and presses "Reset PIN" under the person. A new temporary PIN
-is shown once; the person must change it at the next sign-in, and their sessions end. Every reset appears in the
-"Catatan perubahan" list on the same page, so the other director can see it. After 5 wrong PINs a name is locked for
-5 minutes (a director's reset clears the lock). Changing your own PIN ends your other sessions.
+A director signs in, opens Lainnya -> Orang & Pengaturan, presses "Atur" on the person's row, then "Reset PIN" in the
+dialog. A new temporary PIN is shown once; the person must change it at the next sign-in, and their sessions end.
+Every reset appears in the "Catatan perubahan" list on the same page, so the other director can see it. After 5 wrong
+PINs a name is locked for 5 minutes (a director's reset clears the lock). Changing your own PIN ends your other sessions.
 
 If no director can sign in, reset a PIN offline on the server PC (works while the server runs):
 

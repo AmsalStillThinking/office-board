@@ -224,6 +224,8 @@
   "p_reset": "Reset PIN",
   "p_temp_pin": "PIN sementara (tampil sekali, catat sekarang):",
   "p_must_change": "belum ganti PIN",
+  "p_open": "Atur",
+  "p_col_settings": "Pengaturan",
   "s_title": "Pengaturan",
   "s_max": "Maksimal tugas berjalan per orang",
   "s_wilt": "Jadi Due berapa hari kerja setelah tenggat",

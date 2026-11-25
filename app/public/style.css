@@ -283,6 +283,7 @@ table { border-collapse: collapse; width: 100%; font-size: 14px; background: var
 th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
 th { background: var(--bg); font-weight: 600; }
 .facts th { width: 38%; color: var(--muted); font-weight: 600; }
+#people-table td { vertical-align: middle; } /* v1.7.1: the name sits level with its Atur button */
 .menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .menu button { justify-content: flex-start; text-align: left; }
 .sop li { margin: 10px 0; }

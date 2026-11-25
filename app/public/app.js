@@ -1503,10 +1503,40 @@
     });
   };
 
+  // v1.7.1: the people are one table (Nama | Panggilan | Peran | Pengaturan); a row's Atur opens personDialog, and
+  // Tambah orang sits at the top right and opens the same dialog empty.
   ROUTES.people = function () {
-    view.appendChild(h('h1', { text: t('people') }));
+    var pmsg = h('div', { cls: 'msg', id: 'people-msg' });
+    var tableBox = h('div', { cls: 'table-wrap', id: 'people-table-wrap' });
+    var drawTable = function (people) {
+      var tb = h('tbody');
+      people.forEach(function (p) {
+        tb.appendChild(h('tr', { 'data-person': p.id },
+          h('td', {}, p.name,
+            p.active === 1 ? null : h('span', { cls: 'muted', text: ' · ' + t('r_inactive') }),
+            p.must_change_pin ? h('span', { cls: 'muted', text: ' · ' + t('p_must_change') }) : null),
+          h('td', { text: p.nick }),
+          h('td', { text: t('role_' + p.role) }),
+          h('td', {}, h('button', { type: 'button', id: 'p-open-' + p.id, cls: 'small secondary', 'aria-label': t('p_open') + ' ' + p.name, text: t('p_open'),
+            onclick: function () { personDialog(p, reload, pmsg); } }))));
+      });
+      var a = document.activeElement, keep = a && tableBox.contains(a) ? a.id : ''; // an Atur that had the cursor keeps it
+      clear(tableBox);
+      tableBox.appendChild(h('table', { id: 'people-table' },
+        h('thead', {}, h('tr', {}, ['p_name', 'p_nick', 'p_role', 'p_col_settings'].map(function (k) { return h('th', { scope: 'col', text: t(k) }); }))), tb));
+      if (keep && document.getElementById(keep)) document.getElementById(keep).focus();
+    };
+    var reload = function () {
+      refreshMe();
+      pageGet('/api/people').then(function (r) { if (!r.ok) return showErr(pmsg, r); drawTable(r.data.people); });
+    };
+    view.appendChild(h('div', { cls: 'page-head' }, h('h1', { text: t('people') }),
+      h('button', { type: 'button', id: 'p-add-open', onclick: function () { personDialog(null, reload, pmsg); } }, icon('new'), h('span', { text: t('p_add') }))));
+    view.appendChild(pmsg);
+    view.appendChild(tableBox);
     pageGet('/api/people').then(function (r) {
-      if (!r.ok) return showErr(view, r);
+      if (!r.ok) return showErr(pmsg, r);
+      drawTable(r.data.people);
       var st = r.data.settings;
       var smsg = h('div', { cls: 'msg' });
       var num = function (id, v, lo, hi) { return h('input', { id: id, type: 'number', min: String(lo), max: String(hi), step: '1', value: String(v) }); };
@@ -1519,49 +1549,6 @@
           api('POST', '/api/settings', { maxActive: parseInt(sMax.value, 10), wiltLate: parseInt(sWilt.value, 10), rotLate: parseInt(sRot.value, 10), hardLead: parseInt(sHard.value, 10) })
             .then(function (x) { if (!x.ok) return showErr(smsg, x); showOk(smsg, t('saved')); refreshMe(); });
         } }), smsg));
-
-      r.data.people.forEach(function (p) {
-        var msg = h('div', { cls: 'msg' });
-        var name = h('input', { id: 'p-name-' + p.id, type: 'text', value: p.name, maxlength: '100' });
-        var nick = h('input', { id: 'p-nick-' + p.id, type: 'text', value: p.nick, maxlength: '40' });
-        var role = h('select', { id: 'p-role-' + p.id }, h('option', { value: 'staf', text: t('role_staf') }), h('option', { value: 'direktur', text: t('role_direktur') }));
-        role.value = p.role;
-        var keeper = h('input', { id: 'p-keeper-' + p.id, type: 'checkbox', checked: p.keeper === 1 });
-        var active = h('input', { id: 'p-active-' + p.id, type: 'checkbox', checked: p.active === 1 });
-        view.appendChild(h('section', { cls: 'panel person', 'data-person': p.id },
-          h('h2', { text: p.name + (p.must_change_pin ? ' · ' + t('p_must_change') : '') }),
-          h('div', { cls: 'grid2' }, h('div', {}, h('label', { for: name.id, text: t('p_name') }), name), h('div', {}, h('label', { for: nick.id, text: t('p_nick') }), nick),
-            h('div', {}, h('label', { for: role.id, text: t('p_role') }), role)),
-          h('label', { cls: 'check', for: keeper.id }, keeper, h('span', { text: t('p_keeper') })),
-          h('label', { cls: 'check', for: active.id }, active, h('span', { text: t('p_active') })),
-          h('div', { cls: 'row' },
-            h('button', { type: 'button', cls: 'p-save', text: t('btn_save'), onclick: function () {
-              api('POST', '/api/people/' + encodeURIComponent(p.id), { name: name.value, nick: nick.value, role: role.value, keeper: keeper.checked, active: active.checked })
-                .then(function (x) { if (!x.ok) return showErr(msg, x); showOk(msg, t('saved')); refreshMe(); });
-            } }),
-            h('button', { type: 'button', cls: 'secondary p-reset', text: t('p_reset'), onclick: function () {
-              api('POST', '/api/people/' + encodeURIComponent(p.id) + '/reset-pin', {}).then(function (x) {
-                if (!x.ok) return showErr(msg, x);
-                clear(msg); msg.appendChild(h('p', { cls: 'ok' }, t('p_temp_pin') + ' ', h('span', { cls: 'pin-show', text: x.data.pin })));
-              });
-            } })), msg));
-      });
-
-      var amsg = h('div', { cls: 'msg' });
-      var aName = h('input', { id: 'a-name', type: 'text', maxlength: '100' }), aNick = h('input', { id: 'a-nick', type: 'text', maxlength: '40' });
-      var aRole = h('select', { id: 'a-role' }, h('option', { value: 'staf', text: t('role_staf') }), h('option', { value: 'direktur', text: t('role_direktur') }));
-      var aKeeper = h('input', { id: 'a-keeper', type: 'checkbox' });
-      view.appendChild(h('section', { cls: 'panel' }, h('h2', { text: t('p_add') }),
-        h('div', { cls: 'grid2' }, h('div', {}, h('label', { for: 'a-name', text: t('p_name') }), aName), h('div', {}, h('label', { for: 'a-nick', text: t('p_nick') }), aNick),
-          h('div', {}, h('label', { for: 'a-role', text: t('p_role') }), aRole)),
-        h('label', { cls: 'check', for: 'a-keeper' }, aKeeper, h('span', { text: t('p_keeper') })),
-        h('button', { type: 'button', id: 'a-save', text: t('p_add'), onclick: function () {
-          api('POST', '/api/people', { name: aName.value, nick: aNick.value, role: aRole.value, keeper: aKeeper.checked }).then(function (x) {
-            if (!x.ok) return showErr(amsg, x);
-            clear(amsg); amsg.appendChild(h('p', { cls: 'ok' }, x.data.person.name + ': ' + t('p_temp_pin') + ' ', h('span', { cls: 'pin-show', text: x.data.pin })));
-            refreshMe();
-          });
-        } }), amsg));
 
       // FX17j: the change log (PIN resets included, so the other director can see them)
       var logBox = h('section', { cls: 'panel', id: 'change-log' }, h('h2', { text: t('change_log') }));
@@ -1578,6 +1565,68 @@
       });
     });
   };
+  // v1.7.1: one person's dialog (p), or an empty one that adds a person (p null). It is a native <dialog> like the
+  // To-Do form, but Simpan keeps it open with "Tersimpan." as the old card did, and a temporary PIN (Reset PIN or a new
+  // person) stays in it until it is closed: a PIN is shown once. An answer that lands after the dialog was closed goes
+  // to the page (pmsg) instead, so no PIN is lost. reload(): the table is drawn again.
+  function personDialog(p, reload, pmsg) {
+    var openerId = p ? 'p-open-' + p.id : 'p-add-open';
+    var msg = h('div', { cls: 'msg' }), rmsg = h('div', { cls: 'msg' });
+    var name = h('input', { id: 'pd-name', type: 'text', maxlength: '100', autocomplete: 'off' });
+    var nick = h('input', { id: 'pd-nick', type: 'text', maxlength: '40', autocomplete: 'off' });
+    var role = h('select', { id: 'pd-role' }, h('option', { value: 'staf', text: t('role_staf') }), h('option', { value: 'direktur', text: t('role_direktur') }));
+    var keeper = h('input', { id: 'pd-keeper', type: 'checkbox', checked: !!(p && p.keeper === 1) });
+    var active = p ? h('input', { id: 'pd-active', type: 'checkbox', checked: p.active === 1 }) : null;
+    if (p) { name.value = p.name; nick.value = p.nick; role.value = p.role; }
+    var pinLine = function (who, pin) { return h('p', { cls: 'ok', role: 'status' }, (who ? who + ': ' : '') + t('p_temp_pin') + ' ', h('span', { cls: 'pin-show', text: pin })); };
+    // where an answer shows: in the dialog while it is open, else on the page (naming the person there)
+    var answer = function (slot, x, okNode) {
+      var open = dlg.open, at = open ? slot : pmsg;
+      if (!x.ok) return showErr(at, x);
+      clear(at); at.appendChild(okNode(open));
+    };
+    var dlg = h('dialog', { id: 'person-dlg', cls: 'dlg', 'aria-labelledby': 'person-dlg-h', onclose: function () {
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
+      var o = document.getElementById(openerId); // the row was drawn again: find its button by id
+      if (o) o.focus();
+    } },
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'person-dlg-h', cls: 'dr-title', text: p ? p.name : t('p_add') }),
+        h('button', { type: 'button', id: 'person-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
+      h('div', { cls: 'dr-body' },
+        h('form', { id: 'person-form', onsubmit: function (ev) {
+          ev.preventDefault();
+          if (p) {
+            api('POST', '/api/people/' + encodeURIComponent(p.id), { name: name.value, nick: nick.value, role: role.value, keeper: keeper.checked, active: active.checked }).then(function (x) {
+              answer(msg, x, function (open) { return h('p', { cls: 'ok', role: 'status', text: (open ? '' : p.name + ': ') + t('saved') }); });
+              if (x.ok) reload();
+            });
+          } else {
+            api('POST', '/api/people', { name: name.value, nick: nick.value, role: role.value, keeper: keeper.checked }).then(function (x) {
+              answer(msg, x, function () { return pinLine(x.data.person.name, x.data.pin); });
+              if (!x.ok) return;
+              name.value = ''; nick.value = ''; role.value = 'staf'; keeper.checked = false; // ready for the next person
+              reload();
+            });
+          }
+        } },
+          h('label', { for: 'pd-name', text: t('p_name') }), name,
+          h('label', { for: 'pd-nick', text: t('p_nick') }), nick,
+          h('label', { for: 'pd-role', text: t('p_role') }), role,
+          active ? h('label', { cls: 'check', for: 'pd-active' }, active, h('span', { text: t('p_active') })) : null,
+          h('label', { cls: 'check', for: 'pd-keeper' }, keeper, h('span', { text: t('p_keeper') })),
+          h('div', { cls: 'row' }, h('button', { type: 'submit', id: p ? 'pd-save' : 'pd-add', text: p ? t('btn_save') : t('p_add') })),
+          msg),
+        p ? h('div', { cls: 'row dlg-out' }, h('button', { type: 'button', id: 'pd-reset', cls: 'secondary', text: t('p_reset'), onclick: function () {
+          api('POST', '/api/people/' + encodeURIComponent(p.id) + '/reset-pin', {}).then(function (x) {
+            answer(rmsg, x, function (open) { return pinLine(open ? '' : p.name, x.data.pin); });
+            if (x.ok) reload();
+          });
+        } })) : null,
+        p ? rmsg : null));
+    layer.appendChild(dlg);
+    dlg.showModal();
+    name.focus();
+  }
 
   // v1.3: To-Do Saya, the person's own list. Not a tugas: no owner, no proof, no ageing; no page shows it to anyone
   // else. Every read goes through pageGet and nothing is kept outside the page, so the next person on a shared PC sees
