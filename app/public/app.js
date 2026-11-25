@@ -1877,7 +1877,7 @@
   };
   function openTutorial(v) {
     var player = h('video', { controls: true, autoplay: true, src: '/tutorial/' + encodeURIComponent(v.file) });
-    var dlg = h('dialog', { id: 'tut-dlg', cls: 'dlg tut-dlg', 'aria-labelledby': 'tut-dlg-h', onclose: function () {
+    var dlg = h('dialog', { id: 'tut-dlg', cls: 'dlg tut-dlg opening', 'aria-labelledby': 'tut-dlg-h', onclose: function () {
       player.removeAttribute('src'); player.load(); // stops the sound and the download
       if (dlg.parentNode) dlg.parentNode.removeChild(dlg); // the dialog itself puts the focus back on the card
     } },
@@ -1886,6 +1886,7 @@
       player);
     layer.appendChild(dlg);
     dlg.showModal();
+    setTimeout(function () { dlg.classList.remove('opening'); }, 400); // clicks count again (see .opening in style.css)
   }
 
   ROUTES.menu = function () {

@@ -67,8 +67,8 @@ export function createApp(opts) {
   }
   staticFiles.set('/', staticFiles.get('/index.html'));
   if (staticFiles.has('/favicon.svg')) staticFiles.set('/favicon.ico', staticFiles.get('/favicon.svg'));
-  // v1.7.5: the recorded tutorials, from app\tutorial\ (MP4s plus their list, videos.json). The folder is git-ignored
-  // (about 50 MB, kept out of the public repo); a board without it shows no Video tutorial list on Cara pakai.
+  // v1.7.5: the recorded tutorials, from app\tutorial\ (MP4s, their card pictures and their list, videos.json). The
+  // folder is git-ignored (about 50 MB, kept out of the public repo); without it Cara pakai says it is not installed.
   const tutorialDir = path.join(HERE, 'tutorial');
   if (fs.existsSync(tutorialDir)) {
     for (const name of fs.readdirSync(tutorialDir)) {

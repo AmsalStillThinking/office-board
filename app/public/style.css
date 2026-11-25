@@ -319,6 +319,7 @@ button.tut-card:hover { background: var(--panel); border-color: var(--accent); b
 .tut-t { font-weight: 600; overflow-wrap: anywhere; }
 .tut-len { font-size: 13px; color: var(--muted); }
 .dlg.tut-dlg { width: min(960px, calc(100% - 32px)); overflow: hidden; }
+.dlg.tut-dlg.opening { pointer-events: none; } /* the second click of a double-click on a card must not hit the X or pause the video */
 .tut-dlg video { display: block; width: 100%; max-height: calc(100vh - 140px); background: #000; }
 
 /* v1.3: To-Do Saya (v1.5.1: the list only; the add form in #todo-dlg, opened from the button at the top right) */

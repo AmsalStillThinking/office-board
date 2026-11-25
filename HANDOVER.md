@@ -205,7 +205,8 @@ changing what they say:
    ```
 
    (needs the Python package `pymupdf`). The three SOP texts must stay word for word the same in
-   `SPEC_OfficeBoard_v1.md`, `app\public\i18n.json` and the sheet; the browser check compares them.
+   `SPEC_OfficeBoard_v1.md`, `app\public\i18n.json` and the sheet; `sop_check.py` compares the sheet with
+   `i18n.json`. Since v1.7.6 the texts are only on the sheet, not on any screen (Cara pakai is the tutorial videos).
 
 ## 7. Deploy and run (on the office PC)
 

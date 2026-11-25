@@ -183,19 +183,22 @@ pop-up, edited straight in `F:\Office Board` (no worktree) with a board restart 
 - **Cards:** under the page title, one line of help and a grid of cards (three across on a laptop, one on a phone).
   Each card is a button with the video's title card as its picture, a play mark, "Video N", the title and the
   length. Pressing a card (or Enter on it) opens the video in a dialog that starts playing; Escape or the X closes
-  it, stops the sound and the download, and the focus goes back to the card. Without `app\tutorial\` the page says
+  it, stops the sound and the download, and the focus goes back to the card. For its first 0.4 s the dialog ignores
+  mouse clicks, so the second click of a double-click on a card neither hits the X nor pauses the video (Escape still
+  works). Without `app\tutorial\` the page says
   "Video tutorial belum dipasang di papan ini."; an old `videos.json` without pictures shows cards without them.
 - **Pictures:** `make-index.mjs` now also writes one `.jpg` per video (the frame at 1 s, 640 px wide, about 20 KB)
   and names it in `videos.json` (`poster`). The server serves `.jpg` from `app\tutorial\` too. Needs a restart.
 - `browser_check.py` no longer reads the rules on Cara pakai; it checks the page has none.
 
-**Checks:** a scratch board (fictional people, its own PostgreSQL schema) and one headless Chrome: 30/30. The list
+**Checks:** a scratch board (fictional people, its own PostgreSQL schema) and one headless Chrome: 32/32. The list
 and a picture over HTTP, ranges still 206; the page has 11 cards and none of the old text; the cards are white, three
 per row at 1280 px; a real click opens the dialog, the video plays by itself and seeks to 1:40; Escape removes the
 dialog, the video lets go of its file and the focus is back on the card; Enter on a card and the X work; at 390 px
 nothing is wider than the screen and the dialog fits; a 404 list and a list without pictures both render. A planted
 bug (the video keeps its file after closing) made its check fail. A second planted bug (no focus line) did not: the
-browser's own dialog already returns the focus, so that line was deleted. Not run: the server test suite and
-`browser_check.py` (heavy for this PC).
+browser's own dialog already returns the focus, so that line was deleted. A double-click on a card (second click on
+the X, or on the video) closed or paused it before the 0.4 s guard and leaves it open and playing after. Measured
+in desktop Chrome only. Not run: the server test suite and `browser_check.py` (edited, heavy for this PC).
 
 Undo: `git revert` the commit and restart.
