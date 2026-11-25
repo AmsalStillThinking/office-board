@@ -258,7 +258,9 @@
     ann: 'M3 10v4h3l6 4V6L6 10zM15.5 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10', // v1.7 Pengumuman: a megaphone
     pin: 'M9 3h6M10 3v6l-3 4h10l-3-4V3M12 13v8',
     file: 'M14 3H6v18h12V7zM14 3v4h4',
-    bell: 'M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9M10 20a2 2 0 0 0 4 0'
+    bell: 'M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9M10 20a2 2 0 0 0 4 0',
+    // v1.7.1: the gear of the sidebar's Settings button (index.html), for Pengaturan on Orang & Pengaturan
+    gear: 'M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'
   };
   function icon(kind) {
     var s = document.createElementNS(SVGNS, 'svg');
@@ -1530,25 +1532,17 @@
       refreshMe();
       pageGet('/api/people').then(function (r) { if (!r.ok) return showErr(pmsg, r); drawTable(r.data.people); });
     };
-    view.appendChild(h('div', { cls: 'page-head' }, h('h1', { text: t('people') }),
-      h('button', { type: 'button', id: 'p-add-open', onclick: function () { personDialog(null, reload, pmsg); } }, icon('new'), h('span', { text: t('p_add') }))));
+    // v1.7.1: Pengaturan (the four numbers) opens officeSettingsDialog, beside Tambah orang
+    view.appendChild(h('div', { cls: 'page-head people-head' }, h('h1', { text: t('people') }),
+      h('div', { cls: 'head-acts' },
+        h('button', { type: 'button', id: 's-open', cls: 'secondary', onclick: function () { officeSettingsDialog(pmsg); } }, icon('gear'), h('span', { text: t('s_title') })),
+        h('button', { type: 'button', id: 'p-add-open', onclick: function () { personDialog(null, reload, pmsg); } }, icon('new'), h('span', { text: t('p_add') })))));
     view.appendChild(pmsg);
     view.appendChild(tableBox);
     pageGet('/api/people').then(function (r) {
       if (!r.ok) return showErr(pmsg, r);
       drawTable(r.data.people);
-      var st = r.data.settings;
-      var smsg = h('div', { cls: 'msg' });
-      var num = function (id, v, lo, hi) { return h('input', { id: id, type: 'number', min: String(lo), max: String(hi), step: '1', value: String(v) }); };
-      var sMax = num('s-max', st.maxActive, 1, 20), sWilt = num('s-wilt', st.wiltLate, 0, 10), sRot = num('s-rot', st.rotLate, 1, 30), sHard = num('s-hard', st.hardLead, 0, 30);
-      view.appendChild(h('section', { cls: 'panel' }, h('h2', { text: t('s_title') }),
-        h('div', { cls: 'grid2' },
-          h('div', {}, h('label', { for: 's-max', text: t('s_max') }), sMax), h('div', {}, h('label', { for: 's-wilt', text: t('s_wilt') }), sWilt),
-          h('div', {}, h('label', { for: 's-rot', text: t('s_rot') }), sRot), h('div', {}, h('label', { for: 's-hard', text: t('s_hard') }), sHard)),
-        h('button', { type: 'button', id: 's-save', text: t('btn_save'), onclick: function () {
-          api('POST', '/api/settings', { maxActive: parseInt(sMax.value, 10), wiltLate: parseInt(sWilt.value, 10), rotLate: parseInt(sRot.value, 10), hardLead: parseInt(sHard.value, 10) })
-            .then(function (x) { if (!x.ok) return showErr(smsg, x); showOk(smsg, t('saved')); refreshMe(); });
-        } }), smsg));
+      SETTINGS = r.data.settings;
 
       // FX17j: the change log (PIN resets included, so the other director can see them)
       var logBox = h('section', { cls: 'panel', id: 'change-log' }, h('h2', { text: t('change_log') }));
@@ -1602,8 +1596,10 @@
             });
           } else {
             api('POST', '/api/people', { name: name.value, nick: nick.value, role: role.value, keeper: keeper.checked }).then(function (x) {
-              answer(msg, x, function () { return pinLine(x.data.person.name, x.data.pin); });
+              // the PIN has its own slot (as Reset PIN's): a refused next try on the emptied form must not wipe it
+              answer(x.ok ? rmsg : msg, x, function () { return pinLine(x.data.person.name, x.data.pin); });
               if (!x.ok) return;
+              clear(msg);
               name.value = ''; nick.value = ''; role.value = 'staf'; keeper.checked = false; // ready for the next person
               reload();
             });
@@ -1622,10 +1618,43 @@
             if (x.ok) reload();
           });
         } })) : null,
-        p ? rmsg : null));
+        rmsg));
     layer.appendChild(dlg);
     dlg.showModal();
     name.focus();
+  }
+  // v1.7.1: the four office numbers (was a panel on the page), in a dialog opened by Pengaturan beside Tambah orang.
+  // It starts from SETTINGS and a save stores the server's answer there, so opening it again shows what was saved.
+  function officeSettingsDialog(pmsg) {
+    var msg = h('div', { cls: 'msg' });
+    var num = function (id, v, lo, hi) { return h('input', { id: id, type: 'number', min: String(lo), max: String(hi), step: '1', value: String(v) }); };
+    var sMax = num('s-max', SETTINGS.maxActive, 1, 20), sWilt = num('s-wilt', SETTINGS.wiltLate, 0, 10), sRot = num('s-rot', SETTINGS.rotLate, 1, 30), sHard = num('s-hard', SETTINGS.hardLead, 0, 30);
+    var dlg = h('dialog', { id: 'office-settings-dlg', cls: 'dlg', 'aria-labelledby': 'office-settings-h', onclose: function () {
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
+      var o = document.getElementById('s-open');
+      if (o) o.focus();
+    } },
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'office-settings-h', cls: 'dr-title', text: t('s_title') }),
+        h('button', { type: 'button', id: 'office-settings-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
+      h('div', { cls: 'dr-body' },
+        h('form', { id: 'office-settings-form', onsubmit: function (ev) {
+          ev.preventDefault();
+          api('POST', '/api/settings', { maxActive: parseInt(sMax.value, 10), wiltLate: parseInt(sWilt.value, 10), rotLate: parseInt(sRot.value, 10), hardLead: parseInt(sHard.value, 10) }).then(function (x) {
+            if (x.ok) { SETTINGS = x.data.settings; refreshMe(); }
+            var at = dlg.open ? msg : pmsg; // closed before the answer: say it on the page
+            if (!x.ok) return showErr(at, x);
+            showOk(at, (dlg.open ? '' : t('s_title') + ': ') + t('saved'));
+          });
+        } },
+          h('label', { for: 's-max', text: t('s_max') }), sMax,
+          h('label', { for: 's-wilt', text: t('s_wilt') }), sWilt,
+          h('label', { for: 's-rot', text: t('s_rot') }), sRot,
+          h('label', { for: 's-hard', text: t('s_hard') }), sHard,
+          h('div', { cls: 'row' }, h('button', { type: 'submit', id: 's-save', text: t('btn_save') })),
+          msg)));
+    layer.appendChild(dlg);
+    dlg.showModal();
+    sMax.focus();
   }
 
   // v1.3: To-Do Saya, the person's own list. Not a tugas: no owner, no proof, no ageing; no page shows it to anyone

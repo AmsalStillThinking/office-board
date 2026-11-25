@@ -284,6 +284,9 @@ th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vert
 th { background: var(--bg); font-weight: 600; }
 .facts th { width: 38%; color: var(--muted); font-weight: 600; }
 #people-table td { vertical-align: middle; } /* v1.7.1: the name sits level with its Atur button */
+/* v1.7.1: Pengaturan and Tambah orang side by side; on a narrow screen they go under the title instead of squeezing it */
+.people-head { flex-wrap: wrap; }
+.head-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .menu button { justify-content: flex-start; text-align: left; }
 .sop li { margin: 10px 0; }

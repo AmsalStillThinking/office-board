@@ -116,7 +116,8 @@ The owner allowed one new test file and one browser look.
 # v1.7.1 (25 Nov 2026): Orang & Pengaturan as a table
 
 The app owner asked for it on 25 Nov 2026: "Use Table Instead: Nama | Panggilan | Peran | Pengaturan (Open a New
-Modal, to setting the Active, Reset PIN, Boleh buka Review Jumat)", and "Tambah orang button at the top right corner".
+Modal, to setting the Active, Reset PIN, Boleh buka Review Jumat)", "Tambah orang button at the top right corner", and
+"Pengaturan on New Modal, show it using Button besides the "Tambah Orang" Button".
 Screen files only (`app.js`, `i18n.json`, `style.css`): no server change and no restart.
 
 - **The people** are one table, Nama | Panggilan | Peran | Pengaturan, in place of one card per person. Nama still
@@ -126,17 +127,22 @@ Screen files only (`app.js`, `i18n.json`, `style.css`): no server change and no 
   the only way to edit them). Simpan sends the same fields as the old card.
 - **Tambah orang** is a button at the top right, beside the title. It opens the same dialog empty, without Aktif and
   Reset PIN.
+- **Pengaturan** (the four numbers) is a button beside Tambah orang that opens its own dialog, in place of the panel
+  on the page. Simpan sends the same four numbers as before. On a phone both buttons go under the title.
 - **A temporary PIN is not lost.** The dialog stays open after Simpan, Reset PIN and Tambah orang, and the PIN stays
-  in it until it is closed. If the dialog was closed before the answer came back, the PIN (or "Tersimpan.") shows
+  in it until it is closed, in a place of its own that a refused next try (for example the emptied add form sent
+  again) does not overwrite. If the dialog was closed before the answer came back, the PIN (or "Tersimpan.") shows
   on the page above the table, with the person's name.
-- **Unchanged:** the four Pengaturan numbers and Catatan perubahan, now below the table. The server's refusals
-  (your own account, a person who still owns routines) show inside the dialog.
+- **Unchanged:** Catatan perubahan, now right below the table. The server's refusals (your own account, a person who
+  still owns routines, Overdue not after Due) show inside the dialog.
 
 **Checks:** one headless Chrome on a preview that runs the real `app.js` with invented people and answers in the page,
-not the real server: 38/38. It drove Atur and Tambah orang with real Enter and Escape keys, checked what Simpan, Reset
-PIN and Tambah orang send, a refusal, where the cursor returns, a PIN that lands after the dialog closed, and the
-layout at 1366 px and 390 px. Two planted bugs (the late PIN sent into the closed dialog; the cursor not kept when the
-table is drawn again) each made the check fail. Not run: the server tests (no server change), `browser_check.py`
-and the seat checks (out of date for this page and heavy for this PC).
+not the real server: 47/47. It drove Atur, Tambah orang and Pengaturan with real Enter and Escape keys, checked what
+each Simpan, Reset PIN and Tambah orang send, refusals, where the cursor returns, a PIN that lands after the dialog
+closed, a second press on the emptied add form (this check failed on the first commit of this change, `74cabf2`), and
+the layout at 1366 px and 390 px. Three planted bugs (the late PIN sent into the closed dialog; the cursor not kept
+when the table is drawn again; the new person's PIN sharing the error slot) each made the check fail. Not run: the
+server tests (no server change), `browser_check.py` and the seat checks (out of date for this page and heavy for this
+PC).
 
 Undo: `git revert` the commit. The screen files are live as soon as they are saved, so no restart is needed.
