@@ -11,7 +11,6 @@ sys.path.insert(0, HERE)
 from cdp import Chrome  # noqa: E402
 
 APP = os.path.abspath(os.environ.get("OB_APP_DIR") or os.path.join(HERE, ".."))
-SPEC = os.path.abspath(os.path.join(HERE, "..", "..", "SPEC_OfficeBoard_v1.md"))
 TMP = os.path.join(HERE, "_tmp")
 SHOTS = os.path.abspath(os.environ.get("OB_SHOTS_DIR") or os.path.join(TMP, "shots"))  # a control run uses its own folder
 FIXTURE = os.path.join(HERE, "fixture")
@@ -79,21 +78,6 @@ def read_pins(data):
         if len(p) == 3 and p[2].isdigit():
             pins[p[0]] = p[2]
     return pins
-
-
-def spec_sops():
-    """The three SOP paragraphs exactly as the spec prints them (markdown bold removed, line breaks joined)."""
-    text = open(SPEC, encoding="utf-8").read()
-    start = text.index("1. **Cek tugas harian.**")
-    end = text.index("## 7.")
-    block = text[start:end]
-    items = re.split(r"\n(?=\d\. \*\*)", block.strip())
-    out = []
-    for it in items:
-        it = re.sub(r"^\d\. ", "", it.strip())
-        it = it.replace("**", "")
-        out.append(" ".join(it.split()))
-    return out
 
 
 # ------------------------------------------------------------------ page probes
@@ -716,12 +700,9 @@ def run(width, lang):
         back = ch.eval("(function(){var a=document.activeElement, r=a && a.closest && a.closest('.tr'); return a && a.classList.contains('title') && r ? r.getAttribute('data-id') : null;})()")
         check("panel %d %s: the focus returns to the task's title" % (width, lang), back == A, back)
         menu(ch, "help")
-        wait(ch, "!!document.querySelector('#sop3')", "SOP list")
-        if lang == "id":
-            sops = spec_sops()
-            for i, want in enumerate(sops, 1):
-                got = " ".join(ch.eval("document.querySelector('#sop%d').innerText" % i).split())
-                check("SOP %d word for word" % i, got == want, (got[:120], want[:120]))
+        # v1.7.6: Cara pakai is the tutorial cards only (or one line when app\tutorial\ is absent); the rules are on the printed sheet
+        wait(ch, "!!document.querySelector('#tutorials p')", "tutorial cards")
+        check("help %d %s: no rules list on the page" % (width, lang), ch.eval("!document.querySelector('#sop, .sop')"))
         page_checks(ch, width, lang, "help")
         shot(ch, width, lang, "08_help")
         menu(ch, "nums")

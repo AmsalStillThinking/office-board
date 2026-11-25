@@ -72,7 +72,7 @@ export function createApp(opts) {
   const tutorialDir = path.join(HERE, 'tutorial');
   if (fs.existsSync(tutorialDir)) {
     for (const name of fs.readdirSync(tutorialDir)) {
-      const type = name === 'videos.json' ? STATIC_TYPES.get('.json') : name.endsWith('.mp4') ? 'video/mp4' : null;
+      const type = name === 'videos.json' ? STATIC_TYPES.get('.json') : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.jpg') ? 'image/jpeg' : null;
       if (type) staticFiles.set('/tutorial/' + name, { file: path.join(tutorialDir, name), type });
     }
   }

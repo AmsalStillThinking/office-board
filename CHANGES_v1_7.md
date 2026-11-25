@@ -171,3 +171,31 @@ made 5 checks fail, among them the seek (it stayed at 0:00). Not run: the server
 (heavy for this PC).
 
 Undo: `git revert` the commit and restart; the `app\tutorial\` folder can stay or be deleted.
+
+# v1.7.6 (25 Nov 2026): Cara pakai is the video cards only
+
+The app owner asked on 25 Nov 2026 to drop the text of Cara pakai and to show the videos as cards that open in a
+pop-up, edited straight in `F:\Office Board` (no worktree) with a board restart allowed.
+
+- **Gone from Cara pakai:** the motto line, "Tiga aturan kerja papan ini.", the colour legend and the three rules
+  (Cek tugas harian, Aturan bukti, Review Jumat). The texts stay in `i18n.json` because the printed staff sheet
+  (`make_sop_sheet.py`) and the Papan Kantor legend still use them; only `sop_intro` and `tut_title` were removed.
+- **Cards:** under the page title, one line of help and a grid of cards (three across on a laptop, one on a phone).
+  Each card is a button with the video's title card as its picture, a play mark, "Video N", the title and the
+  length. Pressing a card (or Enter on it) opens the video in a dialog that starts playing; Escape or the X closes
+  it, stops the sound and the download, and the focus goes back to the card. Without `app\tutorial\` the page says
+  "Video tutorial belum dipasang di papan ini."; an old `videos.json` without pictures shows cards without them.
+- **Pictures:** `make-index.mjs` now also writes one `.jpg` per video (the frame at 1 s, 640 px wide, about 20 KB)
+  and names it in `videos.json` (`poster`). The server serves `.jpg` from `app\tutorial\` too. Needs a restart.
+- `browser_check.py` no longer reads the rules on Cara pakai; it checks the page has none.
+
+**Checks:** a scratch board (fictional people, its own PostgreSQL schema) and one headless Chrome: 30/30. The list
+and a picture over HTTP, ranges still 206; the page has 11 cards and none of the old text; the cards are white, three
+per row at 1280 px; a real click opens the dialog, the video plays by itself and seeks to 1:40; Escape removes the
+dialog, the video lets go of its file and the focus is back on the card; Enter on a card and the X work; at 390 px
+nothing is wider than the screen and the dialog fits; a 404 list and a list without pictures both render. A planted
+bug (the video keeps its file after closing) made its check fail. A second planted bug (no focus line) did not: the
+browser's own dialog already returns the focus, so that line was deleted. Not run: the server test suite and
+`browser_check.py` (heavy for this PC).
+
+Undo: `git revert` the commit and restart.

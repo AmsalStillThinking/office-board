@@ -303,9 +303,23 @@ th { background: var(--bg); font-weight: 600; }
 .head-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .menu button { justify-content: flex-start; text-align: left; }
-.sop li { margin: 10px 0; }
-.tut summary { cursor: pointer; }
-.tut video { display: block; width: 100%; margin-top: 10px; border-radius: 8px; background: #000; }
+/* v1.7.6: Cara pakai shows the tutorials as cards; a card opens its video in #tut-dlg */
+.tut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 14px; margin: 14px 0; }
+button.tut-card { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; min-width: 0; padding: 0;
+  text-align: left; font-weight: 400; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+button.tut-card:hover { background: var(--panel); border-color: var(--accent); box-shadow: 0 6px 18px rgba(17, 45, 78, .12); }
+.tut-pic { position: relative; display: block; }
+.tut-pic img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--nav); }
+.tut-pic::after { content: ''; position: absolute; right: 12px; bottom: 12px; width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(17, 45, 78, .78); }
+.tut-pic::before { content: ''; position: absolute; z-index: 1; right: 23px; bottom: 23px; border-style: solid; border-width: 9px 0 9px 15px;
+  border-color: transparent transparent transparent #fff; }
+.tut-txt { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px 12px; }
+.tut-lbl { font-size: 13px; font-weight: 700; color: var(--accent); }
+.tut-t { font-weight: 600; overflow-wrap: anywhere; }
+.tut-len { font-size: 13px; color: var(--muted); }
+.dlg.tut-dlg { width: min(960px, calc(100% - 32px)); overflow: hidden; }
+.tut-dlg video { display: block; width: 100%; max-height: calc(100vh - 140px); background: #000; }
 
 /* v1.3: To-Do Saya (v1.5.1: the list only; the add form in #todo-dlg, opened from the button at the top right) */
 .page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }

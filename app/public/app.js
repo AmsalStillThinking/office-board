@@ -1856,31 +1856,37 @@
     text.focus();
   }
 
+  // v1.7.6: Cara pakai is the recorded tutorials only, one card each (the three work rules stay on the printed sheet,
+  // make_sop_sheet.py). The videos sit in app\tutorial\ on the server, git-ignored; a card opens its video in a dialog.
   ROUTES.help = function () {
     view.appendChild(h('h1', { text: t('help') }));
-    view.appendChild(h('p', { text: t('motto') + ' ' + t('framing') }));
-    view.appendChild(h('p', { cls: 'muted', text: t('sop_intro') }));
-    view.appendChild(legend());
-    var ol = h('ol', { cls: 'sop', id: 'sop' });
-    [1, 2, 3].forEach(function (i) { ol.appendChild(h('li', { id: 'sop' + i }, h('b', { text: t('sop' + i + '_t') }), ' ', h('span', { text: t('sop' + i + '_b') }))); });
-    view.appendChild(ol);
-    // v1.7.5: the recorded tutorials, when this board has them (app\tutorial\ on the server, git-ignored); one plays at a time
     var tut = h('section', { id: 'tutorials' });
     view.appendChild(tut);
     pageGet('/tutorial/videos.json').then(function (r) {
-      if (!r.ok || !Array.isArray(r.data) || !r.data.length) return;
-      tut.appendChild(h('h2', { text: t('tut_title') }));
+      if (!r.ok || !Array.isArray(r.data) || !r.data.length) { tut.appendChild(h('p', { cls: 'muted', id: 'tut-none', text: t('tut_none') })); return; }
       tut.appendChild(h('p', { cls: 'muted', text: t('tut_intro') }));
+      var grid = h('div', { cls: 'tut-grid' });
       r.data.forEach(function (v, i) {
-        var player = h('video', { controls: true, preload: 'none', src: '/tutorial/' + encodeURIComponent(v.file) });
-        var d = h('details', { cls: 'panel tut', id: 'tut-' + i, ontoggle: function () {
-          if (!d.open) { player.pause(); return; }
-          Array.prototype.forEach.call(tut.querySelectorAll('details[open]'), function (o) { if (o !== d) o.open = false; });
-        } }, h('summary', {}, v.label ? h('b', { text: v.label + ' ' }) : null, h('span', { text: v.title + ' ' }), h('span', { cls: 'muted', text: v.len })), player);
-        tut.appendChild(d);
+        grid.appendChild(h('button', { type: 'button', id: 'tut-' + i, cls: 'tut-card', onclick: function () { openTutorial(v); } },
+          v.poster ? h('span', { cls: 'tut-pic' }, h('img', { src: '/tutorial/' + encodeURIComponent(v.poster), alt: '', loading: 'lazy' })) : null,
+          h('span', { cls: 'tut-txt' }, v.label ? h('span', { cls: 'tut-lbl', text: v.label }) : null,
+            h('span', { cls: 'tut-t', text: v.title }), h('span', { cls: 'tut-len', text: v.len }))));
       });
+      tut.appendChild(grid);
     });
   };
+  function openTutorial(v) {
+    var player = h('video', { controls: true, autoplay: true, src: '/tutorial/' + encodeURIComponent(v.file) });
+    var dlg = h('dialog', { id: 'tut-dlg', cls: 'dlg tut-dlg', 'aria-labelledby': 'tut-dlg-h', onclose: function () {
+      player.removeAttribute('src'); player.load(); // stops the sound and the download
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg); // the dialog itself puts the focus back on the card
+    } },
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'tut-dlg-h', cls: 'dr-title', text: (v.label ? v.label + ' · ' : '') + v.title }),
+        h('button', { type: 'button', id: 'tut-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
+      player);
+    layer.appendChild(dlg);
+    dlg.showModal();
+  }
 
   ROUTES.menu = function () {
     view.appendChild(h('h1', { text: t('nav_menu') }));

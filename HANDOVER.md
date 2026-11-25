@@ -101,7 +101,8 @@ pack and research notes, which hold readings of colleagues' contracts. Ask the d
 - `app\lib\messages.json`: every refusal sentence the server sends, Indonesian and English.
 - `app\public\`: one page, plain JavaScript (`app.js`), every visible word in `i18n.json` (Indonesian and English
   with the same keys), `style.css`.
-- `app\tutorial\` (NOT in git, about 50 MB): the tutorial videos and their list `videos.json`, listed on Cara pakai.
+- `app\tutorial\` (NOT in git, about 50 MB): the tutorial videos, their card pictures and their list `videos.json`,
+  shown as cards on Cara pakai.
   They are made in `F:\Office Board Tutorial` (its README says how to re-record).
 - `app\tools\reset-pin.mjs`: offline PIN reset when no director can sign in.
 - `app\seed\`: the 13 office people and 14 routine templates. Used ONLY on the first start of an empty data folder;
