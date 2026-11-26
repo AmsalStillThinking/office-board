@@ -219,6 +219,7 @@
   "r_months": "Bulan (pisahkan dengan koma)",
   "r_month": "Bulan",
   "r_day": "Tanggal",
+  "r_day_help_monthly": "Tanggal tenggat tugas ini setiap bulan (1 sampai 31). Kalau bulannya lebih pendek, misalnya tanggal 31 di bulan April, tenggatnya jatuh di tanggal terakhir bulan itu.",
   "r_lead": "Dibuat berapa hari sebelum tenggat",
   "r_active": "Aktif",
   "r_inactive": "Nonaktif",

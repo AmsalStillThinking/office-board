@@ -299,6 +299,7 @@ th { background: var(--bg); font-weight: 600; }
 #routine-dlg { width: min(560px, calc(100% - 32px)); }
 #routine-form .grid2 { align-items: end; }
 #routine-form .grid2 label.check { margin-bottom: 0; }
+#routine-form .grid2 .rt-span { grid-column: 1 / -1; } /* v1.7.10: a help line under a pair, across both columns */
 #routines-table .rt-title { font-weight: 600; }
 #routines-table .rt-note { font-size: 13px; }
 #routines-table .nowrap { white-space: nowrap; }

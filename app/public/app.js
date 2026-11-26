@@ -1560,11 +1560,16 @@
     var active = h('input', { id: 'rt-active', type: 'checkbox', checked: rt.active === 1 });
     var weekdayBox = h('div', { cls: 'rt-weekday' }, h('label', { for: weekday.id, text: t('r_weekday') }), weekday);
     var dayBox = h('div', { cls: 'rt-day' }, h('label', { for: day.id, text: t('r_day') }), day);
+    // v1.7.10 (the app owner): for Bulanan, what Tanggal means. Its own line across the pair, so the two boxes of the
+    // pair stay level; read with the box only while it shows.
+    var dayHelp = h('p', { cls: 'muted fhelp rt-span', id: 'rt-day-help', text: t('r_day_help_monthly') });
     var monthBox = h('div', { cls: 'rt-month' }, h('label', { for: month.id, text: t('r_month') }), month);
     var monthsBox = h('div', { cls: 'rt-months' }, h('label', { for: months.id, text: t('r_months') }), months);
     var showKind = function () {
       weekdayBox.hidden = kind.value !== 'weekly'; dayBox.hidden = kind.value === 'weekly';
       monthBox.hidden = kind.value !== 'yearly'; monthsBox.hidden = kind.value !== 'quarterly';
+      dayHelp.hidden = kind.value !== 'monthly';
+      if (dayHelp.hidden) day.removeAttribute('aria-describedby'); else day.setAttribute('aria-describedby', dayHelp.id);
     };
     kind.addEventListener('change', showKind);
     showKind();
@@ -1604,7 +1609,7 @@
             h('div', {}, h('label', { for: type.id, text: t('f_type') }), type),
             h('div', {}, h('label', { cls: 'check', for: hard.id }, hard, h('span', { text: t('lbl_hard') }))),
             h('div', {}, h('label', { for: kind.id, text: t('r_kind') }), kind),
-            weekdayBox, dayBox, monthBox, monthsBox,
+            weekdayBox, dayBox, dayHelp, monthBox, monthsBox,
             h('div', {}, h('label', { for: lead.id, text: t('r_lead') }), lead)),
           members,
           h('label', { for: note.id, text: t('f_body') }), note,

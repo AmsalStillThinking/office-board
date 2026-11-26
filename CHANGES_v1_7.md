@@ -283,3 +283,12 @@ Form, but adjust it".
 **Checks:** `node --check` and the served files match. Not seen in a browser.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.10 (26 Nov 2026): what Tanggal means for a monthly routine
+
+The app owner asked: "Kasih keterangan pada tanggal field, untuk Jenis Jadwal bulanan". With Jenis jadwal Bulanan,
+the Rutin dialog shows under the Jenis jadwal | Tanggal pair: "Tanggal tenggat tugas ini setiap bulan (1 sampai 31).
+Kalau bulannya lebih pendek, misalnya tanggal 31 di bulan April, tenggatnya jatuh di tanggal terakhir bulan itu."
+That is the server's rule (`clampedDate` in `lib/rules.mjs`). The line spans both columns, so the two boxes stay
+level, and the Tanggal box names it for a screen reader only while it shows. Mingguan, Triwulan and Tahunan show no
+line. Checks: `node --check`, the served files match; not seen in a browser.
