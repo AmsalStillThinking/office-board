@@ -1031,13 +1031,14 @@
     var members = peopleChecks('new-members', 'f_members', []);
     members.appendChild(h('p', { cls: 'muted fhelp', text: t('f_members_help') }));
     // a sub-task of a private task is private too (the server says so as well); it starts with the parent's picked
-    // people who are still here. The directors and the one creating it always see it: not offered.
+    // people who are still here. The directors, the one creating it and its Pemberi always see it: not offered
+    // (`requester` is set further down; on the first call it is not there yet, and the Pemberi is then the one creating it).
     var parentPrivate = !!(parent && parent['private']);
     var active = function (pid) { return PEOPLE.some(function (p) { return p.id === pid && p.active; }); };
     var viewers = peopleChecks('new-viewers', 'f_viewers', parentPrivate ? (parent.viewers || []).filter(active) : []);
     viewers.appendChild(h('p', { cls: 'muted fhelp', text: t('f_viewers_help') + (parent ? ' ' + t('f_viewers_help_sub') : '') }));
     var always = PEOPLE.filter(function (p) { return p.role === 'direktur'; }).map(function (p) { return p.id; }).concat([ME.id]);
-    var hideOwner = function () { members.hide([owner.value]); viewers.hide(always.concat([owner.value])); };
+    var hideOwner = function () { members.hide([owner.value]); viewers.hide(always.concat([owner.value], requester ? [requester.value] : [])); };
     owner.addEventListener('change', hideOwner);
     hideOwner();
     var due = h('input', { id: 'new-due', type: 'date' });
@@ -1090,8 +1091,9 @@
     var addRow = h('button', { type: 'button', id: 'new-add-sub', cls: 'secondary small', text: t('btn_add_sub_row'), onclick: addSub });
     var subBox = parent ? null : h('fieldset', { cls: 'new-subs', id: 'new-subs' }, h('legend', { text: t('f_subtasks') }), subList, addRow, subFull);
     // v1.6.8: the Pemberi, the person the task is from (not on a sub-task: only the parent's Pemberi or a director adds
-    // those). Someone else: the task waits for their approval, and the one adding it is its PIC with no team, sub-tasks,
-    // files or privacy (the server refuses them). What was filled in there stays, in case the Pemberi is set back to me.
+    // those). Someone else: the task waits for their approval, and the one adding it is its PIC with no team, sub-tasks
+    // or files (the server refuses them). What was filled in there stays, in case the Pemberi is set back to me.
+    // v1.7.7: Pribadi and its people stay offered: who may see it is the Penerima's to say (the app owner, 26 Nov 2026).
     var requester = parent ? null : peopleSelect('new-requester', null, false);
     var propHelp = h('p', { cls: 'muted fhelp', id: 'new-requester-help', 'aria-live': 'polite', hidden: true });
     var proposal = function () { return !!requester && requester.value !== ME.id; };
@@ -1101,8 +1103,7 @@
       var p = proposal();
       if (p) owner.value = ME.id;
       owner.disabled = p;
-      members.hidden = filesLabel.hidden = files.wrap.hidden = privLabel.hidden = subBox.hidden = p;
-      viewers.hidden = p || !priv.checked;
+      members.hidden = filesLabel.hidden = files.wrap.hidden = subBox.hidden = p;
       propHelp.hidden = !p;
       propHelp.textContent = p ? tf('f_requester_help', { name: personName(requester.value) }) : '';
       hideOwner();
@@ -1118,8 +1119,8 @@
       ARMED = null;
       var p = proposal(); // the hidden parts are not sent
       api('POST', '/api/cards', { title: title.value, owner: owner.value, requester: requester ? requester.value : undefined, due: due.value, type: type.value, hard: hard.checked,
-        source: source.value, body: body.value, 'private': !p && priv.checked, members: p ? [] : members.picked(),
-        viewers: !p && priv.checked ? viewers.picked() : [], parent: parent ? parent.id : null,
+        source: source.value, body: body.value, 'private': priv.checked, members: p ? [] : members.picked(),
+        viewers: priv.checked ? viewers.picked() : [], parent: parent ? parent.id : null,
         subtasks: p ? [] : subRows.map(function (s) { return { title: s.title.value, owner: s.owner.value, due: s.due.value }; }) }).then(function (r) {
         if (!r.ok) { submit.removeAttribute('data-hold'); submit.disabled = false; return showErr(msg, r); }
         var id = r.data.card.id;

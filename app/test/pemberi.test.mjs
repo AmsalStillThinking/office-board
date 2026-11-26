@@ -129,7 +129,6 @@ test('PB4 a task for another Pemberi holds only what is the Penerima\'s to say; 
     [{ requester: 'NOPE' }, 'need_requester'], [{ requester: 42 }, 'need_requester'], [{ requester: GITA }, 'need_requester'],
     [{ owner: DEWI }, 'propose_own'], [{ owner: FAJAR }, 'propose_own'],
     [{ members: [FAJAR] }, 'propose_plain'], [{ members: [DEWI] }, 'propose_plain'], // the Pemberi on the team would close it with no review (R4)
-    [{ private: true }, 'propose_plain'], [{ private: true, viewers: [FAJAR] }, 'propose_plain'],
     [{ subtasks: [{ title: 'Langkah 1', owner: EKO, due: '2026-11-24' }] }, 'propose_plain'], [{ parent }, 'propose_plain'],
   ]) refusal(await send(fields), 400, code, JSON.stringify(fields));
   assert.deepEqual([a.cardCount(), a.eventCount()], [cards, events], 'nothing written');
@@ -193,4 +192,28 @@ test('PB6 a database from before v1.6.8 gains the waiting status, whatever its c
     raw.close();
     dropDir(dataDir);
   }
+});
+
+test('PB7 the Penerima picks who may see their own task; the people picked see it once the Pemberi approves (v1.7.7)', T, async () => {
+  const a = await signedIn();
+  const id = await propose(a, { private: true, viewers: [FAJAR, DEWI, EKO] }); // the Pemberi and the PIC always see it: not stored
+  const pub = await propose(a); // control: a task for everyone
+  assert.deepEqual([a.card(id).status, a.card(id).private, a.card(pub).private], ['usul', 1, 0]);
+  const rows = a.db.prepare('SELECT person, kind FROM card_people WHERE card = ? ORDER BY person').all(id).map((r) => [r.person, r.kind]);
+  assert.deepEqual(rows, [[FAJAR, 'viewer']], 'only the person picked, as a viewer (never on the team: R4)');
+  assert.deepEqual(a.events(id)[0].detail.after.viewers, [FAJAR]);
+  for (const [who, sees] of [[EKO, true], [DEWI, true], [D1, true], [FAJAR, false], [GITA, false]]) {
+    assert.equal((await a.detail(who, id)).status, sees ? 200 : 404, `${who} opens it while it waits`);
+  }
+  assert.equal((await a.act(DEWI, id, 'approve')).status, 200);
+  assert.equal((await a.act(DEWI, pub, 'approve')).status, 200);
+  for (const [who, sees] of [[EKO, true], [DEWI, true], [D1, true], [FAJAR, true], [GITA, false]]) {
+    assert.equal((await a.detail(who, id)).status, sees ? 200 : 404, `${who} opens it after Setujui`);
+  }
+  const office = await a.list(GITA, 'office');
+  assert.ok(office.includes(pub) && !office.includes(id), 'control: the task for everyone is on Gita\'s Papan Kantor, the private one is not');
+  assert.ok((await a.list(FAJAR, 'office')).includes(id), 'the person picked has it on Papan Kantor');
+  const v = (await a.detail(DEWI, id)).json;
+  assert.deepEqual([v.viewers, v.can.viewers], [[FAJAR], true], 'the Pemberi can still change who may see it');
+  assert.equal((await a.detail(EKO, id)).json.can.viewers, false, 'after saving, the PIC cannot (v1.6.3)');
 });

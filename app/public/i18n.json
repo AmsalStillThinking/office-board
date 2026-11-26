@@ -321,7 +321,7 @@
   "dow_6": "Sab",
   "due_past": "Lewat tenggat",
   "f_requester": "Pemberi",
-  "f_requester_help": "{name} perlu menyetujui tugas ini dulu. Anda PIC-nya. Tim, sub-tugas, lampiran, dan siapa yang boleh melihat ditambahkan setelah disetujui.",
+  "f_requester_help": "{name} perlu menyetujui tugas ini dulu. Anda PIC-nya. Tim, sub-tugas, dan lampiran ditambahkan setelah disetujui. Kalau Pribadi, orang yang Anda pilih baru bisa melihatnya setelah disetujui.",
   "st_usul": "Menunggu persetujuan",
   "pending_line": "Menunggu persetujuan {name}. Tugas ini belum bisa dimulai.",
   "req_approve": "Perlu persetujuan Anda",

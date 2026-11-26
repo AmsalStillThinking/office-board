@@ -137,8 +137,10 @@ changing what they say:
    included. After "Minta koreksi", new proof is required before sending again. Since v1.6.8 (24 Nov 2026, the app
    owner's decision; the director has not been asked) the screen calls that person the Pemberi (it said "Peminta"),
    and a Penerima may add a task nobody gave them and name its Pemberi. Such a task waits ("Menunggu persetujuan"):
-   its Penerima is the PIC, with no team and no sub-tasks; it starts public, cannot be started, never ages and is
-   never Macet. Only the two of them and the directors can open it, and it is listed only for the two of them. It
+   its Penerima is the PIC, with no team and no sub-tasks; it cannot be started, never ages and is never Macet.
+   Since v1.7.7 (26 Nov 2026, the app owner) the Penerima may make it Pribadi and pick who may see it when adding
+   it; the people picked see it only after Setujui, and changing it later stays the Pemberi's or a director's.
+   Only the two of them and the directors can open it, and it is listed only for the two of them. It
    becomes an ordinary task only when the Pemberi named presses Setujui. A director cannot approve in their place,
    but may turn it down (Tolak, with a reason, from its link), as the Pemberi may. The Penerima may take it back.
 5. Ageing is computed, never edited: Due from the due date, Overdue from 3 working days late; cards with a legal

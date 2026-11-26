@@ -456,14 +456,17 @@ export function createApp(opts) {
     const priv = body.private || (parent && parent.private) ? 1 : 0;
     // v1.6.8: the Pemberi (requester). Left out (a page from before v1.6.8) or the person adding it: as before. Someone
     // else: a Penerima adding a task nobody gave them. It waits ('usul') for that Pemberi's Setujui and holds only what
-    // is the Penerima's to say: they are its PIC, with no team, privacy or sub-tasks (the Pemberi's choices since
-    // v1.6.2/v1.6.3). So no team member, and no Pemberi put on the team, can close it with a proof nobody judged (R4).
+    // is the Penerima's to say: they are its PIC, with no team or sub-tasks (the Pemberi's choices since v1.6.2/v1.6.3).
+    // So no team member, and no Pemberi put on the team, can close it with a proof nobody judged (R4). v1.7.7 (the app
+    // owner, 26 Nov 2026): who may see it is the Penerima's to say when adding it. The people picked are viewers, never
+    // the team, and see it only after Setujui (visibleClause); changing it later stays the Pemberi's ('viewers').
     const requester = body.requester === undefined || body.requester === null || body.requester === '' ? me : getPerson(str(body.requester, 40));
     if (!requester || !requester.active) refuse(400, 'need_requester');
     const proposal = requester.id !== me.id;
     if (proposal && owner.id !== me.id) refuse(400, 'propose_own');
-    if (proposal && (members.length || parent || priv || (Array.isArray(body.subtasks) && body.subtasks.length))) refuse(400, 'propose_plain');
-    const viewers = (priv ? peopleList(body.viewers) : []).filter((p) => p !== owner.id && p !== me.id && !members.includes(p));
+    if (proposal && (members.length || parent || (Array.isArray(body.subtasks) && body.subtasks.length))) refuse(400, 'propose_plain');
+    // the PIC, the Pemberi (one of them is me) and the team always see it: not stored as viewers
+    const viewers = (priv ? peopleList(body.viewers) : []).filter((p) => p !== owner.id && p !== requester.id && !members.includes(p));
     const card = {
       title, body: str(body.body, 5000), requester: requester.id, owner: owner.id, due: body.due, hard: body.hard ? 1 : 0,
       type, source: body.source, private: priv, status: proposal ? 'usul' : 'antri',
@@ -1069,7 +1072,8 @@ export function createApp(opts) {
   // v1.6: who may see the task (R11): the requester's choice, or a director's, in any status (not the PIC's: a PIC must
   // not open a requester's private task to the office, nor hide a late one from the Friday list). A sub-task of a
   // private task stays private. The PIC, the team, the requester and the directors always see it, so they are never
-  // listed. Making a task private makes its sub-tasks private too, in the same transaction.
+  // listed. Making a task private makes its sub-tasks private too, in the same transaction. (v1.7.7: a Penerima adding
+  // their own task sets it once, in POST /api/cards; after that it is the Pemberi's or a director's, as here.)
   ACTIONS.set('viewers', (me, c, body) => {
     if (!(c.requester === me.id || isDir(me))) refuse(403, 'forbidden');
     if (typeof body.private !== 'boolean' || (body.private && !Array.isArray(body.viewers))) refuse(400, 'bad_input'); // a missing key must not publish it

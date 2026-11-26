@@ -202,3 +202,30 @@ the X, or on the video) closed or paused it before the 0.4 s guard and leaves it
 in desktop Chrome only. Not run: the server test suite and `browser_check.py` (edited, heavy for this PC).
 
 Undo: `git revert` the commit and restart.
+
+# v1.7.7 (26 Nov 2026): a Penerima picks who may see their own task
+
+The app owner asked on 26 Nov 2026: a Penerima adding their own task could not set who may see it until the Pemberi
+approved it; the Penerima should be able to set it.
+
+- **Tugas baru:** when the Pemberi is someone else, the "Pribadi" tick and "Boleh melihat juga" stay offered (team,
+  sub-tasks and files are still hidden). The Pemberi is not offered among the people to pick, as the PIC and the
+  directors are not: they always see it. The help line under Pemberi now says that, if Pribadi, the people picked see
+  the task only after it is approved.
+- **Server:** `POST /api/cards` no longer refuses `private` and `viewers` on such a task (`propose_plain` now covers the
+  team, sub-tasks and a parent only). The people picked are stored as viewers, never on the team, so R4 holds: nobody
+  but the Pemberi judges its proof. The Pemberi is not stored as a viewer. While it waits ("Menunggu persetujuan") only
+  the two of them and the directors can open it, as before.
+- **Unchanged:** after saving, only the Pemberi or a director changes who may see it ("Siapa yang melihat"); the
+  Penerima who made a mistake takes the task back and adds it again.
+- **What it allows:** a Penerima can now add a task that is private from the start. Once approved it is off Papan
+  Kantor for everyone not picked, and off a keeper's Friday list and the Friday counts, like every private task. The
+  Pemberi can open it up again after approving.
+
+**Checks:** `pemberi.test.mjs` 7/7. Its new PB7 failed on the old server (`propose_plain`) and passed after: a private
+proposal stores only the person picked, as a viewer; that person gets 404 while it waits and 200 after Setujui; an
+unpicked person gets 404 and does not have it on Papan Kantor, while a public proposal is on theirs; the Pemberi may
+still change it and the PIC may not. Not run (the owner's choice, heavy for this PC): the other test files, the
+mutants, `browser_check.py` and a browser look at the form.
+
+Undo: `git revert` the commit and restart. Private proposals already saved stay private; the Pemberi can open them up.
