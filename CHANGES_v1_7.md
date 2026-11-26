@@ -292,3 +292,30 @@ Kalau bulannya lebih pendek, misalnya tanggal 31 di bulan April, tenggatnya jatu
 That is the server's rule (`clampedDate` in `lib/rules.mjs`). The line spans both columns, so the two boxes stay
 level, and the Tanggal box names it for a screen reader only while it shows. Mingguan, Triwulan and Tahunan show no
 line. Checks: `node --check`, the served files match; not seen in a browser.
+
+# v1.7.11 (26 Nov 2026): a team member's proof waits for the Pemberi
+
+Card 16 closed the moment a team member pressed Kirim bukti: its Pemberi was also its PIC, and since v1.6 a task whose
+Pemberi is on the team closed with anyone's proof (R4 self-close), so nobody checked it. Shown that and three
+options, the app owner chose: such a task closes by itself only when the Pemberi sends the proof; otherwise it waits
+for the Pemberi. The app owner's decision; the director has not been asked.
+
+- **Kirim bukti** by the Pemberi, when they are on the team (PIC or member): the task is Selesai at once, as before
+  (`self_close`). By anyone else on the team: it goes to "Menunggu konfirmasi" (`bukti`) and waits for the Pemberi's
+  Terima or Minta koreksi, as for a task whose Pemberi is not on the team.
+- **Who judges it:** the Pemberi, or a director who is not on the team. Nobody else on the team, a director on the
+  team included (`own_proof`), as FX1 already said for a Pemberi off the team.
+- **Where the Pemberi finds it:** with the tag "Menunggu Anda" on their Papan Saya (they are on the team, so it is not
+  in Permintaan Saya), with Terima in the task panel; a director Pemberi also has it under Pengecualian > Menunggu Anda.
+- **Numbers:** a task whose PIC is also its Pemberi still counts as the PIC's own when the Pemberi presses Terima
+  (`self_closed = 1`, the FX1 accept rule, unchanged). A task where someone else is the PIC counts as confirmed.
+- Not retroactive: card 16 stays closed. When this went live one open task (card 11, its Pemberi one of the team)
+  was of this shape.
+
+**Checks:** `team.test.mjs` 13/13. Run three times: before the change TM3 and TM3b failed; with only the Kirim bukti
+line changed, TM3b alone failed, at a director on the team still getting Terima; with the judge rule changed too, all
+passed. The mutant list follows the changed lines and has two more that put the old rule back; the mutants were not
+run. Not run (the owner's choice, heavy for this PC): the other test files and `browser_check.py`. The other test
+files were read for set-ups that relied on the old rule: only TM3 did. Not seen in a browser.
+
+Undo: `git revert` both commits and restart. Tasks already waiting stay waiting; their Pemberi can still press Terima.

@@ -134,7 +134,10 @@ changing what they say:
 3. A card closes only with proof (a file, photo or link added as proof; since v1.5, the owner's decision, a written
    comment counts too). A requester's attachment is not proof. A director cannot close without proof either.
 4. The person who asked accepts the proof or sends it back with a reason. Nobody judges their own proof, a director
-   included. After "Minta koreksi", new proof is required before sending again. Since v1.6.8 (24 Nov 2026, the app
+   included. After "Minta koreksi", new proof is required before sending again. A person who asked and is also on the
+   task's team closes it with the proof they send themselves; since v1.7.11 (26 Nov 2026, the app owner's decision;
+   the director has not been asked) a proof sent by anyone else on that team waits for their Terima, and nobody else
+   on the team judges it. Since v1.6.8 (24 Nov 2026, the app
    owner's decision; the director has not been asked) the screen calls that person the Pemberi (it said "Peminta"),
    and a Penerima may add a task nobody gave them and name its Pemberi. Such a task waits ("Menunggu persetujuan"):
    its Penerima is the PIC, with no team and no sub-tasks; it cannot be started, never ages and is never Macet.

@@ -216,7 +216,7 @@
   }
   // urgency is computed, never typed in (R5): Busuk, then Layu (legal deadline first), Macet, waiting for me, the rest
   function deco(c) {
-    c.waitingYou = !!ME && ((c.status === 'tunggu' && c.waiting_on === ME.id) || (c.status === 'bukti' && c.requester === ME.id && !onTeam(c, ME.id)) ||
+    c.waitingYou = !!ME && ((c.status === 'tunggu' && c.waiting_on === ME.id) || (c.status === 'bukti' && c.requester === ME.id) || // v1.7.11: on the team too
       (c.status === 'usul' && c.requester === ME.id)); // v1.6.8: a task waiting for my approval as its Pemberi
     c.rank = c.age === 'busuk' ? 0 : c.age === 'layu' ? (c.hard ? 1 : 2) : c.macet ? 3 : c.waitingYou ? 4 : c.status === 'bukti' ? 6 : 5;
     return c;
@@ -691,7 +691,7 @@
         act(c.id, 'unblock', {}, slot).then(function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, 'unblock', slot, 'btn_unblock_override'); });
       } }));
     }
-    var ownProof = ME && onTeam(c, ME.id) && !onTeam(c, c.requester); // FX1: never judge your own (team's) proof
+    var ownProof = ME && onTeam(c, ME.id) && c.requester !== ME.id; // FX1: never judge your own (team's) proof; v1.7.11: the Pemberi may
     if (opts.confirm && c.status === 'bukti' && ME && !ownProof && (c.requester === ME.id || ME.role === 'direktur')) {
       acts.appendChild(h('button', { type: 'button', cls: 'btn-accept', text: t('btn_accept'), onclick: function () { act(c.id, 'accept', {}, slot); } }));
       acts.appendChild(h('button', { type: 'button', cls: 'btn-return secondary', text: t('btn_return'), onclick: function () {
