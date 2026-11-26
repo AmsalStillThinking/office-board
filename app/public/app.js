@@ -866,7 +866,7 @@
     var from = (OFFICE.page - 1) * size, part = rows.slice(from, from + size);
     // v1.7.12: the columns in the owner's order; the phone stacks each row and hides this header (style.css)
     var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t('nav_office') },
-      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'lbl_people', 'f_type', 'n_from', 'lbl_status', 'lbl_urgency', 'lbl_due'].map(function (k) {
+      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'f_type', 'lbl_people', 'n_from', 'lbl_status', 'lbl_urgency', 'lbl_due'].map(function (k) {
         return h('div', { role: 'columnheader', text: t(k) });
       })));
     part.forEach(function (c) { tbl.appendChild(rowItem(c)); });
@@ -923,8 +923,8 @@
     return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status, onclick: open },
       h('div', { role: 'cell', cls: 'c-task' }, title,
         h('span', { cls: 'sub' }, h('span', { cls: 'phone-only', text: jenis + (flags.length ? ' · ' : '') }), flags.join(' · '))),
+      h('div', { role: 'cell', cls: 'c-type', text: jenis }), // v1.7.14: Jenis before PIC & Tim (the owner's choice)
       h('div', { role: 'cell', cls: 'c-who', text: teamLabel(c) }), // names only, no avatar (the owner's choice)
-      h('div', { role: 'cell', cls: 'c-type', text: jenis }),
       h('div', { role: 'cell', cls: 'c-from' }, h('span', { cls: 'wide-only', text: from }), h('span', { cls: 'phone-only', text: tf('from_req', { name: from }) })),
       h('div', { role: 'cell', cls: 'c-st' }, statusBadge(c.status)),
       h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,

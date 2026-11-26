@@ -376,3 +376,14 @@ planted "no focus on the title" each fail it; before the backdrop fix the double
 `browser_check.py`. Not seen on the real board.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.14 (27 Nov 2026): Jenis before PIC & Tim in Papan Kantor
+
+The app owner asked: "Swap PIC & Tim with Jenis". Daftar's columns now read Tugas | Jenis | PIC & Tim | Dari |
+Status | Urgensi | Tenggat; the grid's column widths moved with them, so the total is unchanged (940 px). The phone's
+stacked rows do not change (they show the jenis under the title). Screen files only: `app.js`, `style.css`.
+
+**Checks:** the v1.7.12 layout check, with the new order, 43/43, and the v1.7.13 row-click check 15/15; the v1.7.13
+files fail the two order checks. Not seen on the real board.
+
+Undo: `git revert` the commit (screen files only, no restart).
