@@ -113,6 +113,7 @@ export function validSchedule(s) {
   if (!s || typeof s !== 'object') return false;
   const okDay = (d) => Number.isInteger(d) && d >= 1 && d <= 31;
   const okMonth = (m) => Number.isInteger(m) && m >= 1 && m <= 12;
+  if (s.kind === 'weekly') return Number.isInteger(s.weekday) && s.weekday >= 1 && s.weekday <= 6; // v1.7.8: Senin (1) to Sabtu (6)
   if (s.kind === 'monthly') return okDay(s.day);
   if (s.kind === 'quarterly') return Array.isArray(s.months) && s.months.length > 0 && s.months.length <= 12 && s.months.every(okMonth) && okDay(s.day);
   if (s.kind === 'yearly') return okMonth(s.month) && okDay(s.day);
@@ -123,7 +124,11 @@ export function validSchedule(s) {
 export function scheduleDues(schedule, today) {
   const y = +today.slice(0, 4), m = +today.slice(5, 7);
   const out = new Set();
-  if (schedule.kind === 'monthly') {
+  if (schedule.kind === 'weekly') {
+    // the next one on or after today and the two before it: never more than one card ahead, however long the lead
+    const next = addDays(today, (schedule.weekday - weekday(today) + 7) % 7);
+    for (const k of [-14, -7, 0]) out.add(addDays(next, k));
+  } else if (schedule.kind === 'monthly') {
     for (let k = -1; k <= 13; k++) {
       const t = (y * 12 + (m - 1)) + k;
       out.add(clampedDate(Math.floor(t / 12), (t % 12) + 1, schedule.day));
@@ -140,7 +145,7 @@ export function scheduleDues(schedule, today) {
  * R10: the due dates whose card must exist on `today`: the card is created lead_days (calendar days) before the due
  * date. FX3: a due date whose whole window was missed (server off) is still created, as long as it is not earlier
  * than the day the routine was switched on or its date was last changed (active_since). How far back that reaches
- * follows scheduleDues: a monthly routine, the previous month; a quarterly or yearly routine, every listed date of
+ * follows scheduleDues: a weekly routine, two weeks; a monthly routine, the previous month; a quarterly or yearly routine, every listed date of
  * last year and this year.
  */
 export function routineDuesToCreate(routine, today) {

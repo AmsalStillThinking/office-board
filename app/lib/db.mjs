@@ -94,6 +94,8 @@ export function openDb(dataDir) {
   db.exec(SCHEMA);
   // Columns added after v1: an existing database gains them; nothing is ever dropped.
   db.exec('ALTER TABLE routines ADD COLUMN IF NOT EXISTS active_since TEXT');
+  // v1.7.8: a routine's team and who may see its cards: people ids as JSON text (as `schedule` is), private 0/1
+  db.exec("ALTER TABLE routines ADD COLUMN IF NOT EXISTS members TEXT NOT NULL DEFAULT '[]'; ALTER TABLE routines ADD COLUMN IF NOT EXISTS private INTEGER NOT NULL DEFAULT 0; ALTER TABLE routines ADD COLUMN IF NOT EXISTS viewers TEXT NOT NULL DEFAULT '[]'");
   db.exec("ALTER TABLE todos ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''"); // v1.5
   // v1.6.7: the day of the month (1-31) a to-do comes back on; 0 = it does not repeat
   db.exec('ALTER TABLE todos ADD COLUMN IF NOT EXISTS monthly INTEGER NOT NULL DEFAULT 0 CHECK(monthly BETWEEN 0 AND 31)');

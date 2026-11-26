@@ -2,7 +2,7 @@
 // note. Refusals re-read the whole routines table. Fictional people only (test/fixture/people.json).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startApp } from './helpers.mjs';
+import { startApp, at } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* closed */ } } });
@@ -106,4 +106,85 @@ test('RT4 Atur changes title, type, note and Tenggat hukum; cards already made k
   refusal(await a.req(D1, 'POST', '/api/routines/' + id, { type: 'bukan' }), 400, 'bad_input', 'unknown type');
   refusal(await a.req(GITA, 'POST', '/api/routines/' + id, { title: 'x' }), 403, 'forbidden', 'staff');
   assert.equal(JSON.stringify(a.routine(id)), kept, 'unchanged after the refusals');
+});
+
+// v1.7.8: Mingguan (one working day a week), and a routine's team, Pribadi and the people picked to see its cards.
+const EKO = 'T04', FAJAR = 'T05';
+const dues = (a, id) => a.db.prepare('SELECT due FROM cards WHERE routine_key LIKE ? ORDER BY due').all(id + ':%').map((c) => c.due);
+const peopleOn = (a, cardId) => a.db.prepare('SELECT person, kind FROM card_people WHERE card = ? ORDER BY kind, person').all(cardId).map((p) => p.person + ':' + p.kind);
+const weekly = (weekday, lead, extra = {}) => ({ ...NEW, schedule: { kind: 'weekly', weekday }, lead_days: lead, active: true, ...extra });
+
+test('RT5 Mingguan: the next one only, however long the lead; a changed day never re-creates days already passed', T, async () => {
+  const a = await signedIn(); // Wednesday 18 Nov 2026
+  const fri = (await a.req(D1, 'POST', '/api/routines', weekly(5, 5))).json.routine.id;
+  assert.deepEqual(dues(a, fri), ['2026-11-20'], 'Friday with lead 5 opens on the 15th: made today');
+  const tue = (await a.req(D1, 'POST', '/api/routines', weekly(2, 5))).json.routine.id;
+  assert.deepEqual(dues(a, tue), [], 'Tuesday the 24th opens on the 19th; the 17th was before it was switched on');
+  const sat = (await a.req(D1, 'POST', '/api/routines', weekly(6, 30))).json.routine.id;
+  assert.deepEqual(dues(a, sat), ['2026-11-21'], 'lead 30: still one card ahead, not one per week');
+  const got = (await a.req(D1, 'GET', '/api/routines')).json.routines.find((x) => x.id === fri);
+  assert.deepEqual(got.schedule, { kind: 'weekly', weekday: 5 });
+
+  a.clock.t = at('2026-12-02T09:00:00+08:00'); // two weeks later, a Wednesday: the server was off since the 18th
+  a.app.runRoutines();
+  assert.deepEqual(dues(a, fri), ['2026-11-20', '2026-11-27', '2026-12-04'], 'the missed Friday is made up, the next one opens');
+  assert.equal((await a.req(D1, 'POST', '/api/routines/' + fri, { schedule: { kind: 'weekly', weekday: 1 } })).status, 200);
+  assert.deepEqual(dues(a, fri), ['2026-11-20', '2026-11-27', '2026-12-04', '2026-12-07'],
+    'moved to Monday: the 7th opens; the 23rd and 30th, before the change, are not made (FY1)');
+
+  const before = a.routines();
+  for (const s of [{ kind: 'weekly', weekday: 0 }, { kind: 'weekly', weekday: 7 }, { kind: 'weekly', weekday: '5' }, { kind: 'weekly' }, { kind: 'weekly', day: 5 }]) {
+    refusal(await a.req(D1, 'POST', '/api/routines/' + fri, { schedule: s }), 400, 'bad_input', JSON.stringify(s));
+  }
+  assert.equal(a.routines(), before, 'unchanged after the refusals');
+});
+
+test('RT6 a routine carries a team, Pribadi and its picked people to every card it makes; an old page changes none of them', T, async () => {
+  const a = await signedIn();
+  const r = await a.req(D1, 'POST', '/api/routines', { ...NEW, active: true, members: [EKO, DEWI], private: true, viewers: [FAJAR, EKO, D1] });
+  assert.equal(r.status, 201, r.text);
+  const id = r.json.routine.id;
+  assert.deepEqual([r.json.routine.members, r.json.routine.private, r.json.routine.viewers], [[EKO], 1, [FAJAR, D1]],
+    'the PIC is not on its own team; a team member is not also a viewer');
+  const c = a.db.prepare('SELECT * FROM cards WHERE routine_key = ?').get(id + ':2026-11-20');
+  assert.equal(c.private, 1);
+  assert.deepEqual(peopleOn(a, c.id), [EKO + ':member', FAJAR + ':viewer'], 'the director who switched it on (its Pemberi) is not stored as a viewer');
+  assert.equal((await a.req(GITA, 'GET', '/api/cards/' + c.id)).status, 404, 'private: Gita was not picked');
+  const listed = (await a.req(D2, 'GET', '/api/routines')).json.routines.find((x) => x.id === id);
+  assert.ok(Array.isArray(listed.members) && Array.isArray(listed.viewers), 'lists, not JSON text');
+  const ev = a.events('routine_add').at(-1).detail.after;
+  assert.deepEqual([ev.members, ev.private, ev.viewers], [[EKO], 1, [FAJAR, D1]], 'logged');
+
+  const stored = () => { const x = a.routine(id); return [x.members, x.private, x.viewers]; };
+  const kept = stored();
+  assert.equal((await a.req(D1, 'POST', '/api/routines/' + id, { owner: DEWI, lead_days: 5 })).status, 200, 'a page from before v1.7.8');
+  assert.deepEqual(stored(), kept, 'no key: nothing changes');
+  for (const [body, code] of [[{ members: 'T04' }, 'bad_people'], [{ viewers: ['NOPE'] }, 'bad_people'], [{ private: 'ya' }, 'bad_input']]) {
+    refusal(await a.req(D1, 'POST', '/api/routines/' + id, body), 400, code, JSON.stringify(body));
+  }
+  assert.deepEqual(stored(), kept, 'unchanged after the refusals');
+
+  // Eko moves from the team to the PIC: off the team; Pribadi off clears the picked people
+  assert.equal((await a.req(D1, 'POST', '/api/routines/' + id, { owner: EKO, members: [EKO, GITA], private: false, viewers: [FAJAR] })).status, 200);
+  assert.deepEqual([a.routine(id).owner, ...stored()], [EKO, JSON.stringify([GITA]), 0, '[]']);
+  assert.equal(a.db.prepare('SELECT owner FROM cards WHERE id = ?').get(c.id).owner, DEWI, 'the card made before keeps its PIC');
+  assert.deepEqual(peopleOn(a, c.id), [EKO + ':member', FAJAR + ':viewer'], 'the card made before keeps its people');
+  a.clock.t = at('2026-12-16T09:00:00+08:00');
+  a.app.runRoutines();
+  const next = a.db.prepare('SELECT * FROM cards WHERE routine_key = ?').get(id + ':2026-12-20');
+  assert.deepEqual([next.owner, next.private, peopleOn(a, next.id)], [EKO, 0, [GITA + ':member']], 'the next card has the new ones');
+});
+
+test('RT7 a card is made from a stored routine whatever its lists hold: the PIC, the Pemberi, overlaps and people who left are left out', T, async () => {
+  const a = await signedIn();
+  assert.equal((await a.req(D1, 'POST', `/api/people/${FAJAR}`, { active: false })).status, 200, 'Fajar leaves');
+  // as an older or hand-edited row could hold them: no request path writes these overlaps
+  a.db.prepare(`INSERT INTO routines(title, owner, type, schedule, lead_days, active, requester, active_since, members, private, viewers)
+    VALUES ('Uji simpan', ?, 'umum', '{"kind":"monthly","day":20}', 5, 1, ?, '2026-11-18', ?, 1, ?)`)
+    .run(DEWI, D1, JSON.stringify([DEWI, EKO, FAJAR]), JSON.stringify([EKO, D1, DEWI, FAJAR, GITA]));
+  const other = (await a.req(D1, 'POST', '/api/routines', { ...NEW, title: 'Uji sesudahnya', active: true })).json.routine.id;
+  const c = a.db.prepare("SELECT * FROM cards WHERE title = 'Uji simpan'").get();
+  assert.ok(c, 'made, not stopped by a person listed twice');
+  assert.deepEqual([c.private, peopleOn(a, c.id)], [1, [EKO + ':member', GITA + ':viewer']]);
+  assert.deepEqual(dues(a, other), ['2026-11-20'], 'the other routine is made too');
 });

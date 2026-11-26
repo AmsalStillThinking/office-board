@@ -219,21 +219,31 @@ export function createApp(opts) {
   }
 
   // ------------------------------------------------------------------ routines (R10)
+  // a routines row with its JSON text read: the schedule, and (v1.7.8) the team and the people picked to see its cards
+  const routineOut = (r) => ({ ...r, schedule: JSON.parse(r.schedule), members: JSON.parse(r.members), viewers: JSON.parse(r.viewers) });
   function runRoutines() {
     const td = today();
     let created = 0;
+    const here = (id) => { const p = getPerson(id); return !!(p && p.active); };
     for (const r of q('SELECT * FROM routines WHERE active = 1').all()) {
       const owner = getPerson(r.owner);
       if (!owner || !owner.active) { log(`routines: routine ${r.id} skipped: owner ${r.owner || '(none)'} is missing or inactive`); continue; }
-      const routine = { ...r, schedule: JSON.parse(r.schedule) };
+      const routine = routineOut(r);
       for (const due of R.routineDuesToCreate(routine, td)) {
         const key = R.routineKey(r.id, due);
         if (q('SELECT id FROM cards WHERE routine_key = ?').get(key)) continue;
         const requester = r.requester && getPerson(r.requester) ? r.requester : r.owner;
+        // v1.7.8: filtered again here, whatever the row holds: someone listed twice would stop every routine after it
+        // (card_people allows a person once per card); someone who left is not put on a new card
+        const team = [...new Set(routine.members)].filter((p) => p !== r.owner && here(p));
+        const seen = r.private ? [...new Set(routine.viewers)].filter((p) => p !== r.owner && p !== requester && !team.includes(p) && here(p)) : [];
         tx(() => {
           const info = q(`INSERT INTO cards(title, body, requester, owner, due, hard, type, source, private, status, created_at, routine_key)
-            VALUES (?,?,?,?,?,?,?,?,0,'antri',?,?) RETURNING id`).run(r.title, '', requester, r.owner, due, r.hard, r.type, 'Lainnya', now(), key);
-          writeEvent(Number(info.lastInsertRowid), null, 'create', { routine: r.id, after: { status: 'antri', owner: r.owner, due }, ...(td > due ? { backfilled: true } : {}) });
+            VALUES (?,?,?,?,?,?,?,?,?,'antri',?,?) RETURNING id`).run(r.title, '', requester, r.owner, due, r.hard, r.type, 'Lainnya', r.private ? 1 : 0, now(), key);
+          const cid = Number(info.lastInsertRowid);
+          for (const p of team) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'member')").run(cid, p);
+          for (const p of seen) q("INSERT INTO card_people(card, person, kind) VALUES (?,?,'viewer')").run(cid, p);
+          writeEvent(cid, null, 'create', { routine: r.id, after: { status: 'antri', owner: r.owner, due, members: team, private: r.private ? 1 : 0, viewers: seen }, ...(td > due ? { backfilled: true } : {}) });
         });
         created++;
       }
@@ -605,7 +615,7 @@ export function createApp(opts) {
 
   add('GET', '/api/routines', (ctx) => {
     if (!isDir(ctx.me)) refuse(403, 'forbidden');
-    send(ctx.res, 200, { routines: q('SELECT * FROM routines ORDER BY id').all().map((r) => ({ ...r, schedule: JSON.parse(r.schedule) })) });
+    send(ctx.res, 200, { routines: q('SELECT * FROM routines ORDER BY id').all().map(routineOut) });
   });
   add('POST', '/api/routines', (ctx) => routineUpdate(ctx, null)); // v1.7.4: Tambah rutin
 
@@ -1217,7 +1227,7 @@ export function createApp(opts) {
   }
 
   // The same schedule whatever the order of its keys or of its months.
-  const schedKey = (s) => [s.kind, s.day ?? '', s.month ?? '', Array.isArray(s.months) ? [...s.months].sort((x, y) => x - y).join(',') : ''].join('|');
+  const schedKey = (s) => [s.kind, s.day ?? '', s.month ?? '', Array.isArray(s.months) ? [...s.months].sort((x, y) => x - y).join(',') : '', s.weekday ?? ''].join('|');
 
   // v1.7.4: id null adds a routine (POST /api/routines; it needs a title and a schedule, the rest takes the table's
   // defaults). Title, type and note can be changed on an existing one too; cards already made keep their own title.
@@ -1228,8 +1238,9 @@ export function createApp(opts) {
     if (!isDir(me)) refuse(403, 'forbidden');
     const r = id === null ? null : q('SELECT * FROM routines WHERE id = ?').get(id);
     if (id !== null && !r) refuse(404, 'not_found');
-    const next = r ? { ...r, schedule: JSON.parse(r.schedule) }
-      : { title: '', type: 'umum', note: '', owner: null, schedule: null, lead_days: 5, hard: 0, active: 0, requester: null, active_since: null };
+    const next = r ? routineOut(r)
+      : { title: '', type: 'umum', note: '', owner: null, schedule: null, lead_days: 5, hard: 0, active: 0, requester: null, active_since: null,
+        members: [], private: 0, viewers: [] };
     if (!r || body.title !== undefined) { next.title = str(body.title, 200); if (!next.title) refuse(400, 'need_title'); }
     if (body.type !== undefined) { if (!R.TYPES.includes(body.type)) refuse(400, 'bad_input'); next.type = body.type; }
     if (body.note !== undefined) next.note = str(body.note, 1000);
@@ -1241,6 +1252,13 @@ export function createApp(opts) {
     if (body.lead_days !== undefined) { if (!Number.isInteger(body.lead_days) || body.lead_days < 0 || body.lead_days > 365) refuse(400, 'bad_input'); next.lead_days = body.lead_days; }
     if (body.hard !== undefined) next.hard = body.hard ? 1 : 0;
     if (body.active !== undefined) next.active = body.active ? 1 : 0;
+    // v1.7.8: the team, Pribadi and the people picked, as on a task. A key left out (a page from before v1.7.8) keeps
+    // what is stored; someone who left stays listed until removed (peopleList's keep) but is put on no new card.
+    if (body.members !== undefined) next.members = peopleList(body.members, next.members);
+    if (body.private !== undefined) { if (typeof body.private !== 'boolean') refuse(400, 'bad_input'); next.private = body.private ? 1 : 0; }
+    if (body.viewers !== undefined) next.viewers = peopleList(body.viewers, next.viewers);
+    next.members = next.members.filter((p) => p !== next.owner); // the PIC is not on their own team
+    next.viewers = next.private ? next.viewers.filter((p) => p !== next.owner && !next.members.includes(p)) : [];
     if (!next.schedule) refuse(400, 'bad_input'); // a new routine sent none
     // FY2: an active routine needs an owner who is there and active, whether or not this request names one.
     if (next.active === 1) { const ow = next.owner ? getPerson(next.owner) : null; if (!ow || !ow.active) refuse(400, 'need_owner'); }
@@ -1250,23 +1268,24 @@ export function createApp(opts) {
     if (next.active === 1 && !(r && r.active)) { next.requester = me.id; next.active_since = today(); } // FX3: back-fill floor
     else if (next.active === 1 && scheduleChanged) next.active_since = today();
     if (next.active === 0) next.active_since = null;
-    const shown = (x) => ({ title: x.title, type: x.type, note: x.note, owner: x.owner, schedule: x.schedule, lead_days: x.lead_days, hard: x.hard, active: x.active });
+    const shown = (x) => ({ title: x.title, type: x.type, note: x.note, owner: x.owner, schedule: x.schedule, lead_days: x.lead_days, hard: x.hard, active: x.active,
+      members: x.members, private: x.private, viewers: x.viewers });
     let rid = r && r.id;
     tx(() => {
       if (r) {
-        q('UPDATE routines SET title = ?, type = ?, note = ?, owner = ?, schedule = ?, lead_days = ?, hard = ?, active = ?, requester = ?, active_since = ? WHERE id = ?')
-          .run(next.title, next.type, next.note, next.owner, JSON.stringify(next.schedule), next.lead_days, next.hard, next.active, next.requester, next.active_since ?? null, r.id);
-        writeEvent(null, me.id, 'routine', { routine: r.id, before: shown({ ...r, schedule: JSON.parse(r.schedule) }), after: shown(next) });
+        q('UPDATE routines SET title = ?, type = ?, note = ?, owner = ?, schedule = ?, lead_days = ?, hard = ?, active = ?, requester = ?, active_since = ?, members = ?, private = ?, viewers = ? WHERE id = ?')
+          .run(next.title, next.type, next.note, next.owner, JSON.stringify(next.schedule), next.lead_days, next.hard, next.active, next.requester, next.active_since ?? null,
+            JSON.stringify(next.members), next.private, JSON.stringify(next.viewers), r.id);
+        writeEvent(null, me.id, 'routine', { routine: r.id, before: shown(routineOut(r)), after: shown(next) });
       } else {
-        rid = Number(q(`INSERT INTO routines(title, type, note, owner, schedule, lead_days, hard, active, requester, active_since)
-          VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING id`).run(next.title, next.type, next.note, next.owner, JSON.stringify(next.schedule), next.lead_days, next.hard,
-          next.active, next.requester, next.active_since ?? null).lastInsertRowid);
+        rid = Number(q(`INSERT INTO routines(title, type, note, owner, schedule, lead_days, hard, active, requester, active_since, members, private, viewers)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`).run(next.title, next.type, next.note, next.owner, JSON.stringify(next.schedule), next.lead_days, next.hard,
+          next.active, next.requester, next.active_since ?? null, JSON.stringify(next.members), next.private, JSON.stringify(next.viewers)).lastInsertRowid);
         writeEvent(null, me.id, 'routine_add', { routine: rid, after: shown(next) });
       }
     });
     const created = runRoutines();
-    const out = q('SELECT * FROM routines WHERE id = ?').get(rid);
-    send(ctx.res, r ? 200 : 201, { routine: { ...out, schedule: JSON.parse(out.schedule) }, created });
+    send(ctx.res, r ? 200 : 201, { routine: routineOut(q('SELECT * FROM routines WHERE id = ?').get(rid)), created });
   }
 
   async function personUpdate(ctx, id) {
