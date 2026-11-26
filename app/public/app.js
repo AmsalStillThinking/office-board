@@ -1595,16 +1595,19 @@
         // novalidate: a hidden Bulan box holding a bad number would block Simpan with no message; the server checks
         // every field, as it did for the old panel's button
         h('form', { id: 'routine-form', novalidate: true, onsubmit: function (ev) { ev.preventDefault(); save(); } },
-          h('label', { for: title.id, text: t('f_title') }), title,
-          h('label', { for: type.id, text: t('f_type') }), type,
-          h('label', { cls: 'check', for: hard.id }, hard, h('span', { text: t('lbl_hard') })),
-          h('label', { for: note.id, text: t('f_body') }), note,
-          h('label', { for: owner.id, text: t('r_owner') }), owner,
+          // v1.7.9 (the app owner: "same like the Task Form, but adjust it"): the short fields two by two as on Tugas
+          // baru, then the team, Catatan, and Pribadi with its people. The schedule pairs come last, so a change of
+          // Jenis jadwal moves only the last pair (Hari or Tanggal, Bulan, Dibuat).
+          h('div', { cls: 'grid2' },
+            h('div', {}, h('label', { for: title.id, text: t('f_title') }), title),
+            h('div', {}, h('label', { for: owner.id, text: t('r_owner') }), owner),
+            h('div', {}, h('label', { for: type.id, text: t('f_type') }), type),
+            h('div', {}, h('label', { cls: 'check', for: hard.id }, hard, h('span', { text: t('lbl_hard') }))),
+            h('div', {}, h('label', { for: kind.id, text: t('r_kind') }), kind),
+            weekdayBox, dayBox, monthBox, monthsBox,
+            h('div', {}, h('label', { for: lead.id, text: t('r_lead') }), lead)),
           members,
-          h('label', { for: kind.id, text: t('r_kind') }), kind,
-          weekdayBox, dayBox,
-          monthBox, monthsBox,
-          h('label', { for: lead.id, text: t('r_lead') }), lead,
+          h('label', { for: note.id, text: t('f_body') }), note,
           h('label', { cls: 'check', for: priv.id }, priv, h('span', { text: t('f_private') })),
           viewers,
           h('label', { cls: 'check', for: active.id }, active, h('span', { text: t('r_active') })),

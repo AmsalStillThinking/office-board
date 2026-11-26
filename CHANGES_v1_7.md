@@ -266,3 +266,20 @@ Rutin dialog (the pickers stop it reaching the page, but this dialog is a native
 Undo: `git revert` both commits and restart. The three columns stay (nothing is ever dropped) and are then ignored.
 The old code makes no cards for a weekly routine and its table shows it as a monthly one with no date, so change
 weekly routines to another kind first.
+
+# v1.7.9 (26 Nov 2026): the Rutin form is laid out as Tugas baru is
+
+The app owner asked on 26 Nov 2026 to "relayout the form, make it neat", then: "Make the layout same like the Task
+Form, but adjust it".
+
+- The Rutin dialog (Tambah rutin and Atur) is as wide as the task panel (560 px). On a screen 900 px or wider its
+  short fields pair up two by two, as on Tugas baru: Judul | Pemilik, Jenis | Tenggat hukum, Jenis jadwal | Hari (or
+  Tanggal), then Bulan | Dibuat for Tahunan and Triwulan (Dibuat alone for Mingguan and Bulanan). Below them, as on
+  Tugas baru: Ikut mengerjakan (tim), Catatan, Pribadi with Boleh melihat juga; then Aktif and Simpan.
+- The schedule pairs come last, so changing Jenis jadwal moves only the last pair. Within a pair the boxes line up
+  at the bottom, so a label that wraps or a tick beside a box does not push its neighbour out of line.
+- On a phone or a narrow window it is one column, in the same order. No field, text or request changed.
+
+**Checks:** `node --check` and the served files match. Not seen in a browser.
+
+Undo: `git revert` the commit (screen files only, no restart).

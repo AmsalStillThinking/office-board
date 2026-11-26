@@ -294,6 +294,11 @@ th { background: var(--bg); font-weight: 600; }
 #routines-table { min-width: 760px; }
 #routines-table td { vertical-align: middle; }
 #routine-dlg .dr-body > p { margin: 0 0 6px; }
+/* v1.7.9: as wide as the task panel, so the fields pair up as on Tugas baru; within a pair the boxes line up at the
+   bottom (a label that wraps to two lines, or a tick beside a box) */
+#routine-dlg { width: min(560px, calc(100% - 32px)); }
+#routine-form .grid2 { align-items: end; }
+#routine-form .grid2 label.check { margin-bottom: 0; }
 #routines-table .rt-title { font-weight: 600; }
 #routines-table .rt-note { font-size: 13px; }
 #routines-table .nowrap { white-space: nowrap; }
