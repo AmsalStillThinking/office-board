@@ -387,3 +387,26 @@ stacked rows do not change (they show the jenis under the title). Screen files o
 files fail the two order checks. Not seen on the real board.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.15 (27 Nov 2026): a Keterangan column in Papan Kantor
+
+The app owner asked for a new column, Keterangan, right of Tugas, showing "Sub-tugas dari Office Board" (their
+example), "Pribadi" or "Rutin". Daftar's columns now read Tugas | Keterangan | Jenis | PIC & Tim | Dari | Status | Urgensi |
+Tenggat. Keterangan shows, one per line: "Sub-tugas dari <the main task's title>", "Pribadi", "Rutin" (here it
+says Rutin, as the owner wrote; task cards elsewhere still say "Dari rutin") and "Tenggat hukum", which shared the
+line under the title with them (my call; the owner's list did not name it). The line under the title is gone on a
+wide screen. On a phone the stacked row shows them under the title as before ("Pajak · Tenggat hukum").
+
+- The table stays 946 px at its narrowest, so it still fits a 1280 px screen: cells have 8 px side padding instead
+  of 12, and the minimums are Tugas 160, Keterangan 90, Jenis 104, PIC & Tim 100, Dari 80, Status 165, Urgensi 122,
+  Tenggat 117. At 1280 px the Tugas column comes to about 175 px (it was 227), so more titles take two lines.
+- On today's board (13 open tasks, backup of 27 Nov) 5 have a Keterangan: 1 sub-task, 4 Pribadi.
+- Screen files only: `app.js`, `style.css`, `i18n.json` (new `th_note`, `note_routine`).
+
+**Checks:** the layout check 57/57 at 1280, 1366, 1265, 1024, 940 and 390 px, now also asserting that no cell's
+content spills out of its column and no word in Keterangan, PIC & Tim or Dari is split across lines; the row-click
+check 16/16 (a click on an empty Keterangan cell opens the task). Red controls: the v1.7.14 files, a planted 60 px
+Jenis column (spills) and a planted 90 px PIC & Tim column (splits a 9-letter name) each fail it. Not seen on the
+real board.
+
+Undo: `git revert` the commit (screen files only, no restart).

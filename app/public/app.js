@@ -866,7 +866,7 @@
     var from = (OFFICE.page - 1) * size, part = rows.slice(from, from + size);
     // v1.7.12: the columns in the owner's order; the phone stacks each row and hides this header (style.css)
     var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t('nav_office') },
-      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'f_type', 'lbl_people', 'n_from', 'lbl_status', 'lbl_urgency', 'lbl_due'].map(function (k) {
+      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from', 'lbl_status', 'lbl_urgency', 'lbl_due'].map(function (k) {
         return h('div', { role: 'columnheader', text: t(k) });
       })));
     part.forEach(function (c) { tbl.appendChild(rowItem(c)); });
@@ -908,8 +908,10 @@
   }
 
   function rowItem(c) {
-    var flags = [c.hard ? t('lbl_hard') : '', c.routine_key ? t('lbl_routine') : '', c.private ? t('lbl_private') : '',
-      c.parent ? tf('lbl_sub_of_title', { t: c.parent_title }) : ''].filter(Boolean); // the table shows no task numbers
+    // v1.7.15: these notes have their own column, Keterangan, right of Tugas (the owner's list: Sub-tugas dari ...,
+    // Pribadi, Rutin). Tenggat hukum, which shared the line under the title with them, moved there too.
+    var flags = [c.parent ? tf('lbl_sub_of_title', { t: c.parent_title }) : '', c.private ? t('lbl_private') : '',
+      c.routine_key ? t('note_routine') : '', c.hard ? t('lbl_hard') : ''].filter(Boolean); // the table shows no task numbers
     var jenis = t('type_' + c.type), from = personName(c.requester);
     var title = h('button', { type: 'button', cls: 'title', text: c.title });
     // v1.7.13: a click anywhere on the row opens the task. The title stays a button for the keyboard: its click bubbles
@@ -919,10 +921,12 @@
       title.focus();
       go('card', String(c.id));
     };
-    // the phone has no header row, so its stacked row says the jenis under the title, "Tenggat:" and "dari X" itself
+    // the phone has no header row: its stacked row says the jenis and the notes under the title, "Tenggat:" and
+    // "dari X" itself, and hides the Jenis and Keterangan cells
     return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status, onclick: open },
       h('div', { role: 'cell', cls: 'c-task' }, title,
-        h('span', { cls: 'sub' }, h('span', { cls: 'phone-only', text: jenis + (flags.length ? ' · ' : '') }), flags.join(' · '))),
+        h('span', { cls: 'sub' }, h('span', { cls: 'phone-only', text: [jenis].concat(flags).join(' · ') }))),
+      h('div', { role: 'cell', cls: 'c-note' }, flags.map(function (f) { return h('span', { text: f }); })), // one note a line
       h('div', { role: 'cell', cls: 'c-type', text: jenis }), // v1.7.14: Jenis before PIC & Tim (the owner's choice)
       h('div', { role: 'cell', cls: 'c-who', text: teamLabel(c) }), // names only, no avatar (the owner's choice)
       h('div', { role: 'cell', cls: 'c-from' }, h('span', { cls: 'wide-only', text: from }), h('span', { cls: 'phone-only', text: tf('from_req', { name: from }) })),

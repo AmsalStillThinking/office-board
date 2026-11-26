@@ -297,6 +297,8 @@
   "page_n": "Halaman {n}",
   "pages_label": "Halaman daftar tugas",
   "th_task": "Tugas",
+  "th_note": "Keterangan",
+  "note_routine": "Rutin",
   "lbl_urgency": "Urgensi",
   "hint_antri": "Sudah punya pemilik dan tenggat, belum dimulai",
   "hint_jalan": "Paling banyak {n} per orang",

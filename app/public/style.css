@@ -162,12 +162,14 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 
 .tlist-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .tlist-scroll { overflow-x: auto; }
-.tlist { min-width: 940px; } /* = the column minimums below: the list fits the 967 px box at 1280, a scrollbar too */
-/* Tugas | Jenis | PIC & Tim | Dari | Status | Urgensi | Tenggat. Status fits "Menunggu konfirmasi", Urgensi one badge */
-.tr { display: grid; grid-template-columns: minmax(200px, 2.2fr) 110px minmax(110px, 1fr) minmax(90px, .8fr) 175px minmax(130px, 1fr) 125px;
+.tlist { min-width: 946px; } /* = the column minimums + 8 px row padding: fits the 967 px box at 1280, a scrollbar too */
+/* Tugas | Keterangan | Jenis | PIC & Tim | Dari | Status | Urgensi | Tenggat. Status fits "Menunggu konfirmasi",
+   Urgensi one badge, Jenis "Administrasi", PIC & Tim "(nonaktif)"; the text columns wrap between words */
+.tr { display: grid; grid-template-columns: minmax(160px, 2.2fr) minmax(90px, 1.2fr) 104px minmax(100px, 1fr) minmax(80px, .8fr) 165px minmax(122px, 1fr) 117px;
+  padding: 0 4px;
   align-items: center; border-bottom: 1px solid var(--soft); }
 .phone-only { display: none; }
-.tr > div { padding: 8px 12px; min-width: 0; }
+.tr > div { padding: 8px; min-width: 0; }
 .tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted); }
 .tr:not(.th):hover { background: #f7f9fc; }
 .tr[data-id] { cursor: pointer; } /* v1.7.13: a click anywhere on the row opens the task */
@@ -176,6 +178,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .sub { display: block; font-size: 13px; color: var(--muted); }
 .c-urg { display: flex; flex-wrap: wrap; gap: 4px; }
 .c-who { font-weight: 600; overflow-wrap: break-word; }
+.c-note span { display: block; font-size: 14px; } /* Keterangan: one note a line */
 .pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-top: 1px solid var(--line); }
 .pager p { margin: 0 0 0 auto; font-size: 14px; } /* "Menampilkan" and the page buttons sit together at the right */
 .pg-btns { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -372,7 +375,7 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   .toolbar .fld select { flex: 1 1 auto; min-width: 0; }
   /* Papan Kantor Daftar: each task is one stacked box with no header row; the cells say "Tenggat:" and "dari X" */
   .tlist { min-width: 0; }
-  .tr.th, .tr > .c-type, .wide-only { display: none; }
+  .tr.th, .tr > .c-type, .tr > .c-note, .wide-only { display: none; }
   .phone-only { display: inline; }
   .tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px 12px; }
   .tr > div { padding: 0; }
