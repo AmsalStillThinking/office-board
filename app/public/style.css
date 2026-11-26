@@ -147,29 +147,26 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .inline-form { margin-top: 8px; padding: 10px; border: 1px dashed var(--line-2); border-radius: 10px; background: #fcfcfd; }
 
 /* ------------------------------------------------------------------ Papan Kantor */
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 8px; }
+/* v1.7.12: one row: search, quick filter, PIC & tim, Hapus filter, then the view switch at the right end */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.toolbar .seg { margin-left: auto; }
 .seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--tint); border-radius: 12px; }
 .seg button { min-height: 40px; padding: 6px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ink); font-size: 14px; }
 .seg button:hover { background: rgba(255, 255, 255, .6); }
 .seg button[aria-pressed=true] { background: #fff; box-shadow: 0 1px 2px rgba(17, 45, 78, .18); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: #fff; color: var(--ink); font-size: 14px; }
-.chip:hover { background: var(--soft); border-color: var(--accent); }
-.chip[aria-pressed=true] { background: var(--ink); border-color: var(--ink); color: #fff; }
-.chip .n { font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 999px; background: rgba(63, 114, 175, .16); }
-.chip[aria-pressed=true] .n { background: rgba(249, 247, 247, .22); }
-.fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
 .fld { position: relative; display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; font-size: 14px; color: var(--muted); }
 .fld select { width: auto; min-height: 40px; padding: 6px 10px; }
+.fld-search { flex: 1 1 160px; max-width: 360px; } /* it gives way first, so the row stays one row at 1280 */
 .fld-search .ic { position: absolute; left: 11px; top: 11px; color: var(--muted); pointer-events: none; }
-.fld-search input { min-height: 40px; width: 240px; padding-left: 36px; }
-#office-count { margin: 4px 0 10px; font-size: 14px; }
+.fld-search input { min-height: 40px; width: 100%; padding-left: 36px; }
 
 .tlist-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .tlist-scroll { overflow-x: auto; }
-.tlist { min-width: 920px; } /* = the column minimums below, so the list fits the 982 px box at 1280 */
-.tr { display: grid; grid-template-columns: minmax(220px, 2.4fr) 150px minmax(160px, 1.1fr) minmax(140px, 1fr) minmax(110px, .8fr) 140px;
+.tlist { min-width: 940px; } /* = the column minimums below: the list fits the 967 px box at 1280, a scrollbar too */
+/* Tugas | PIC & Tim | Jenis | Dari | Status | Urgensi | Tenggat. Status fits "Menunggu konfirmasi", Urgensi one badge */
+.tr { display: grid; grid-template-columns: minmax(200px, 2.2fr) minmax(110px, 1fr) 110px minmax(90px, .8fr) 175px minmax(130px, 1fr) 125px;
   align-items: center; border-bottom: 1px solid var(--soft); }
+.phone-only { display: none; }
 .tr > div { padding: 8px 12px; min-width: 0; }
 .tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted); }
 .tr:not(.th):hover { background: #f7f9fc; }
@@ -177,9 +174,9 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .tr .title:hover, .subs .title:hover, .link-btn:hover { color: var(--accent-dk); text-decoration: underline; background: none; }
 .sub { display: block; font-size: 13px; color: var(--muted); }
 .c-urg { display: flex; flex-wrap: wrap; gap: 4px; }
-.c-who { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.c-who { font-weight: 600; overflow-wrap: break-word; }
 .pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-top: 1px solid var(--line); }
-.pager p { margin: 0; font-size: 14px; }
+.pager p { margin: 0 0 0 auto; font-size: 14px; } /* "Menampilkan" and the page buttons sit together at the right */
 .pg-btns { display: flex; flex-wrap: wrap; gap: 4px; }
 .pg { min-width: 40px; min-height: 40px; padding: 0 12px; font-size: 14px; }
 .pg[aria-current=page], .pg[aria-current=page]:hover { background: var(--ink); border-color: var(--ink); color: #fff; }
@@ -370,9 +367,20 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   #nav #nav-menu { display: flex; }
   #view { padding: 14px 16px 110px; }
   .signin-card { margin-top: 12px; padding: 20px 18px 22px; }
-  .fields { margin-left: 0; width: 100%; }
-  .fld-search { flex: 1 1 100%; }
-  .fld-search input { width: 100%; }
+  .toolbar > .fld { flex: 1 1 100%; }
+  .toolbar .fld select { flex: 1 1 auto; min-width: 0; }
+  /* Papan Kantor Daftar: each task is one stacked box with no header row; the cells say "Tenggat:" and "dari X" */
+  .tlist { min-width: 0; }
+  .tr.th, .tr > .c-type, .wide-only { display: none; }
+  .phone-only { display: inline; }
+  .tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px 12px; }
+  .tr > div { padding: 0; }
+  .tr > .c-task, .tr > .c-due { flex: 1 1 100%; }
+  .tr .c-task .sub { margin-top: -6px; }
+  .c-urg { order: 1; } .c-st { order: 2; } .c-due { order: 3; font-size: 14px; color: var(--muted); } .c-who { order: 4; font-size: 14px; }
+  .c-from { order: 5; font-size: 14px; color: var(--muted); }
+  .c-due .sub { display: inline; font-size: 14px; }
+  .c-due .sub:not(:empty)::before { content: " · "; }
 }
 
 /* v1.6.1: sub-tasks in Tugas baru. A row: the title on its own line, then PIC, date and Hapus, wrapping on a phone */

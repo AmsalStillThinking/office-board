@@ -319,3 +319,40 @@ run. Not run (the owner's choice, heavy for this PC): the other test files and `
 files were read for set-ups that relied on the old rule: only TM3 did. Not seen in a browser.
 
 Undo: `git revert` both commits and restart. Tasks already waiting stay waiting; their Pemberi can still press Terima.
+
+# v1.7.12 (27 Nov 2026): a simpler Papan Kantor
+
+The app owner asked for a simpler Papan Kantor and, on the design canvas, chose most of it in comments:
+the columns in the order Tugas | PIC & Tim | Jenis | Dari | Status | Urgensi | Tenggat, with names and no avatar;
+the quick filters as one dropdown; the view switch on the search row; the count line dropped; and a rows-per-page
+choice of 10, 25 or 50. They then said "Apply it", which I took as yes to the canvas's open questions as drawn
+(drop Milik saya, drop the Jenis dropdown, keep Kanban and Timeline, the new wording, hide the PIC & tim label).
+
+- **One row of controls** above all three views: search, the quick filter, PIC & tim, Hapus filter (only while a
+  filter is on), then Daftar | Kanban | Timeline at the right end. The title stands alone. The search box gives way
+  first, so in a 1280 px wide page (measured with no page scrollbar) the row stays one row, Hapus filter and a
+  20-letter name included; narrower screens wrap it.
+- **Quick filter** is one dropdown: Semua, Perlu perhatian, Menunggu Anda, Tenggat hukum, each with its count over
+  every open task. **Milik saya is gone**: PIC & tim set to yourself gives the same list (both use `onTeam`).
+- **No Jenis dropdown**: search also finds the jenis word ("pajak"); its hint reads "Judul, nomor, nama, atau
+  jenis". The labels "Saring cepat" and "PIC & Tim" are for screen readers only; the dropdowns name themselves.
+- **Daftar**: the seven columns above. The line under a title keeps only Tenggat hukum, Dari rutin, Pribadi or
+  Sub-tugas. The line "{n} dari {m} tugas, yang paling mendesak di atas" is gone; "Menampilkan a-b dari n tugas"
+  and the page buttons show only when there is a second page.
+- **Baris per halaman** 10 / 25 / 50 under the table, always shown, starting at 10. A change goes back to page 1.
+  It is kept like the filters until the page is reloaded (Hapus filter leaves it, signing out resets it). Daftar only.
+- **Phone** (under 900 px): each task is one stacked box (title, jenis and flags, urgency and status, "Tenggat:"
+  date and due text, team and "dari X"); the header row is not drawn. Before, the table kept its width and
+  scrolled sideways.
+- Kanban, Timeline, the order (most urgent first) and who sees which task are unchanged. Screen files only:
+  `app.js`, `style.css`, `i18n.json` (new `page_size`; `q_mine`, `all_types`, `count_line` removed;
+  `lbl_people` reads "PIC & Tim").
+
+**Checks:** a preview built from the real screen files with invented tasks (no server), one headless Chrome:
+43/43, at 1280, 1366, 1265 (a 1280 window with a scrollbar), 1024, 940 and 390 px, and with 62 tasks for 10/25/50.
+Red controls: the v1.7.11 files fail it, and so does each of four planted bugs (Hapus filter resets the page size,
+a new page size keeps the page, search ignores the jenis, the phone list keeps its width). Not run (heavy for this
+PC): the server tests (no server change) and `browser_check.py`, whose Papan Kantor part still taps the old chips.
+Not seen on the real board.
+
+Undo: `git revert` the commit (screen files only, no restart).

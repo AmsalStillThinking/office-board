@@ -13,9 +13,9 @@
   // PANEL_BACK: the panel was opened from a page in this tab, so closing it is a history.back() (no extra entry).
   // PAGE counts the pages drawn into #view; pageGet() drops an answer meant for a page the person has already left.
   var LAST = null, RENDERED = '', OPENER = null, OPENER_ID = '', PANEL_BACK = false, FOCUS_AFTER = '', layer = null, PAGE = 0;
-  var OFFICE_START = { q: 'all', type: '', owner: '', text: '', page: 1 };
+  var OFFICE_START = { q: 'all', owner: '', text: '', page: 1, size: 10 };
   var OFFICE = Object.assign({}, OFFICE_START); // Papan Kantor filters survive opening and closing a task
-  var PAGE_SIZE = 10;
+  var PAGE_SIZES = [10, 25, 50]; // v1.7.12: "Baris per halaman", kept like the filters until the page is reloaded
   var AVATAR_BG = ['#112D4E', '#2E5A88', '#3F72AF', '#4D6A92', '#1D4E7A', '#365F91'];
   var ANN_NEW = 0; // v1.7: posts by others since my last visit to Pengumuman (the count beside it in the menu)
 
@@ -225,7 +225,6 @@
   function quickOk(c, q) {
     if (q === 'att') return c.age === 'layu' || c.age === 'busuk' || !!c.macet;
     if (q === 'wait') return !!c.waitingYou;
-    if (q === 'mine') return !!ME && onTeam(c, ME.id);
     if (q === 'hard') return !!c.hard;
     return true;
   }
@@ -803,11 +802,14 @@
         seg.appendChild(h('button', { type: 'button', id: 'view-' + v[0], 'aria-pressed': mode === v[0] ? 'true' : 'false',
           onclick: function () { FOCUS_AFTER = 'view-' + v[0]; go('office', v[0] === 'list' ? '' : v[0]); } }, icon(v[0]), h('span', { text: t(v[1]) })));
       });
-      var chips = h('div', { cls: 'chips', role: 'group', 'aria-label': t('q_label') });
-      var typeSel = h('select', { id: 'f-type' }, h('option', { value: '', text: t('all_types') }));
-      TYPES.forEach(function (x) { typeSel.appendChild(h('option', { value: x, text: t('type_' + x) })); });
-      typeSel.value = OFFICE.type;
-      OFFICE.type = typeSel.value; // a value no longer offered falls back to "all", and so does the filter
+      // v1.7.12: one row of controls: search, the quick filter (one dropdown, each choice with its count over every open
+      // task), PIC & tim, Hapus filter, and the view switch at the right end. No Jenis dropdown: search finds the jenis.
+      var quickSel = h('select', { id: 'f-quick' });
+      [['all', 'q_all'], ['att', 'q_att'], ['wait', 'exc_waiting'], ['hard', 'lbl_hard']].forEach(function (q) {
+        var n = all.filter(function (c) { return quickOk(c, q[0]); }).length;
+        quickSel.appendChild(h('option', { value: q[0], text: t(q[1]) + ' (' + n + ')' }));
+      });
+      quickSel.value = OFFICE.q;
       // FX13: people who left keep their open tasks findable
       var ownerSel = h('select', { id: 'f-owner' }, h('option', { value: '', text: t('all_people') }));
       PEOPLE.filter(function (p) { return p.active || all.some(function (c) { return c.owner === p.id; }); }).forEach(function (p) {
@@ -817,44 +819,32 @@
       OFFICE.owner = ownerSel.value; // e.g. a person who left and no longer owns an open task
       var search = h('input', { id: 'f-q', type: 'search', maxlength: '100', placeholder: t('search_ph') });
       search.value = OFFICE.text;
-      var count = h('p', { id: 'office-count', cls: 'muted' });
       var body = h('div', { id: 'office-body' });
       var clearBtn = h('button', { type: 'button', id: 'f-clear', cls: 'secondary', text: t('clear_filters'), onclick: function () {
-        OFFICE = Object.assign({}, OFFICE_START);
-        typeSel.value = ''; ownerSel.value = ''; search.value = '';
+        OFFICE = Object.assign({}, OFFICE_START, { size: OFFICE.size }); // the page size is not a filter
+        quickSel.value = 'all'; ownerSel.value = ''; search.value = '';
         paint();
         search.focus();
       } });
       var refilter = function () { OFFICE.page = 1; paint(); }; // any filter change starts again at page 1
-      typeSel.addEventListener('change', function () { OFFICE.type = typeSel.value; refilter(); });
+      quickSel.addEventListener('change', function () { OFFICE.q = quickSel.value; refilter(); });
       ownerSel.addEventListener('change', function () { OFFICE.owner = ownerSel.value; refilter(); });
       search.addEventListener('input', function () { OFFICE.text = search.value; refilter(); });
       view.appendChild(h('section', { id: 'office-view', 'data-view': mode },
-        h('div', { cls: 'toolbar' }, seg, chips,
-          h('div', { cls: 'fields' },
-            h('label', { cls: 'fld', for: 'f-type' }, h('span', { text: t('f_type') }), typeSel),
-            h('label', { cls: 'fld', for: 'f-owner' }, h('span', { text: t('lbl_people') }), ownerSel),
-            h('label', { cls: 'fld fld-search', for: 'f-q' }, h('span', { cls: 'vh', text: t('f_search') }), icon('search'), search),
-            clearBtn)),
-        count, body, mode === 'list' ? null : legend())); // the list's Urgensi column already names each colour
+        h('div', { cls: 'toolbar' },
+          h('label', { cls: 'fld fld-search', for: 'f-q' }, h('span', { cls: 'vh', text: t('f_search') }), icon('search'), search),
+          h('label', { cls: 'fld', for: 'f-quick' }, h('span', { cls: 'vh', text: t('q_label') }), quickSel),
+          h('label', { cls: 'fld', for: 'f-owner' }, h('span', { cls: 'vh', text: t('lbl_people') }), ownerSel),
+          clearBtn, seg),
+        body, mode === 'list' ? null : legend())); // the list's Urgensi column already names each colour
 
       function paint() {
-        clear(chips);
-        [['all', 'q_all'], ['att', 'q_att'], ['wait', 'exc_waiting'], ['mine', 'q_mine'], ['hard', 'lbl_hard']].forEach(function (q) {
-          var n = all.filter(function (c) { return quickOk(c, q[0]); }).length;
-          chips.appendChild(h('button', { type: 'button', cls: 'chip', 'data-q': q[0], 'aria-pressed': OFFICE.q === q[0] ? 'true' : 'false', onclick: function () {
-            OFFICE.q = q[0];
-            refilter();
-            chips.querySelector('[data-q="' + q[0] + '"]').focus();
-          } }, h('span', { text: t(q[1]) }), h('span', { cls: 'n', text: String(n) })));
-        });
         var text = OFFICE.text.trim().toLowerCase();
         var rows = all.filter(function (c) {
-          return quickOk(c, OFFICE.q) && (!OFFICE.type || c.type === OFFICE.type) && (!OFFICE.owner || onTeam(c, OFFICE.owner)) &&
-            (!text || (c.title + ' #' + c.id + ' ' + teamLabel(c) + ' ' + personName(c.requester)).toLowerCase().indexOf(text) >= 0);
+          return quickOk(c, OFFICE.q) && (!OFFICE.owner || onTeam(c, OFFICE.owner)) &&
+            (!text || (c.title + ' #' + c.id + ' ' + teamLabel(c) + ' ' + personName(c.requester) + ' ' + t('type_' + c.type)).toLowerCase().indexOf(text) >= 0);
         }).sort(byUrgency);
-        clearBtn.hidden = !(OFFICE.q !== 'all' || OFFICE.type || OFFICE.owner || text);
-        count.textContent = tf('count_line', { n: rows.length, m: all.length });
+        clearBtn.hidden = !(OFFICE.q !== 'all' || OFFICE.owner || text);
         clear(body);
         body.appendChild(mode === 'kanban' ? kanbanView(rows) : mode === 'timeline' ? timelineView(rows) : listView(rows, paint, body));
       }
@@ -868,18 +858,31 @@
   }
 
   function listView(rows, repaint, body) {
-    var pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    var size = OFFICE.size, pages = Math.max(1, Math.ceil(rows.length / size));
     OFFICE.page = Math.min(Math.max(1, OFFICE.page), pages); // a stale page number (the list shrank) is clamped
-    var from = (OFFICE.page - 1) * PAGE_SIZE, part = rows.slice(from, from + PAGE_SIZE);
+    var from = (OFFICE.page - 1) * size, part = rows.slice(from, from + size);
+    // v1.7.12: the columns in the owner's order; the phone stacks each row and hides this header (style.css)
     var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t('nav_office') },
-      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'lbl_status', 'lbl_urgency', 'lbl_people', 'lbl_requester', 'lbl_due'].map(function (k) {
+      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'lbl_people', 'f_type', 'n_from', 'lbl_status', 'lbl_urgency', 'lbl_due'].map(function (k) {
         return h('div', { role: 'columnheader', text: t(k) });
       })));
     part.forEach(function (c) { tbl.appendChild(rowItem(c)); });
     var wrap = h('div', { cls: 'tlist-wrap' }, h('div', { cls: 'tlist-scroll' }, tbl));
     if (!rows.length) wrap.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
-    var pager = h('div', { cls: 'pager' }, h('p', { id: 'pg-info', cls: 'muted', text: rows.length ? tf('page_info', { a: from + 1, b: from + part.length, n: rows.length }) : '' }));
+    // "Baris per halaman" is always there; "Menampilkan" and the page buttons only once there is a second page
+    var sizeSel = h('select', { id: 'f-size' });
+    PAGE_SIZES.forEach(function (n) { sizeSel.appendChild(h('option', { value: String(n), text: String(n) })); });
+    sizeSel.value = String(size);
+    sizeSel.addEventListener('change', function () {
+      OFFICE.size = +sizeSel.value;
+      OFFICE.page = 1;
+      repaint();
+      var s = body.querySelector('#f-size');
+      if (s) s.focus(); // the pager was drawn again
+    });
+    var pager = h('div', { cls: 'pager' }, h('label', { cls: 'fld', for: 'f-size' }, h('span', { text: t('page_size') }), sizeSel));
     if (pages > 1) {
+      pager.appendChild(h('p', { id: 'pg-info', cls: 'muted', text: tf('page_info', { a: from + 1, b: from + part.length, n: rows.length }) }));
       var to = function (p) {
         OFFICE.page = p;
         repaint();
@@ -904,16 +907,20 @@
   function rowItem(c) {
     var flags = [c.hard ? t('lbl_hard') : '', c.routine_key ? t('lbl_routine') : '', c.private ? t('lbl_private') : '',
       c.parent ? tf('lbl_sub_of_title', { t: c.parent_title }) : ''].filter(Boolean); // the table shows no task numbers
+    var jenis = t('type_' + c.type), from = personName(c.requester);
+    // the phone has no header row, so its stacked row says the jenis under the title, "Tenggat:" and "dari X" itself
     return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status },
       h('div', { role: 'cell', cls: 'c-task' },
         h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } }),
-        h('span', { cls: 'sub', text: [t('type_' + c.type)].concat(flags).join(' · ') })),
-      h('div', { role: 'cell' }, statusBadge(c.status)),
+        h('span', { cls: 'sub' }, h('span', { cls: 'phone-only', text: jenis + (flags.length ? ' · ' : '') }), flags.join(' · '))),
+      h('div', { role: 'cell', cls: 'c-who', text: teamLabel(c) }), // names only, no avatar (the owner's choice)
+      h('div', { role: 'cell', cls: 'c-type', text: jenis }),
+      h('div', { role: 'cell', cls: 'c-from' }, h('span', { cls: 'wide-only', text: from }), h('span', { cls: 'phone-only', text: tf('from_req', { name: from }) })),
+      h('div', { role: 'cell', cls: 'c-st' }, statusBadge(c.status)),
       h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null),
-      h('div', { role: 'cell', cls: 'c-who' }, avatar(c.owner, 'sm'), h('span', { text: teamLabel(c) })),
-      h('div', { role: 'cell', text: personName(c.requester) }),
-      h('div', { role: 'cell' }, h('span', { text: fmtDate(c.due) }), h('span', { cls: 'sub', text: dueText(c) })));
+      h('div', { role: 'cell', cls: 'c-due' }, h('span', { cls: 'phone-only', text: t('lbl_due') + ': ' }), h('span', { text: fmtDate(c.due) }),
+        h('span', { cls: 'sub', text: dueText(c) })));
   }
 
   function kanbanView(rows) {
