@@ -123,8 +123,11 @@ All routine templates start INACTIVE. A director opens Lainnya -> Rutin, sets th
 saves. Cards are created `lead_days` (calendar days) before each due date, checked at start and every hour. If the
 server was off for a whole creation window, the missed card is still created when it comes back (marked as
 back-filled), but never for a due date before the day the routine was switched on or its date was last changed.
-A monthly routine reaches back one month. A quarterly or yearly routine reaches back over every listed date of last
-year and this year, so after a long shutdown several missed reports can appear at once.
+A weekly routine (since v1.7.8: one day, Senin to Sabtu) reaches back two weeks and never opens more than the next
+week's card, however long its lead. A monthly routine reaches back one month. A quarterly or yearly routine reaches
+back over every listed date of last year and this year, so after a long shutdown several missed reports can appear
+at once. Since v1.7.8 a routine also has a team ("Ikut mengerjakan"), and may be Pribadi with people picked to see
+it; each card it makes gets them (people who have left are left out), and a change applies to the next card only.
 
 Changing the date of a running routine never re-creates months already served. One case to know: if the date is
 changed while this period's card already exists and the new date is still ahead, a second card for the same period

@@ -1472,9 +1472,10 @@
 
   // v1.7.2: the routines are one table (Rutin | Pemilik | Jadwal | Dibuat | Status | Pengaturan), as the people page is;
   // a row's Atur opens routineDialog, which holds the fields the old panel had.
-  function routineType(rt) { return t('type_' + rt.type) + (rt.hard ? ' · ' + t('lbl_hard') : ''); }
+  function routineType(rt) { return t('type_' + rt.type) + (rt.hard ? ' · ' + t('lbl_hard') : '') + (rt['private'] ? ' · ' + t('lbl_private') : ''); }
   function scheduleText(s) {
     var two = function (n) { return (n < 10 ? '0' : '') + n; };
+    if (s.kind === 'weekly') return tf('r_sum_weekly', { d: t('wd_' + s.weekday) }); // v1.7.8
     if (s.kind === 'yearly') return tf('r_sum_yearly', { d: two(s.day) + '/' + two(s.month) });
     if (s.kind === 'quarterly') return tf('r_sum_quarterly', { d: s.day, m: (s.months || []).join(', ') });
     return tf('r_sum_monthly', { d: s.day });
@@ -1488,6 +1489,7 @@
         var on = rt.active === 1;
         tb.appendChild(h('tr', { 'data-routine': String(rt.id) },
           h('td', {}, h('div', { cls: 'rt-title', text: rt.title }), h('div', { cls: 'muted', text: routineType(rt) }),
+            rt.members && rt.members.length ? h('div', { cls: 'muted rt-team', text: t('lbl_team') + ': ' + namesOf(rt.members) }) : null,
             rt.note ? h('div', { cls: 'muted rt-note', text: rt.note }) : null),
           h('td', { cls: 'nowrap' }, rt.owner ? personName(rt.owner) : h('span', { cls: 'muted', text: t('r_nobody') })),
           h('td', { text: scheduleText(rt.schedule) }),
@@ -1519,7 +1521,8 @@
   function routineDialog(rt, reload, rmsg) {
     var isNew = !rt;
     var openerId = isNew ? 'rt-add-open' : 'rt-open-' + rt.id;
-    rt = rt || { title: '', type: 'umum', hard: 0, note: '', owner: null, schedule: { kind: 'monthly', day: '' }, lead_days: 5, active: 0 };
+    rt = rt || { title: '', type: 'umum', hard: 0, note: '', owner: null, schedule: { kind: 'monthly', day: '' }, lead_days: 5, active: 0,
+      members: [], 'private': 0, viewers: [] };
     var msg = h('div', { cls: 'msg' });
     var title = h('input', { id: 'rt-title', type: 'text', maxlength: '200', autocomplete: 'off', value: rt.title });
     var type = h('select', { id: 'rt-type' });
@@ -1530,25 +1533,49 @@
     var owner = peopleSelect('rt-owner', null, true);
     owner.options[0].textContent = t('r_nobody');
     owner.value = rt.owner || '';
+    // v1.7.8: the team and the people picked to see its cards, as on Tugas baru. The PIC is not offered for the team;
+    // the PIC and the directors (they always see it) are not offered to pick. A card already made keeps its own.
+    var members = peopleChecks('rt-members', 'f_members', rt.members || []);
+    members.appendChild(h('p', { cls: 'muted fhelp', text: t('f_members_help') }));
+    var priv = h('input', { id: 'rt-private', type: 'checkbox', checked: rt['private'] === 1 });
+    var viewers = peopleChecks('rt-viewers', 'f_viewers', rt.viewers || []);
+    viewers.appendChild(h('p', { cls: 'muted fhelp', text: t('f_viewers_help') }));
+    var directors = PEOPLE.filter(function (p) { return p.role === 'direktur'; }).map(function (p) { return p.id; });
+    var hideOwner = function () { members.hide([owner.value]); viewers.hide(directors.concat([owner.value])); };
+    owner.addEventListener('change', hideOwner);
+    hideOwner();
+    var showViewers = function () { viewers.hidden = !priv.checked; };
+    priv.addEventListener('change', showViewers);
+    showViewers();
     var kind = h('select', { id: 'rt-kind' });
-    ['monthly', 'quarterly', 'yearly'].forEach(function (k) { kind.appendChild(h('option', { value: k, text: t('r_' + k) })); });
+    ['weekly', 'monthly', 'quarterly', 'yearly'].forEach(function (k) { kind.appendChild(h('option', { value: k, text: t('r_' + k) })); });
     kind.value = rt.schedule.kind;
-    var day = h('input', { id: 'rt-day', type: 'number', min: '1', max: '31', step: '1', value: String(rt.schedule.day) });
+    var weekday = h('select', { id: 'rt-weekday' }); // v1.7.8: Mingguan, Senin to Sabtu (the working days)
+    [1, 2, 3, 4, 5, 6].forEach(function (n) { weekday.appendChild(h('option', { value: String(n), text: t('wd_' + n) })); });
+    weekday.value = String(rt.schedule.weekday || 1);
+    var day = h('input', { id: 'rt-day', type: 'number', min: '1', max: '31', step: '1', value: String(rt.schedule.day || '') });
     var month = h('input', { id: 'rt-month', type: 'number', min: '1', max: '12', step: '1', value: String(rt.schedule.month || 1) });
     var months = h('input', { id: 'rt-months', type: 'text', value: (rt.schedule.months || [1, 4, 7, 10]).join(',') });
     var lead = h('input', { id: 'rt-lead', type: 'number', min: '0', max: '365', step: '1', value: String(rt.lead_days) });
     var active = h('input', { id: 'rt-active', type: 'checkbox', checked: rt.active === 1 });
+    var weekdayBox = h('div', { cls: 'rt-weekday' }, h('label', { for: weekday.id, text: t('r_weekday') }), weekday);
+    var dayBox = h('div', { cls: 'rt-day' }, h('label', { for: day.id, text: t('r_day') }), day);
     var monthBox = h('div', { cls: 'rt-month' }, h('label', { for: month.id, text: t('r_month') }), month);
     var monthsBox = h('div', { cls: 'rt-months' }, h('label', { for: months.id, text: t('r_months') }), months);
-    var showKind = function () { monthBox.hidden = kind.value !== 'yearly'; monthsBox.hidden = kind.value !== 'quarterly'; };
+    var showKind = function () {
+      weekdayBox.hidden = kind.value !== 'weekly'; dayBox.hidden = kind.value === 'weekly';
+      monthBox.hidden = kind.value !== 'yearly'; monthsBox.hidden = kind.value !== 'quarterly';
+    };
     kind.addEventListener('change', showKind);
     showKind();
     var save = function () {
-      var sched = { kind: kind.value, day: parseInt(day.value, 10) };
+      // a weekly schedule names a weekday and no date: the server keeps the object as sent and compares it field by field
+      var sched = kind.value === 'weekly' ? { kind: 'weekly', weekday: parseInt(weekday.value, 10) } : { kind: kind.value, day: parseInt(day.value, 10) };
       if (kind.value === 'yearly') sched.month = parseInt(month.value, 10);
       if (kind.value === 'quarterly') sched.months = months.value.split(',').map(function (x) { return parseInt(x, 10); });
       api('POST', isNew ? '/api/routines' : '/api/routines/' + rt.id, { title: title.value, type: type.value, hard: hard.checked, note: note.value,
-        owner: owner.value || null, schedule: sched, lead_days: parseInt(lead.value, 10), active: active.checked }).then(function (x) {
+        owner: owner.value || null, schedule: sched, lead_days: parseInt(lead.value, 10), active: active.checked,
+        members: members.picked(), 'private': priv.checked, viewers: priv.checked ? viewers.picked() : [] }).then(function (x) {
         var open = dlg.open, at = open ? msg : rmsg;
         if (!x.ok) return showErr(at, x);
         if (isNew) { if (open) dlg.close(); showOk(rmsg, tf('r_added', { t: x.data.routine.title })); }
@@ -1573,10 +1600,13 @@
           h('label', { cls: 'check', for: hard.id }, hard, h('span', { text: t('lbl_hard') })),
           h('label', { for: note.id, text: t('f_body') }), note,
           h('label', { for: owner.id, text: t('r_owner') }), owner,
+          members,
           h('label', { for: kind.id, text: t('r_kind') }), kind,
-          h('label', { for: day.id, text: t('r_day') }), day,
+          weekdayBox, dayBox,
           monthBox, monthsBox,
           h('label', { for: lead.id, text: t('r_lead') }), lead,
+          h('label', { cls: 'check', for: priv.id }, priv, h('span', { text: t('f_private') })),
+          viewers,
           h('label', { cls: 'check', for: active.id }, active, h('span', { text: t('r_active') })),
           h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'rt-save', text: t('btn_save') })),
           msg)));

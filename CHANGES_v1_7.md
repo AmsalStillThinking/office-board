@@ -229,3 +229,40 @@ still change it and the PIC may not. Not run (the owner's choice, heavy for this
 mutants, `browser_check.py` and a browser look at the form.
 
 Undo: `git revert` the commit and restart. Private proposals already saved stay private; the Pemberi can open them up.
+
+# v1.7.8 (26 Nov 2026): weekly routines, and a routine's team and Pribadi
+
+The app owner asked on 26 Nov 2026: "Panel 'Rutin': Jenis Jadwal perlu ditambahkan [mingguan] lalu bisa pilih
+[hari]. Mirip seperti tugas biasa, Rutin perlu ada 'ikut mengerjakan', lalu click 'pribadi' dan select viewers."
+
+- **Mingguan:** Jenis jadwal has Mingguan (first in the list). It shows a "Hari" choice, Senin to Sabtu (the office's
+  working days; Minggu is not offered), in place of Tanggal. Stored as `{kind: 'weekly', weekday: 1-6}`; the table
+  shows "Mingguan · Jumat". A card is made `lead_days` before the day, as for the other kinds. Its candidates are the
+  next one and the two weeks before it, so a lead longer than a week still opens only the next card, and after the
+  server was off the missed weeks (back to two) are made up, never before the day it was switched on or changed.
+  Changing the day of a running routine counts as a date change (FY1): no day before the change is made.
+- **Team and Pribadi:** the Rutin dialog has "Ikut mengerjakan (tim)" under Pemilik, and "Pribadi" with "Boleh
+  melihat juga" before Aktif, the same pickers as Tugas baru. The PIC is not offered for the team; the PIC and the
+  directors are not offered to pick. The table shows "Tim: ..." and "Pribadi" under the routine's name.
+- **Cards:** each card a routine makes gets its team and, if Pribadi, its picked people. They are filtered again at
+  that moment: the PIC, the card's Pemberi (the director who switched the routine on), a person listed twice and a
+  person who has left are not stored. A change to the routine applies to the cards it makes next; cards already made
+  keep their own (change those on the card, as before). A private routine's cards are off Papan Kantor for the people
+  not picked, and off a keeper's Friday list, like every private task.
+- **Server:** `routines` gains `members` and `viewers` (people ids as JSON text, as `schedule` is) and `private`,
+  added on start. `POST /api/routines` and `/api/routines/<id>` take them; a key left out keeps what is stored (a page
+  from before v1.7.8 changes nothing), a person must be active to be added (`bad_people`), `private` must be true or
+  false. Pribadi off clears the picked people. The routine log records the three before and after.
+
+**Checks:** `rutin.test.mjs` 7/7; the three new tests failed on the old code first. RT5: Friday with lead 5 gives the
+20 Nov card on 18 Nov, Tuesday gives none, lead 30 gives one card, the missed Friday is made up two weeks later, and
+moving to Monday makes neither 23 nor 30 Nov; five bad weekly schedules are refused. RT6: the team and picked people
+reach the card, an unpicked person gets 404, an update without the keys changes nothing, and a change reaches only the
+next card. RT7: a stored row listing the PIC, the Pemberi, an overlap and a person who left still makes its card with
+the right people. Not run (the owner's choice, heavy for this PC): the other test files, the mutants,
+`browser_check.py` and a browser look at the dialog. Not seen: whether Escape in an open name list closes the whole
+Rutin dialog (the pickers stop it reaching the page, but this dialog is a native one).
+
+Undo: `git revert` both commits and restart. The three columns stay (nothing is ever dropped) and are then ignored.
+The old code makes no cards for a weekly routine and its table shows it as a monthly one with no date, so change
+weekly routines to another kind first.

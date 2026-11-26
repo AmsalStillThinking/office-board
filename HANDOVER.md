@@ -155,7 +155,9 @@ changing what they say:
    adding their own task picks them once, when adding it); a sub-task also by its
    parent's owner, team and requester. The directors still see every private card.
 10. Routine templates start switched off; a routine can be switched on only with an active owner; a person who owns
-    a running routine cannot be switched off until the routine has another owner.
+    a running routine cannot be switched off until the routine has another owner. Since v1.7.8 (26 Nov 2026, the
+    app owner) a routine can be weekly (one day, Senin to Sabtu) and has a team and Pribadi with picked people, as a
+    task does; its cards get them from the routine when they are made.
 11. The card history is append-only.
 
 ## 6. How to change something safely
