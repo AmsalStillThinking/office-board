@@ -128,7 +128,7 @@ test('PB4 a task for another Pemberi holds only what is the Penerima\'s to say; 
   for (const [fields, code] of [
     [{ requester: 'NOPE' }, 'need_requester'], [{ requester: 42 }, 'need_requester'], [{ requester: GITA }, 'need_requester'],
     [{ owner: DEWI }, 'propose_own'], [{ owner: FAJAR }, 'propose_own'],
-    [{ members: [FAJAR] }, 'propose_plain'], [{ members: [DEWI] }, 'propose_plain'], // the Pemberi on the team would close it with no review (R4)
+    [{ members: [FAJAR] }, 'propose_plain'], [{ members: [DEWI] }, 'propose_plain'], // the team is the Pemberi's choice (v1.6.3)
     [{ subtasks: [{ title: 'Langkah 1', owner: EKO, due: '2026-11-24' }] }, 'propose_plain'], [{ parent }, 'propose_plain'],
   ]) refusal(await send(fields), 400, code, JSON.stringify(fields));
   assert.deepEqual([a.cardCount(), a.eventCount()], [cards, events], 'nothing written');

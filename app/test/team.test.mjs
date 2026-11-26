@@ -18,6 +18,7 @@ async function signedIn(who = [D1, D2, DEWI, EKO, FAJAR, GITA]) {
   a.members = (id, kind = 'member') => a.db.prepare('SELECT person FROM card_people WHERE card = ? AND kind = ? ORDER BY person').all(id, kind).map((r) => r.person);
   a.peopleRows = () => JSON.stringify(a.db.prepare('SELECT * FROM card_people ORDER BY card, person').all());
   a.cardCount = () => a.db.prepare('SELECT COUNT(*) AS n FROM cards').get().n;
+  a.events = (id) => a.db.prepare('SELECT kind FROM events WHERE card = ? ORDER BY id').all(id);
   a.detail = (w, id) => a.req(w, 'GET', `/api/cards/${id}`);
   a.office = async (w) => { const r = await a.req(w, 'GET', '/api/cards?view=office'); assert.equal(r.status, 200, r.text); return r.json.cards; };
   a.proofAndSend = async (w, id) => {
@@ -85,15 +86,57 @@ test('TM2 anyone on the team works the task; one proof closes it for all; nobody
   assert.equal(a.card(id).self_closed, 0);
 });
 
-test('TM3 a requester on the team closes with the proof (R4 self-close)', T, async () => {
+// v1.7.11 (the app owner, 26 Nov 2026, after card 16 closed on a team member's proof): a requester on the team closes
+// the task with the proof only when they send it themselves; anyone else's proof waits for the requester's Terima.
+test('TM3 a requester on the team closes with their own proof; someone else\'s proof waits for them (R4)', T, async () => {
   const a = await signedIn();
-  const id = await a.create(DEWI, { title: 'Saya ikut', owner: EKO, members: [DEWI] });
+  const own = await a.create(DEWI, { title: 'Saya kirim', owner: EKO, members: [DEWI] });
+  const theirs = await a.create(DEWI, { title: 'PIC kirim', owner: EKO, members: [DEWI] });
   const other = await a.create(DEWI, { title: 'Saya tidak ikut', owner: EKO });
-  for (const c of [id, other]) assert.equal((await a.act(EKO, c, 'start')).status, 200);
+  const pic = await a.create(DEWI, { title: 'Saya PIC', owner: DEWI, members: [GITA] }); // card 16's shape
+  for (const c of [own, theirs, other]) assert.equal((await a.act(EKO, c, 'start')).status, 200);
+  assert.equal((await a.act(GITA, pic, 'start')).status, 200);
+  assert.equal((await a.proofAndSend(DEWI, own)).status, 200);
+  assert.deepEqual([a.card(own).status, a.card(own).self_closed], ['selesai', 1], 'the requester sent it: closed (self_close)');
+  assert.equal(a.events(own).at(-1).kind, 'self_close');
+  for (const [c, who] of [[theirs, EKO], [other, EKO], [pic, GITA]]) assert.equal((await a.proofAndSend(who, c)).status, 200);
+  assert.deepEqual([theirs, other, pic].map((c) => a.card(c).status), ['bukti', 'bukti', 'bukti'], 'someone else sent it: it waits');
+  assert.equal(a.events(pic).at(-1).kind, 'proof');
+  // the requester is told and may judge it; the one who sent it may not
+  const canDewi = (await a.detail(DEWI, pic)).json.can, canGita = (await a.detail(GITA, pic)).json.can;
+  assert.deepEqual([canDewi.accept, canDewi.ret, canGita.accept, canGita.ret], [true, true, false, false]);
+  assert.ok((await a.req(DEWI, 'GET', '/api/cards?view=my')).json.cards.some((c) => c.id === pic), 'on the requester-PIC\'s Papan Saya');
+  refusal(await a.act(GITA, pic, 'accept'), 403, 'forbidden');
+  refusal(await a.act(EKO, theirs, 'accept'), 403, 'forbidden');
+  assert.equal((await a.act(DEWI, theirs, 'accept')).status, 200);
+  assert.deepEqual([a.card(theirs).status, a.card(theirs).self_closed], ['selesai', 0], 'judged by the requester: confirmed');
+  assert.equal((await a.act(DEWI, pic, 'return', { reason: 'kurang lengkap' })).status, 200, 'the requester may send it back');
+  assert.equal(a.card(pic).status, 'jalan');
+  assert.equal((await a.proofAndSend(GITA, pic)).status, 200);
+  assert.equal((await a.act(DEWI, pic, 'accept')).status, 200);
+  // unchanged accept rule (FX1): a task whose PIC is its requester counts as the PIC's own in the numbers
+  assert.deepEqual([a.card(pic).status, a.card(pic).self_closed], ['selesai', 1]);
+});
+
+test('TM3b nobody else on the team judges the proof, a director included, when the requester is on the team too', T, async () => {
+  const a = await signedIn();
+  const id = await a.create(DEWI, { title: 'Bersama direktur', owner: EKO, members: [DEWI, D1] });
+  const mine = await a.create(D2, { title: 'Direktur pemberi', owner: D2, members: [EKO] }); // a director as its requester-PIC
+  assert.equal((await a.act(EKO, id, 'start')).status, 200);
   assert.equal((await a.proofAndSend(EKO, id)).status, 200);
-  assert.equal((await a.proofAndSend(EKO, other)).status, 200);
-  assert.deepEqual([a.card(id).status, a.card(id).self_closed], ['selesai', 1]);
-  assert.equal(a.card(other).status, 'bukti', 'control: a requester off the team still confirms');
+  assert.equal(a.card(id).status, 'bukti');
+  assert.deepEqual([(await a.detail(D1, id)).json.can.accept, (await a.detail(D2, id)).json.can.accept], [false, true]);
+  const row = a.rowJson(id);
+  refusal(await a.act(D1, id, 'accept'), 403, 'own_proof');
+  refusal(await a.act(D1, id, 'return', { reason: 'tim saya' }), 403, 'own_proof');
+  assert.equal(a.rowJson(id), row, 'nothing written');
+  assert.equal((await a.act(D2, id, 'accept')).status, 200, 'a director off the team may');
+  // a director who is the requester and PIC finds a member's proof under Menunggu Anda
+  assert.equal((await a.act(EKO, mine, 'start')).status, 200);
+  assert.equal((await a.proofAndSend(EKO, mine)).status, 200);
+  assert.equal(a.card(mine).status, 'bukti');
+  assert.ok((await a.req(D2, 'GET', '/api/exceptions')).json.waiting.some((c) => c.id === mine), 'Menunggu Anda');
+  assert.ok(!(await a.req(D1, 'GET', '/api/exceptions')).json.waiting.some((c) => c.id === mine), 'not another director\'s');
 });
 
 test('TM4 a running shared task counts toward every member limit (R2)', T, async () => {

@@ -467,7 +467,7 @@ export function createApp(opts) {
     // v1.6.8: the Pemberi (requester). Left out (a page from before v1.6.8) or the person adding it: as before. Someone
     // else: a Penerima adding a task nobody gave them. It waits ('usul') for that Pemberi's Setujui and holds only what
     // is the Penerima's to say: they are its PIC, with no team or sub-tasks (the Pemberi's choices since v1.6.2/v1.6.3).
-    // So no team member, and no Pemberi put on the team, can close it with a proof nobody judged (R4). v1.7.7 (the app
+    // (Until v1.7.11 this also kept a Pemberi put on the team from letting anyone's proof close it, R4.) v1.7.7 (the app
     // owner, 26 Nov 2026): who may see it is the Penerima's to say when adding it. The people picked are viewers, never
     // the team, and see it only after Setujui (visibleClause); changing it later stays the Pemberi's ('viewers').
     const requester = body.requester === undefined || body.requester === null || body.requester === '' ? me : getPerson(str(body.requester, 40));
@@ -931,7 +931,8 @@ export function createApp(opts) {
   }
 
   // FX1: nobody on the team of someone else's request judges its proof, director or not. v1.6: the team, not only the PIC.
-  const isOwnProof = (me, c, team = teamOf(c)) => team.includes(me.id) && !team.includes(c.requester);
+  // v1.7.11: the requester judges even when on the team (their own proof never waits: it closes the task at once)
+  const isOwnProof = (me, c, team = teamOf(c)) => team.includes(me.id) && me.id !== c.requester;
   const onTeam = (me, c) => teamOf(c).includes(me.id);
   const highestEvidence = (cardId) => q('SELECT COALESCE(MAX(id), 0) AS m FROM evidence WHERE card = ?').get(cardId).m;
 
@@ -996,8 +997,10 @@ export function createApp(opts) {
       if (fresh === 0) refuse(409, 'need_new_proof');
     }
     const t = now();
-    // R4, v1.6: a requester on the team (PIC or member) closes with the proof, as an owner of their own task did
-    if (team.includes(c.requester)) changeCard(c, { status: 'selesai', self_closed: 1, proof_at: t, closed_at: t }, me.id, 'self_close');
+    // R4, v1.6: a requester on the team (PIC or member) closes with the proof, as an owner of their own task did.
+    // v1.7.11 (the app owner, 26 Nov 2026): only when that requester sends it themselves; a proof sent by anyone else
+    // on the team waits for the requester's Terima (card 16 had closed on a member's proof with nobody checking it).
+    if (me.id === c.requester && team.includes(me.id)) changeCard(c, { status: 'selesai', self_closed: 1, proof_at: t, closed_at: t }, me.id, 'self_close');
     else changeCard(c, { status: 'bukti', proof_at: t }, me.id, 'proof');
   });
   ACTIONS.set('accept', (me, c) => {

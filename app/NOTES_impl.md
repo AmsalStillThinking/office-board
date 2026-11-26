@@ -126,7 +126,8 @@
 - FX1: refusal order in accept/return is permission (403 forbidden) -> own_proof (403) -> state (409). SPEC CONFLICT:
   FX1 says accept writes self_closed = 1 when owner == requester, 'reachable only after a director reassigned a
   bukti card to its requester', but FX15 forbids reassigning a bukti card. With both rules that branch is unreachable
-  through the API; it is implemented anyway and its test sets the owner with SQL.
+  through the API; it is implemented anyway and its test sets the owner with SQL. (Since v1.7.11 it is reachable: a
+  team member's proof on a task whose PIC is its requester waits, and that requester's Terima takes this branch.)
 - FX2: `total` is computed over every card the viewer may see (staff: no private cards of others). For a staff
   viewer it therefore includes other people's cards in aggregate; per-person rows only for directors.
 - FX3: `routines.active_since` added by ALTER TABLE on open (also for old data folders; test drops the column and

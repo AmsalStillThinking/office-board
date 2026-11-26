@@ -29,7 +29,8 @@ const PG7 = 'PG7 a BEGIN that fails leaves no transaction behind (a later lost c
 const TEAM_TESTS = path.join(HERE, 'team.test.mjs');
 const TM1 = 'TM1 a private task is seen by its PIC, team, requester, the people picked and the directors only';
 const TM2 = 'TM2 anyone on the team works the task; one proof closes it for all; nobody on the team judges it';
-const TM3 = 'TM3 a requester on the team closes with the proof (R4 self-close)';
+const TM3 = 'TM3 a requester on the team closes with their own proof; someone else\'s proof waits for them (R4)';
+const TM3B = 'TM3b nobody else on the team judges the proof, a director included, when the requester is on the team too';
 const TM4 = 'TM4 a running shared task counts toward every member limit (R2)';
 const TM5 = 'TM5 who may change the team and who may see it; refusals write nothing';
 const TM6 = 'TM6 a member made PIC leaves the member list; Papan Saya holds the tasks I am on the team of';
@@ -75,7 +76,7 @@ const MUTANTS = [
   { name: 'exceptions_show_segar', file: 'server.mjs', test: SERVER_TESTS, check: 'R7 exceptions exact',
     edits: [["aged: all.filter((c) => c.age === 'layu' || c.age === 'busuk'),", "aged: all.filter((c) => c.age === 'layu' || c.age === 'busuk' || c.age === 'segar'),"]] },
   { name: 'self_close_skipped', file: 'server.mjs', test: SERVER_TESTS, check: 'R4 self card closes with self_closed',
-    edits: [['if (team.includes(c.requester)) changeCard(c, { status: \'selesai\'', 'if (!team.includes(c.requester)) changeCard(c, { status: \'selesai\'']] },
+    edits: [['if (me.id === c.requester && team.includes(me.id)) changeCard(c, { status: \'selesai\'', 'if (!(me.id === c.requester && team.includes(me.id))) changeCard(c, { status: \'selesai\'']] },
   { name: 'owner_moves_own_due', file: 'server.mjs', test: SERVER_TESTS, check: 'R11 owner cannot move own due',
     edits: [["ACTIONS.set('due', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || isDir(me)))',
       "ACTIONS.set('due', (me, c, body) => {" + NL + '    if (!(c.requester === me.id || c.owner === me.id || isDir(me)))']] },
@@ -87,7 +88,7 @@ const MUTANTS = [
     edits: [['const fn = ACTIONS.get(name);', "const fn = ({ start: ACTIONS.get('start') })[name];"]] },
   // ---- v1.1 fix round
   { name: 'owner_judges_own_proof', file: 'server.mjs', test: FX_TESTS, check: 'FX1 owner never judges own proof',
-    edits: [['const isOwnProof = (me, c, team = teamOf(c)) => team.includes(me.id) && !team.includes(c.requester);', 'const isOwnProof = (me, c, team = teamOf(c)) => false;']] },
+    edits: [['const isOwnProof = (me, c, team = teamOf(c)) => team.includes(me.id) && me.id !== c.requester;', 'const isOwnProof = (me, c, team = teamOf(c)) => false;']] },
   { name: 'staff_see_every_row', file: 'server.mjs', test: FX_TESTS, check: 'FX2 staff see total and own row',
     edits: [['(p.active || cards.some((c) => c.owner === p.id)) : p.id === me.id);', '(p.active || cards.some((c) => c.owner === p.id)) : true);']] },
   { name: 'routine_no_backfill', file: path.join('lib', 'rules.mjs'), test: FX_TESTS, check: 'FX3 routine back-fill',
@@ -219,9 +220,14 @@ const MUTANTS = [
   { name: 'team_member_cannot_start', file: 'server.mjs', test: TEAM_TESTS, check: TM2,
     edits: [["ACTIONS.set('start', (me, c, body) => {" + NL + '    if (!(onTeam(me, c) || isDir(me)))', "ACTIONS.set('start', (me, c, body) => {" + NL + '    if (!(c.owner === me.id || isDir(me)))']] },
   { name: 'team_member_judges', file: 'server.mjs', test: TEAM_TESTS, check: TM2,
-    edits: [['=> team.includes(me.id) && !team.includes(c.requester);', '=> me.id === c.owner && c.requester !== c.owner;']] },
+    edits: [['=> team.includes(me.id) && me.id !== c.requester;', '=> me.id === c.owner && c.requester !== c.owner;']] },
   { name: 'member_requester_no_self_close', file: 'server.mjs', test: TEAM_TESTS, check: TM3,
-    edits: [['if (team.includes(c.requester)) changeCard(', 'if (c.requester === c.owner) changeCard(']] },
+    edits: [['if (me.id === c.requester && team.includes(me.id)) changeCard(', 'if (me.id === c.requester && me.id === c.owner) changeCard(']] },
+  // v1.7.11: the rule before it, where anyone's proof closed a task whose requester was on the team
+  { name: 'any_team_proof_self_closes', file: 'server.mjs', test: TEAM_TESTS, check: TM3,
+    edits: [['if (me.id === c.requester && team.includes(me.id)) changeCard(', 'if (team.includes(c.requester)) changeCard(']] },
+  { name: 'team_judges_when_requester_on_team', file: 'server.mjs', test: TEAM_TESTS, check: TM3B,
+    edits: [['=> team.includes(me.id) && me.id !== c.requester;', '=> team.includes(me.id) && !team.includes(c.requester);']] },
   { name: 'limit_ignores_members', file: 'server.mjs', test: TEAM_TESTS, check: TM4,
     edits: [["OR EXISTS (SELECT 1 FROM card_people cp WHERE cp.card = c.id AND cp.person = ? AND cp.kind = 'member'))\").get(person, person).n;",
       "OR ?::text IS NULL)\").get(person, person).n;"]] },

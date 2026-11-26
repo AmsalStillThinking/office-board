@@ -184,7 +184,7 @@ test('FX1 owner never judges own proof', T, async () => {
 test('FX1 accept writes self_closed when owner equals requester', T, async () => {
   const a = await signedIn();
   const id = await toBukti(a, DEWI, EKO);
-  a.db.prepare('UPDATE cards SET owner = requester WHERE id = ?').run(id); // only reachable by data, see NOTES (FX15)
+  a.db.prepare('UPDATE cards SET owner = requester WHERE id = ?').run(id); // since v1.7.11 also reachable by the API (team.test TM3); SQL keeps this test short
   assert.equal((await a.act(D1, id, 'accept')).status, 200);
   assert.equal(a.card(id).self_closed, 1);
 });
