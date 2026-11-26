@@ -151,7 +151,8 @@ changing what they say:
 7. A director's first screen is Pengecualian: "Menunggu Anda" first, then Layu and Busuk, then Macet.
 8. Per-person numbers are visible to directors only; everyone else sees the office total and their own row.
 9. Private cards are seen only by their owner, their requester and the directors. Since v1.6 also by the card's team
-   and by the people its requester picked (only the requester or a director changes that); a sub-task also by its
+   and by the people its requester picked (only the requester or a director changes that; since v1.7.7 a Penerima
+   adding their own task picks them once, when adding it); a sub-task also by its
    parent's owner, team and requester. The directors still see every private card.
 10. Routine templates start switched off; a routine can be switched on only with an active owner; a person who owns
     a running routine cannot be switched off until the routine has another owner.
