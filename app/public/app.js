@@ -414,7 +414,10 @@
     var panel = h('aside', { cls: 'drawer', id: id, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': labelId, tabindex: '-1',
       onkeydown: function (e) { if (e.key === 'Escape') { e.stopPropagation(); closeDrawer(); } } },
       h('div', { cls: 'dr-head' }, headBits, close), body);
-    layer.appendChild(h('div', { cls: 'scrim', 'aria-hidden': 'true', onclick: keepOnScrim ? null : closeDrawer }));
+    // v1.7.13: a row opens on one click, so the second click of a double-click lands on this backdrop; it is ignored
+    // for the first half second (the close button and Escape still close at once)
+    var opened = Date.now();
+    layer.appendChild(h('div', { cls: 'scrim', 'aria-hidden': 'true', onclick: keepOnScrim ? null : function () { if (Date.now() - opened > 500) closeDrawer(); } }));
     layer.appendChild(panel);
     document.getElementById('shell').setAttribute('inert', '');
     close.focus();
@@ -908,10 +911,17 @@
     var flags = [c.hard ? t('lbl_hard') : '', c.routine_key ? t('lbl_routine') : '', c.private ? t('lbl_private') : '',
       c.parent ? tf('lbl_sub_of_title', { t: c.parent_title }) : ''].filter(Boolean); // the table shows no task numbers
     var jenis = t('type_' + c.type), from = personName(c.requester);
+    var title = h('button', { type: 'button', cls: 'title', text: c.title });
+    // v1.7.13: a click anywhere on the row opens the task. The title stays a button for the keyboard: its click bubbles
+    // up to here. The title takes the focus first, so closing the panel gives it back to this row.
+    var open = function () {
+      if (String(window.getSelection())) return; // text dragged over to copy it does not open the task
+      title.focus();
+      go('card', String(c.id));
+    };
     // the phone has no header row, so its stacked row says the jenis under the title, "Tenggat:" and "dari X" itself
-    return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status },
-      h('div', { role: 'cell', cls: 'c-task' },
-        h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } }),
+    return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status, onclick: open },
+      h('div', { role: 'cell', cls: 'c-task' }, title,
         h('span', { cls: 'sub' }, h('span', { cls: 'phone-only', text: jenis + (flags.length ? ' · ' : '') }), flags.join(' · '))),
       h('div', { role: 'cell', cls: 'c-who', text: teamLabel(c) }), // names only, no avatar (the owner's choice)
       h('div', { role: 'cell', cls: 'c-type', text: jenis }),

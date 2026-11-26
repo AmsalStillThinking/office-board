@@ -170,6 +170,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .tr > div { padding: 8px 12px; min-width: 0; }
 .tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted); }
 .tr:not(.th):hover { background: #f7f9fc; }
+.tr[data-id] { cursor: pointer; } /* v1.7.13: a click anywhere on the row opens the task */
 .tr .title, .subs .title { display: block; width: 100%; text-align: left; min-height: 40px; padding: 0; border: 0; background: none; color: var(--ink); font-weight: 700; font-size: 15px; overflow-wrap: break-word; }
 .tr .title:hover, .subs .title:hover, .link-btn:hover { color: var(--accent-dk); text-decoration: underline; background: none; }
 .sub { display: block; font-size: 13px; color: var(--muted); }

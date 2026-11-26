@@ -356,3 +356,23 @@ PC): the server tests (no server change) and `browser_check.py`, whose Papan Kan
 Not seen on the real board.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.13 (27 Nov 2026): a click anywhere on a Papan Kantor row opens the task
+
+The app owner asked: "instead of clicking the first column on that row to show the task, show it when user clicking
+the row on all column". In Daftar, a click or tap anywhere on a task's row (any column, on a phone anywhere in the
+stacked box) opens its panel, and the row shows a hand pointer. The title stays a button, so Tab and Enter work as
+before; closing the panel puts the focus back on that title. Dragging over text in a row to copy it does not open
+the task.
+
+With the whole row clickable, a double-click on a row opened the panel and its second click closed it again (it lands
+on the backdrop; seen in the check below). The backdrop of every panel now ignores clicks for half a second after the
+panel opens; the close button and Escape still close it at once. Screen files only: `app.js`, `style.css`.
+
+**Checks:** a preview built from these files with invented tasks (the v1.7.12 harness), one headless Chrome with real mouse and key events: 15/15 (a
+click on each kind of cell, the title, Enter, a text drag, a double-click, a later backdrop click, a tap at 390 px),
+and the v1.7.12 layout check still 43/43. Red controls: the v1.7.12 files, a planted "no selection guard" and a
+planted "no focus on the title" each fail it; before the backdrop fix the double-click check failed. Not run:
+`browser_check.py`. Not seen on the real board.
+
+Undo: `git revert` the commit (screen files only, no restart).
