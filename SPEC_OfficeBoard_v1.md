@@ -29,6 +29,8 @@ The process copies LMN's Work Order app for electricians (reference only, do not
   (names, titles) set with `textContent`. Required words: On track / Due / Overdue (Segar / Layu / Busuk until the
   owner renamed them on 22 Nov 2026; the internal codes are still segar / layu / busuk), Bukti, Menunggu Anda, Papan Saya,
   Papan Kantor, Pengecualian, Review Jumat.
+- v1.7.25 (27 Nov 2026): the EN switch is back, under the name in the sidebar, with a dark mode beside it
+  (CHANGES_v1_7.md); the Language line above holds again.
 
 ## 3. Data (SQLite file `office.db` in the data dir; files in `files/`. v1.4: the same tables in PostgreSQL)
 people(id, name, nick, role 'direktur'|'staf', keeper 0/1, active 0/1, pin_hash, must_change_pin) ·

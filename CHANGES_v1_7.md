@@ -702,3 +702,69 @@ PostgreSQL's jsonb refuses, so /api/me answered 500 for every user it reached: n
 read with JSON.parse in the server. New test NT5 (a NUL in a comment and in a title: /api/me 200 for everyone, both
 still ring) fails against the first cut and passes now; the ten planted bugs above, re-aimed at the new code (plus "any
 evidence kind rings"), are each caught. The 27 Nov backup's 107 events hold no such character.
+
+# v1.7.25 (27 Nov 2026): EN/ID switch and dark mode under the name
+
+Asked on 27 Nov 2026: "Create a toggle button for EN/ID and button for Dark Mode below the User name (left corner)".
+This brings back the English version that v1.5 removed on the owner's word ("Tidak ada 2 versi bahasa, hanya satu
+versi", CHANGES_v1_5.md).
+
+- Under the name in the sidebar: ID | EN (the language that is on looks pressed) and a moon button for dark mode
+  (pressed while dark mode is on). Like the gear, the moon has no words beside it: "Mode gelap" / "Dark mode" is its
+  name and tooltip. With the words it needed 224 px beside ID | EN, the sidebar has 212 there, so it took a row of
+  its own. Keluar stays under them. On a phone they sit beside the name. All three are 40 x 40 px targets.
+- The new row costs height, measured with and without it (with the v1.7.24 bell): a director's sidebar in a
+  1366 x 650 window now scrolls 135 px instead of 87 (it scrolled before too); on a phone the top block is 163 px
+  instead of 117, because Keluar moves to its own line (that block scrolls away with the page).
+- Both are each person's choice, kept in this browser (`ob_language`, `ob_theme`), so the sign-in page follows them
+  too. The sign-in card has no switch of its own (the sidebar is hidden there). The key is not the old `ob_lang`,
+  which would open in English, unasked, a browser where someone chose EN before v1.5.
+- English: `i18n.json` and `lib/messages.json` have `en` again: the pre-v1.5 English where the Indonesian is unchanged
+  since then (222 screen texts, 26 refusals), new English for the rest (173 and 21, the v1.7.24 bell's six texts
+  included). Words: Pemberi = Requester,
+  PIC = owner, Tim = team, Jenis = Type, Keterangan = Remarks, Rutin = Routine; On track, Due, Overdue and To-Do List
+  stay as they are. Jenis Administrasi is "Admin": the old "Administration" ran past the 104 px Jenis column into PIC &
+  Tim. The page sends `X-Lang` again and the server writes its refusals in that language. A text with no
+  English yet shows the Indonesian, never its key name, so a key added in Indonesian only does no harm (it should still
+  get its English). Not translated: what people type (titles, notes, names) and the tutorial videos and their titles
+  on Cara pakai (`app\tutorial\videos.json`).
+- Dark mode is `html[data-theme=dark]`, on screen only, so a printout stays light: dark values for the colour
+  variables, plus the places where a fixed light colour meets a variable and where `--ink` or `--accent` is a fill
+  under white text as well as a text colour (links, `.link-btn` and the phone bar's current page take a lighter blue).
+  The nine `background: #fff` are `var(--panel)` now, which is `#ffffff` in light mode, so light mode is unchanged.
+  The bell (v1.7.24): a hovered notification takes `--soft` (its `#f7f9fc` hover would put light text on near-white),
+  and its count has dark digits on the light red.
+- `index.html` loads `app.js` without `defer`, so a saved dark mode is set before the page is first drawn (no light
+  flash). app.js still waits for the page itself before it starts. Measured at the first frame: dark in 7 of 7 runs
+  without `defer`; with `defer` put back, light in 6 of 7 (a race, which is why it is gone).
+- Server: one line (`ctx.lang` from `X-Lang`), so the board needs a restart.
+- Tests: the dictionary test in `server.test.mjs` checks both languages again (same keys in the same order, same
+  `{placeholders}`, every refusal written in both, the refusal follows `X-Lang`); FX17b checks `pin_same` in English.
+  Not run (the owner asks before test runs).
+
+**Checks:** a browser check on a scratch board (the new app on 127.0.0.1:3097 with the tutorial PostgreSQL in its own
+schema, the fictional tutorial people and the real Cara pakai video list, one headless Chrome) passed 75/75 (two of
+them measurements: the heights above) before the rebase onto v1.7.24. On the rebased code it passes 75 of 77; the
+two failures are explained, not bugs: the bell's count poll sends no `X-Lang` (a plain fetch on purpose, it shows
+no server text), and the `defer` control read dark once (the race above). The bell's count and its list, opened in
+English and dark with an item hovered, pass. It covers:
+- the buttons under the name and above Keluar, on one row at 1280 px and on screen at 390 px, each 40 x 40 px; an old
+  `ob_lang` set to English leaves the page in Indonesian;
+- ID | EN with real clicks: the page, the menu, `html lang` and the moon's name change; focus stays on the button; the
+  choice is saved and survives a reload; the requests through `api()` carry `X-Lang: en`; Tugas baru shows its refusal in English; the
+  server answers a refusal in either language;
+- 16 pages in English with no Indonesian screen text and no key names: Papan Saya, Papan Kantor (List, Kanban,
+  Timeline), Permintaan Saya, Riwayat Tugas, To-Do List, Cara pakai, Lainnya, Pengumuman, Tugas baru, a task panel, and
+  a director's Pengecualian, Review Jumat, Rutin and Orang & Pengaturan (the video titles on Cara pakai are left out:
+  they are data, and Indonesian);
+- no table cell whose content runs past its edge, in Indonesian and in English, on the table pages at 1280 px;
+- in dark mode, every text on the same pages and in the Settings dialog at least 4.5:1 (3:1 for large text), with light
+  mode as the control; dark mode set at the first frame; a printout light;
+- back to ID and light; the sign-in page after Keluar in English and dark; no page errors.
+
+Red controls: a planted Indonesian text and a planted key name, text planted at 1.3:1, and a long word planted in a
+Jenis cell each fail it; `defer` put back on app.js fails it 6 times in 7. The dictionary build refused a missing English text and a changed
+placeholder, and the dictionary test's static half (run from its own lines, without PostgreSQL) passes and fails on a
+refusal whose English equals its Indonesian. Not seen on the real board signed in.
+
+Undo: `git revert` the commit and restart the board (server.mjs changed).

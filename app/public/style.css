@@ -29,7 +29,7 @@ button.danger { background: var(--panel); color: var(--busuk); border-color: #e3
 button.danger:hover { background: var(--busuk-bg); }
 button.small { min-height: 40px; min-width: 40px; padding: 6px 12px; font-size: 14px; }
 button:disabled { opacity: .55; cursor: default; }
-input, select, textarea { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 10px; background: #fff; color: var(--ink); }
+input, select, textarea { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel); color: var(--ink); }
 input[type=checkbox] { width: 24px; height: 24px; min-height: 24px; margin: 0; flex: 0 0 auto; accent-color: var(--accent); }
 textarea { min-height: 80px; }
 label { display: block; font-weight: 600; margin: 12px 0 4px; }
@@ -83,7 +83,13 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .me-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 #me-box button { background: transparent; color: #e7ecf5; border-color: rgba(219, 226, 239, .35); }
 #me-box button:hover { background: rgba(219, 226, 239, .12); border-color: rgba(219, 226, 239, .55); color: #fff; }
-#settings-btn { width: 40px; padding: 0; }
+#settings-btn, #theme-btn { width: 40px; padding: 0; }
+/* v1.7.25: under the name, ID | EN and dark mode; the language and the theme that are on look pressed (light on navy).
+   The pressed rule comes after #me-box button:hover, which has the same specificity */
+.me-prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#me-box .seg { padding: 0; gap: 0; background: rgba(219, 226, 239, .12); border-radius: 10px; } /* each half a 40 px target */
+#me-box .seg button { min-height: 40px; min-width: 40px; padding: 0 10px; border: 0; }
+#me-box button[aria-pressed=true], #me-box button[aria-pressed=true]:hover { background: #f9f7f7; border-color: #f9f7f7; color: #112d4e; }
 #main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
 #view { display: block; width: 100%; max-width: 1640px; margin: 0 auto; padding: 20px 24px 48px; outline: none; }
 .av { width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; flex: 0 0 auto; }
@@ -113,7 +119,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 /* the sign-in name field and the list of names that opens under it (over the PIN) while typing */
 .name-pick { position: relative; }
 .name-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 5; max-height: 264px; overflow-y: auto; margin: 0; padding: 4px;
-  list-style: none; background: #fff; border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 10px 28px rgba(17, 45, 78, .16); }
+  list-style: none; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 10px 28px rgba(17, 45, 78, .16); }
 .name-list[hidden] { display: none; }
 .name-list li { min-height: 44px; padding: 11px 10px; border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
 .name-list li:hover, .name-list li.on { background: var(--soft); }
@@ -129,7 +135,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .badge.age-layu { color: var(--layu); background: var(--layu-bg); }
 .badge.age-busuk { color: var(--busuk); background: var(--busuk-bg); }
 .badge.macet { color: var(--macet); background: var(--macet-bg); }
-.badge.status { color: var(--muted); background: #fff; font-weight: 600; border-color: var(--line-2); }
+.badge.status { color: var(--muted); background: var(--panel); font-weight: 600; border-color: var(--line-2); }
 .badge.status[data-status=bukti] { color: var(--bukti); background: var(--bukti-bg); border-color: currentColor; }
 .flag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #33475f; background: var(--soft); }
 .flag .ic { width: 12px; height: 12px; }
@@ -171,7 +177,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--tint); border-radius: 12px; }
 .seg button { min-height: 40px; padding: 6px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ink); font-size: 14px; }
 .seg button:hover { background: rgba(255, 255, 255, .6); }
-.seg button[aria-pressed=true] { background: #fff; box-shadow: 0 1px 2px rgba(17, 45, 78, .18); }
+.seg button[aria-pressed=true] { background: var(--panel); box-shadow: 0 1px 2px rgba(17, 45, 78, .18); }
 .fld { position: relative; display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; font-size: 14px; color: var(--muted); }
 .fld select { width: auto; min-height: 40px; padding: 6px 10px; }
 .fld-search { flex: 1 1 160px; max-width: 360px; } /* it gives way first, so the row stays one row at 1280 */
@@ -221,7 +227,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .kcol { background: var(--soft); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .kcol-h { display: flex; align-items: center; gap: 8px; padding: 2px 4px 0; }
 .kcol-h h2 { margin: 0; font-size: 15px; }
-.kcol-h .n { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #fff; }
+.kcol-h .n { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--panel); }
 .kcol-hint { margin: 0; padding: 0 4px 2px; font-size: 13px; color: var(--muted); }
 
 .tl-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
@@ -246,7 +252,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .b-jalan { background: var(--accent); border-color: var(--accent); color: #fff; }
 .b-antri { background: var(--soft); border-color: #b4c3da; border-style: dashed; color: var(--ink); }
 .b-tunggu { background: #e6dff5; border-color: #b9a8e0; color: #4a2f85; }
-.b-bukti { background: #fff; border-color: #7fa3cf; border-style: dashed; color: var(--bukti); }
+.b-bukti { background: var(--panel); border-color: #7fa3cf; border-style: dashed; color: var(--bukti); }
 .b-layu { background: #ffebb8; border-color: #e2be6a; color: #6b4500; }
 .b-busuk { background: #fbd5d0; border-color: #e3a59f; color: #8a1c15; }
 .tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); pointer-events: none; }
@@ -299,7 +305,7 @@ fieldset.ppick legend { font-weight: 600; padding: 0 4px; }
 .ppick .name-list { position: static; margin-top: 4px; }
 .fhelp { flex: 1 1 100%; margin: 4px 0 0; font-size: 13px; }
 .subs { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.subs li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; min-width: 0; }
+.subs li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); min-width: 0; }
 .subs .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; margin: 0; }
 .subs .who, .parent-line { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .link-btn { min-height: 40px; padding: 0 2px; border: 0; background: none; color: var(--accent); font-weight: 600; text-align: left; text-decoration: underline; overflow-wrap: anywhere; }
@@ -308,7 +314,7 @@ fieldset.ppick legend { font-weight: 600; padding: 0 4px; }
 .vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; padding: 0; margin: -1px; }
 .file-field { position: relative; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 4px 0 8px; }
 .btn-like { display: inline-flex; align-items: center; min-height: 44px; margin: 0; padding: 8px 14px; border: 1px solid var(--line-2); border-radius: 10px;
-  background: #fff; color: var(--ink); font-weight: 600; cursor: pointer; }
+  background: var(--panel); color: var(--ink); font-weight: 600; cursor: pointer; }
 .file-field input:focus-visible + .btn-like { outline: 2px solid var(--accent); outline-offset: 2px; }
 .field-title { font-weight: 600; margin: 12px 0 4px; }
 .file-names { overflow-wrap: break-word; min-width: 0; }
@@ -439,7 +445,7 @@ fieldset.new-subs legend { font-weight: 600; padding: 0 4px; }
 
 /* v1.7: Pengumuman. The count of new posts in the menu, the strip on the first page, the posts. The count is
    position: relative so its hidden word (.vh) has a positioned box to sit in. */
-.nav-n { position: relative; margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: #fff; color: var(--ink);
+.nav-n { position: relative; margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--panel); color: var(--ink);
   font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
 .menu .nav-n { background: var(--accent); color: #fff; }
 .seg .n { font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 999px; background: rgba(63, 114, 175, .16); }
@@ -466,4 +472,47 @@ fieldset.new-subs legend { font-weight: 600; padding: 0 4px; }
 @media (max-width: 899px) {
   #nav #nav-menu { position: relative; }
   #nav .nav-n { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; background: var(--accent); color: #fff; }
+}
+
+/* ------------------------------------------------------------------ v1.7.25: dark mode
+   html[data-theme=dark] is set by the button under the name and kept in this browser. Screen only: a printout stays
+   light. The variables carry most of it; the rules after them are the places where a fixed light colour meets a
+   variable, and where --ink or --accent is a fill under white text as well as a text colour. */
+@media screen {
+  html[data-theme=dark] {
+    color-scheme: dark; /* the browser's own parts too: scrollbars, date pickers, check boxes */
+    --bg: #0f1621; --panel: #172130; --ink: #e4eaf4; --muted: #a7b4c8; --line: #2a374a; --line-2: #3c4b61;
+    --accent: #3f72af; --accent-dk: #2f5e96; --tint: #25334a; --soft: #1e2a3b; --nav: #0a1220;
+    --segar: #73d394; --segar-bg: #14301f; --layu: #eac25e; --layu-bg: #33270d; --busuk: #ff9a8f; --busuk-bg: #3c1a19;
+    --macet: #c6adf7; --macet-bg: #2a2143; --bukti: #93b9ea; --bukti-bg: #1a2a41; --err: #ff9a8f; --err-bg: #3c1a19; --ok: #73d394;
+  }
+  /* --accent stays the fill under white text (4.96:1); as a text colour on a dark panel it would be 3.3:1 */
+  html[data-theme=dark] a, html[data-theme=dark] .link-btn, html[data-theme=dark] .tut-lbl, html[data-theme=dark] .link-btn:hover,
+  html[data-theme=dark] .card .title:hover, html[data-theme=dark] .tr .title:hover, html[data-theme=dark] .subs .title:hover,
+  html[data-theme=dark] .tl-lab .title:hover { color: #93b9ea; }
+  html[data-theme=dark] a:hover { color: var(--ink); }
+  /* --ink is light here, so the ink fills that carry white text take dark text */
+  html[data-theme=dark] .flag { color: var(--ink); }
+  html[data-theme=dark] .flag.you, html[data-theme=dark] .pg[aria-current=page], html[data-theme=dark] .tl-now span { color: var(--bg); }
+  /* fixed light colours */
+  html[data-theme=dark] .seg button:hover { background: rgba(255, 255, 255, .08); }
+  html[data-theme=dark] .seg button[aria-pressed=true] { background: #3a4d68; }
+  html[data-theme=dark] .inline-form { background: var(--bg); }
+  html[data-theme=dark] .tr:not(.th):hover, html[data-theme=dark] .tl-g, html[data-theme=dark] .notif-item:hover { background: var(--soft); }
+  html[data-theme=dark] .notif-btn .nav-n { color: var(--bg); } /* --busuk is a light red here: dark digits on it */
+  html[data-theme=dark] .tl-day { border-left-color: var(--line); }
+  html[data-theme=dark] .tl-track { background-image: linear-gradient(to right, var(--line) 1px, transparent 1px); }
+  html[data-theme=dark] .tl-late { background: #5a2522; }
+  html[data-theme=dark] .empty, html[data-theme=dark] .b-antri { border-color: var(--line-2); }
+  html[data-theme=dark] .b-tunggu { background: var(--macet-bg); border-color: #5d4a8c; color: var(--macet); }
+  html[data-theme=dark] .b-layu { background: var(--layu-bg); border-color: #7a6020; color: var(--layu); }
+  html[data-theme=dark] .b-busuk { background: var(--busuk-bg); border-color: #7a3a35; color: var(--busuk); }
+  html[data-theme=dark] .b-bukti, html[data-theme=dark] .strip { border-color: #4b6f9c; }
+  html[data-theme=dark] .card.age-layu { border-color: #7a6020; }
+  html[data-theme=dark] .card.age-busuk, html[data-theme=dark] button.danger, html[data-theme=dark] .err { border-color: #7a3a35; }
+  html[data-theme=dark] .ok { border-color: #2f6b45; }
+  html[data-theme=dark] .av { box-shadow: 0 0 0 1px rgba(219, 226, 239, .3); } /* the navy avatar colour on a dark panel */
+}
+@media screen and (max-width: 899px) {
+  html[data-theme=dark] #nav button.on { color: #93b9ea; } /* the phone's bottom bar: the page you are on, as text */
 }

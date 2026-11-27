@@ -21,9 +21,20 @@
   var ANN_NEW = 0; // v1.7: posts by others since my last visit to Pengumuman (the count beside it in the menu)
   var NOTIF_NEW = 0; // v1.7.24: the bell's count (comments on my tasks, tasks made for me) since I last opened it
 
-  // v1.5: one language only (Indonesian, with the English words the office uses); no switch.
+  // v1.7.25: EN/ID and dark mode are back as each person's choice, kept in this browser (v1.5 had one language only).
+  // index.html loads this file without defer, so the saved theme is on the page before it is first drawn. The key is
+  // new: the old ob_lang (before v1.5) would open in English, unasked, a browser where someone once chose EN.
+  try {
+    var savedLang = window.localStorage.getItem('ob_language');
+    if (savedLang === 'en' || savedLang === 'id') LANG = savedLang;
+    if (window.localStorage.getItem('ob_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  } catch (e) { /* private mode: Indonesian, light */ }
 
-  function t(k) { var d = DICT && DICT[LANG]; return d && Object.prototype.hasOwnProperty.call(d, k) ? d[k] : k; }
+  function t(k) {
+    var has = Object.prototype.hasOwnProperty;
+    if (DICT && DICT[LANG] && has.call(DICT[LANG], k)) return DICT[LANG][k];
+    return DICT && DICT.id && has.call(DICT.id, k) ? DICT.id[k] : k; // an English text not written yet shows the Indonesian
+  }
 
   function h(tag, attrs) {
     var el = document.createElement(tag);
@@ -51,7 +62,7 @@
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
 
   function api(method, url, body, extraHeaders) {
-    var headers = {};
+    var headers = { 'X-Lang': LANG }; // the server writes its refusals in this language
     var opts = { method: method, headers: headers, credentials: 'same-origin' };
     if (body !== undefined && !(body instanceof Blob)) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     else if (body instanceof Blob) opts.body = body;
@@ -295,6 +306,14 @@
     document.getElementById('today-line').textContent = ME && TODAY && !ME.must_change_pin ? tf('today_is', { d: fmtDate(TODAY) }) : '';
     var sb = document.getElementById('settings-btn'); // v1.3: Ganti PIN opens from here, beside the name
     sb.setAttribute('aria-label', t('my_settings')); sb.title = t('my_settings');
+    // v1.7.25: under the name, ID | EN and dark mode
+    document.getElementById('me-prefs').hidden = !ME;
+    document.getElementById('lang-group').setAttribute('aria-label', t('lang_label'));
+    document.getElementById('lang-id').setAttribute('aria-pressed', String(LANG === 'id'));
+    document.getElementById('lang-en').setAttribute('aria-pressed', String(LANG === 'en'));
+    var tb = document.getElementById('theme-btn'); // a moon, like the gear beside the name: the words are its name and tooltip
+    tb.setAttribute('aria-label', t('dark_mode')); tb.title = t('dark_mode');
+    tb.setAttribute('aria-pressed', String(document.documentElement.getAttribute('data-theme') === 'dark'));
     var nav = document.getElementById('nav'), more = document.getElementById('nav-more');
     clear(nav);
     clear(more);
@@ -601,6 +620,20 @@
   }
   function signOut() {
     api('POST', '/api/logout', {}).then(function () { ME = null; location.hash = ''; showSignin(); });
+  }
+  // v1.7.25: the buttons under the name. Both stay in this browser; the sign-in page uses them too. The page is drawn
+  // again in the new language (the buttons are not rebuilt, so the focus stays on the one pressed).
+  function switchLang(lang) {
+    if (lang === LANG) return;
+    LANG = lang;
+    try { window.localStorage.setItem('ob_language', LANG); } catch (e) { /* private mode: this visit only */ }
+    render();
+  }
+  function toggleTheme() {
+    var dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+    if (dark) document.documentElement.setAttribute('data-theme', 'dark'); else document.documentElement.removeAttribute('data-theme');
+    try { window.localStorage.setItem('ob_theme', dark ? 'dark' : 'light'); } catch (e) { /* private mode: this visit only */ }
+    document.getElementById('theme-btn').setAttribute('aria-pressed', String(dark));
   }
 
   // the first PIN change (forced) is a page of its own; a later one opens in the Settings dialog
@@ -2291,6 +2324,9 @@
     }, true);
     document.getElementById('logout-btn').addEventListener('click', signOut);
     document.getElementById('settings-btn').addEventListener('click', openSettings);
+    document.getElementById('lang-id').addEventListener('click', function () { switchLang('id'); });
+    document.getElementById('lang-en').addEventListener('click', function () { switchLang('en'); });
+    document.getElementById('theme-btn').addEventListener('click', toggleTheme);
     window.addEventListener('hashchange', function () { if (ME) render(true); else dropLayer(); });
     fetch('/i18n.json', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       DICT = d;

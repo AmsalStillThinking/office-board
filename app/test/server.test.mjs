@@ -682,23 +682,33 @@ test('director manages people and settings', T, async () => {
   refusal(await a.req(D1, 'POST', '/api/people/constructor', { name: 'x' }), 404, 'not_found');
 });
 
-test('dictionaries complete; one language (v1.5): X-Lang changes nothing', T, async () => {
+// v1.7.25: the EN/ID switch is back (v1.5 had one language): both dictionaries complete, refusals follow X-Lang
+test('dictionaries complete in id and en; refusal language follows X-Lang', T, async () => {
+  const ph = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).sort().join(',');
   for (const [code, m] of Object.entries(MSG)) {
-    assert.deepEqual(Object.keys(m), ['id'], 'message ' + code + ' has the one version only');
-    assert.ok(m.id, 'message ' + code + ' is not empty');
+    assert.deepEqual(Object.keys(m), ['id', 'en'], 'message ' + code + ' has both languages');
+    assert.ok(m.id && m.en && m.id !== m.en, 'message ' + code + ' is written in both');
+    assert.equal(ph(m.en), ph(m.id), 'message ' + code + ' has the same {placeholders} in both');
   }
   const dict = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'public', 'i18n.json'), 'utf8'));
-  assert.deepEqual(Object.keys(dict), ['id'], 'one client dictionary');
+  assert.deepEqual(Object.keys(dict), ['id', 'en'], 'two client dictionaries');
+  assert.deepEqual(Object.keys(dict.en), Object.keys(dict.id), 'same keys, same order, in id and en');
+  for (const k of Object.keys(dict.id)) {
+    assert.ok(dict.en[k], 'English text for ' + k);
+    assert.equal(ph(dict.en[k]), ph(dict.id[k]), k + ' has the same {placeholders} in both');
+  }
   for (const w of ['On track', 'Due', 'Overdue', 'Bukti', 'Menunggu Anda', 'Papan Saya', 'Papan Kantor', 'Pengecualian', 'Review Jumat', 'To-Do List']) {
     assert.ok(Object.values(dict.id).includes(w), 'required word in the dictionary: ' + w);
   }
-  const serverSentences = new Set(Object.values(MSG).map((m) => m.id));
-  for (const v of Object.values(dict.id)) assert.ok(!serverSentences.has(v), 'client dictionary must not hold a server sentence: ' + v);
+  const serverSentences = new Set(Object.values(MSG).flatMap((m) => [m.id, m.en]));
+  for (const v of [...Object.values(dict.id), ...Object.values(dict.en)]) assert.ok(!serverSentences.has(v), 'client dictionary must not hold a server sentence: ' + v);
   const a = await signedIn({}, [DEWI]);
   const en = await a.req(DEWI, 'POST', '/api/cards', { title: 'x', due: '2026-11-25', source: 'Lisan' }, { 'x-lang': 'en' });
-  assert.equal(en.json.message, MSG.need_owner.id, 'an old client asking for English still gets the one version');
   const id = await a.req(DEWI, 'POST', '/api/cards', { title: 'x', due: '2026-11-25', source: 'Lisan' });
-  assert.equal(id.json.message, MSG.need_owner.id);
+  assert.equal(en.status, 400);
+  assert.equal(en.json.error, id.json.error, 'the same refusal in either language');
+  assert.equal(en.json.message, MSG[en.json.error].en, 'X-Lang: en gives the English sentence');
+  assert.equal(id.json.message, MSG[id.json.error].id, 'Bahasa Indonesia without X-Lang');
 });
 
 test('PostgreSQL: saved rows outlive a restart, no SQLite file, the connection closes on shutdown', T, async () => {

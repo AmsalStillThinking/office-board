@@ -6,7 +6,8 @@
 <title>Office Board</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
-<script src="/app.js" defer></script>
+<!-- v1.7.25: no defer, so app.js puts the saved dark mode on the page before its first paint (it waits for the DOM itself) -->
+<script src="/app.js"></script>
 </head>
 <body>
 <div id="shell">
@@ -21,6 +22,13 @@
       <div class="who"><span id="me-avatar" aria-hidden="true"></span>
         <span class="who-txt"><span id="me-name"></span><span id="today-line"></span></span>
         <button type="button" id="settings-btn" class="small secondary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+      </div>
+      <div id="me-prefs" class="me-prefs" hidden>
+        <div id="lang-group" class="seg" role="group">
+          <button type="button" id="lang-id" class="small" lang="id" title="Bahasa Indonesia">ID</button>
+          <button type="button" id="lang-en" class="small" lang="en" title="English">EN</button>
+        </div>
+        <button type="button" id="theme-btn" class="small secondary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
       </div>
       <div class="me-acts">
         <button type="button" id="logout-btn" class="small secondary" hidden></button>

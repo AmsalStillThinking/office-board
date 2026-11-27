@@ -451,6 +451,7 @@ test('FX17a me while must_change_pin returns only me', T, async () => {
 
 test('FX17b pin_same sentence', T, async () => {
   assert.equal(MSG.pin_same.id, 'PIN baru harus berbeda dari PIN yang sekarang.');
+  assert.equal(MSG.pin_same.en, 'The new PIN must differ from the current one.'); // v1.7.25: English is back
 });
 
 test('FX17c owner_is_waited_on', T, async () => {

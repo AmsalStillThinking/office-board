@@ -1399,7 +1399,8 @@ export function createApp(opts) {
 
   // ------------------------------------------------------------------ dispatcher
   async function handle(req, res) {
-    const ctx = { req, res, lang: 'id', bodyUnread: req.method === 'POST', me: null, authClass: null }; // v1.5: one language
+    // v1.7.25: the EN/ID switch is back (v1.5 had removed it); a refusal comes in the language the page sends
+    const ctx = { req, res, lang: req.headers['x-lang'] === 'en' ? 'en' : 'id', bodyUnread: req.method === 'POST', me: null, authClass: null };
     try {
       if (hooks.onHeaders) hooks.onHeaders(req);
       res.setHeader('X-Content-Type-Options', 'nosniff');
