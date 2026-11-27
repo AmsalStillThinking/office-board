@@ -478,9 +478,12 @@ test('FX17d review counts over non-private cards', T, async () => {
 test('FX17e card type from one server list', T, async () => {
   const a = await signedIn({}, [DEWI]);
   const me = await a.req(DEWI, 'GET', '/api/me');
-  assert.deepEqual(me.json.types, ['umum', 'pajak', 'keuangan', 'sdm', 'laporan', 'konten', 'administrasi']);
+  assert.deepEqual(me.json.types, ['umum', 'pajak', 'keuangan', 'sdm', 'laporan', 'konten', 'administrasi', 'it', 'media', 'legal', 'produksi', 'ga']);
   refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 'x', owner: DEWI, due: '2026-11-25', source: 'Lisan', type: 'rahasia' }), 400, 'bad_input');
   assert.ok(await a.create(DEWI, { type: 'pajak' }));
+  assert.ok(await a.create(DEWI, { type: 'legal' })); // v1.7.21: a new one is taken too
+  const dict = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'public', 'i18n.json'), 'utf8')).id;
+  assert.deepEqual(me.json.types.filter((k) => typeof dict['type_' + k] !== 'string'), [], 'every Jenis has its word in i18n.json');
   const seed = freshDir('fx_seed');
   fs.copyFileSync(path.join(FIXTURE, 'people.json'), path.join(seed, 'people.json'));
   fs.writeFileSync(path.join(seed, 'routines.json'), JSON.stringify({ routines: [{ title: 'x', owner: null, type: 'bogus', hard: 0, schedule: { kind: 'monthly', day: 1 }, lead_days: 1 }] }));

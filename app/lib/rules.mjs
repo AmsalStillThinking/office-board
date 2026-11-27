@@ -8,7 +8,8 @@ export const DEFAULT_SETTINGS = Object.freeze({ maxActive: 3, wiltLate: 0, rotLa
 export const AGEING_STATUSES = Object.freeze(['antri', 'jalan', 'tunggu']);
 export const OPEN_STATUSES = Object.freeze(['antri', 'jalan', 'tunggu', 'bukti']);
 export const SOURCES = Object.freeze(['WhatsApp', 'Lisan', 'Rapat', 'Email', 'Lainnya']);
-export const TYPES = Object.freeze(['umum', 'pajak', 'keuangan', 'sdm', 'laporan', 'konten', 'administrasi']);
+// v1.7.21: five more (the owner's list, 27 Nov 2026), after the seven there were; none retired, Umum still first
+export const TYPES = Object.freeze(['umum', 'pajak', 'keuangan', 'sdm', 'laporan', 'konten', 'administrasi', 'it', 'media', 'legal', 'produksi', 'ga']);
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 

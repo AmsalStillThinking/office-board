@@ -566,3 +566,28 @@ without the print rule (which cut a printed table at the box height) each fail i
 board signed in.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.21 (27 Nov 2026): five more Jenis
+
+After a review of the tasks against their Jenis (the 27 Nov backup: 4 of 22 tasks fit theirs, 9 sat in Umum, and 10 were
+IT and systems work with no Jenis of its own), the app owner asked to add "IT & Sistem, Media & Konten, Legal &
+Perizinan, Produksi & QC, Umum & GA" and to retire nothing. The list is now twelve: Umum, Pajak, Keuangan, SDM,
+Laporan, Konten, Administrasi, then IT & Sistem (`it`), Media & Konten (`media`), Legal & Perizinan (`legal`),
+Produksi & QC (`produksi`) and Umum & GA (`ga`). Tugas baru and Tambah rutin offer all twelve.
+
+- Nothing existing changed: every task and routine keeps its Jenis, and Umum is still first, so still the one a new
+  task starts with. A task's Jenis cannot be changed after it is made (a routine's can, in Atur), so moving old tasks
+  to the new Jenis would be a write to the database; not done.
+- Umum and Umum & GA, and Konten and Media & Konten, now stand side by side.
+- In Papan Kantor's Jenis column (104 px) the new names take two lines; no word is split and nothing spills.
+- Files: `lib/rules.mjs` (TYPES), `public/i18n.json` (five `type_` words), `test/fx.test.mjs`. Server change: the board
+  was restarted (pid 23988).
+
+**Checks:** FX17e passes: the server's list is the twelve in this order, a task with a new Jenis is accepted, and every
+Jenis has its word in i18n.json (that line fails, naming `ga`, against a copy of the app without `type_ga`). A preview
+check (the real app.js in headless Chrome, the list read from the real rules.mjs) passes 9/9: the twelve options in
+Tugas baru and Tambah rutin, worded as asked, Umum still picked first, and the Jenis column at 1280 and 1024 px. Red
+controls: the old dictionary with the new list, and the new dictionary with the old list, each fail it. The other test
+files were not run. Not seen on the real board signed in.
+
+Undo: `git revert` the commit, then restart the board (no task uses a new Jenis yet; one that does would show its key).
