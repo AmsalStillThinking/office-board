@@ -1,13 +1,13 @@
 // PostgreSQL for the tests, the mutant runner, the browser check and the seat checks. Each data folder they make gets
 // its own schema and a database.url that names it. OB_TEST_PG names a database where they may create schemas;
 // without it they start a throwaway cluster of their own in test/_tmp/pg (127.0.0.1:55432, trust login, C collation,
-// fsync off) and leave it running for the next run (stop it: pg_ctl -D test\_tmp\pg stop). Never the board's database.
+// fsync off) and leave it running (stop it when your run is done: pg_ctl -D test\_tmp\pg stop). Never the board's database.
 //   node test/pgtest.mjs <new data folder>    writes <folder>\database.url (browser_check.py uses this)
 //   node test/pgtest.mjs --sweep              drops every test schema (run_tests.mjs does this first)
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openPg } from '../lib/pgsync.mjs';
 
@@ -30,15 +30,16 @@ export function testPgBase() {
   if (process.env.OB_TEST_PG) base = process.env.OB_TEST_PG;
   else {
     if (!fs.existsSync(path.join(DIR, 'PG_VERSION'))) {
-      const r = spawnSync(pgBin('initdb'), ['-D', DIR, '-U', 'ob', '-A', 'trust', '-E', 'UTF8', '--locale=C'], { encoding: 'utf8' });
+      const r = spawnSync(pgBin('initdb'), ['-D', DIR, '-U', 'ob', '-A', 'trust', '-E', 'UTF8', '--locale=C'], { encoding: 'utf8', windowsHide: true });
       if (r.status !== 0) throw new Error('initdb failed: ' + r.stdout + r.stderr);
     }
-    const ready = () => spawnSync(pgBin('pg_isready'), ['-h', '127.0.0.1', '-p', String(PORT), '-q']).status === 0;
+    const ready = () => spawnSync(pgBin('pg_isready'), ['-h', '127.0.0.1', '-p', String(PORT), '-q'], { windowsHide: true }).status === 0;
     if (!ready()) {
-      // detached: its own hidden console, so a Ctrl+C sent to ours does not stop it
-      const out = fs.openSync(path.join(DIR, 'server.log'), 'a');
-      spawn(pgBin('postgres'), ['-D', DIR, '-p', String(PORT), '-c', 'listen_addresses=127.0.0.1', '-c', 'fsync=off'],
-        { detached: true, windowsHide: true, stdio: ['ignore', out, out] }).unref();
+      // Through pg_ctl, not detached: a detached postgres has no console, so every process it starts (workers, one per
+      // connection) opened a console window on the owner's screen (27 Nov 2026). windowsHide without detached gives
+      // pg_ctl a console with no window, which postgres and its children share; they outlive this process.
+      spawnSync(pgBin('pg_ctl'), ['start', '-w', '-t', '30', '-D', DIR, '-l', path.join(DIR, 'server.log'),
+        '-o', `-p ${PORT} -c listen_addresses=127.0.0.1 -c fsync=off`], { stdio: 'ignore', windowsHide: true });
       const until = Date.now() + 30000;
       while (!ready()) { if (Date.now() > until) throw new Error('the test PostgreSQL did not start: ' + path.join(DIR, 'server.log')); pause(200); }
     }
