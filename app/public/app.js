@@ -669,7 +669,6 @@
     var meta = h('div', { cls: 'meta' },
       ageBadge(c.age), c.macet ? macetBadge() : null, statusBadge(c.status),
       h('span', { cls: 'due', text: t('lbl_due') + ': ' + fmtDate(c.due) + (due ? ' · ' + due : '') }),
-      opts.closed && c.closed_at ? h('span', { cls: 'closed-at', text: t('lbl_closed') + ': ' + fmtTime(c.closed_at).slice(0, 10) }) : null, // office day
       c.status === 'tunggu' && c.waiting_on ? h('span', { text: t('lbl_waiting_on') + ': ' + personName(c.waiting_on) }) : null,
       c.status === 'bukti' && c.macet ? h('span', { cls: 'waiting-confirm', text: t('waiting_confirm') + ': ' + personName(c.requester) }) : null);
     el.appendChild(meta);
@@ -866,14 +865,7 @@
     var size = OFFICE.size, pages = Math.max(1, Math.ceil(rows.length / size));
     OFFICE.page = Math.min(Math.max(1, OFFICE.page), pages); // a stale page number (the list shrank) is clamped
     var from = (OFFICE.page - 1) * size, part = rows.slice(from, from + size);
-    // v1.7.12: the columns in the owner's order; the phone stacks each row and hides this header (style.css)
-    var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t('nav_office') },
-      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from', 'lbl_status', 'lbl_urgency', 'lbl_due'].map(function (k) {
-        return h('div', { role: 'columnheader', text: t(k) });
-      })));
-    part.forEach(function (c) { tbl.appendChild(rowItem(c)); });
-    var wrap = h('div', { cls: 'tlist-wrap' }, h('div', { cls: 'tlist-scroll' }, tbl));
-    if (!rows.length) wrap.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
+    var wrap = taskTable(part, false); // the page was clamped above, so part is empty only when rows is
     // "Baris per halaman" is always there; "Menampilkan" and the page buttons only once there is a second page
     var sizeSel = h('select', { id: 'f-size' });
     PAGE_SIZES.forEach(function (n) { sizeSel.appendChild(h('option', { value: String(n), text: String(n) })); });
@@ -909,7 +901,20 @@
     return wrap;
   }
 
-  function rowItem(c) {
+  // v1.7.12: the columns in the owner's order; the phone stacks each row and hides this header (style.css).
+  // v1.7.17: Riwayat Tugas uses it too (closed): Tenggat, then Ditutup, in place of Urgensi and Tenggat.
+  function taskTable(rows, closed) {
+    var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t(closed ? 'history' : 'nav_office') },
+      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from', 'lbl_status'].concat(closed ? ['lbl_due', 'lbl_closed'] : ['lbl_urgency', 'lbl_due']).map(function (k) {
+        return h('div', { role: 'columnheader', text: t(k) });
+      })));
+    rows.forEach(function (c) { tbl.appendChild(rowItem(c, closed)); });
+    var wrap = h('div', { cls: 'tlist-wrap' }, h('div', { cls: 'tlist-scroll' }, tbl));
+    if (!rows.length) wrap.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
+    return wrap;
+  }
+
+  function rowItem(c, closed) {
     // v1.7.15: these notes have their own column, Keterangan, right of Tugas (the owner's list: Sub-tugas dari ...,
     // Pribadi, Rutin). Tenggat hukum, which shared the line under the title with them, moved there too.
     var flags = [c.parent ? tf('lbl_sub_of_title', { t: c.parent_title }) : '', c.private ? t('lbl_private') : '',
@@ -933,10 +938,12 @@
       h('div', { role: 'cell', cls: 'c-who', text: teamLabel(c) }), // names only, no avatar (the owner's choice)
       h('div', { role: 'cell', cls: 'c-from' }, h('span', { cls: 'wide-only', text: from }), h('span', { cls: 'phone-only', text: tf('from_req', { name: from }) })),
       h('div', { role: 'cell', cls: 'c-st' }, statusBadge(c.status)),
-      h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
+      closed ? null : h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null),
       h('div', { role: 'cell', cls: 'c-due' }, h('span', { cls: 'phone-only', text: t('lbl_due') + ': ' }), h('span', { text: fmtDate(c.due) }),
-        h('span', { cls: 'sub', text: dueText(c) })));
+        h('span', { cls: 'sub', text: dueText(c) })),
+      closed ? h('div', { role: 'cell', cls: 'c-closed' }, h('span', { cls: 'phone-only', text: t('lbl_closed') + ': ' }), // the office day
+        h('span', { text: c.closed_at ? fmtTime(c.closed_at).slice(0, 10) : '' })) : null);
   }
 
   function kanbanView(rows) {
@@ -1029,8 +1036,8 @@
     view.appendChild(h('p', { cls: 'muted', text: t(dir ? 'history_intro_dir' : 'history_intro') }));
     pageGet('/api/cards?view=history').then(function (r) {
       if (!r.ok) return showErr(view, r);
-      var opts = { wide: true, showRequester: true, closed: true };
-      if (!dir) return view.appendChild(cardList(r.data.cards, opts));
+      // v1.7.17: a table like Papan Kantor's, in the server's order (the last closed first), no pages
+      if (!dir) return view.appendChild(taskTable(r.data.cards, true));
       // v1.7.16: a director gets everyone's; a name keeps what that person received (PIC or team), as on their own page
       var who = h('select', { id: 'f-hist-who' }, h('option', { value: '', text: t('all_people') }));
       PEOPLE.filter(function (p) { return p.active || r.data.cards.some(function (c) { return onTeam(c, p.id); }); }).forEach(function (p) {
@@ -1041,7 +1048,7 @@
       var box = h('div');
       var paint = function () {
         clear(box);
-        box.appendChild(cardList(r.data.cards.filter(function (c) { return !HISTORY_WHO || onTeam(c, HISTORY_WHO); }), opts));
+        box.appendChild(taskTable(r.data.cards.filter(function (c) { return !HISTORY_WHO || onTeam(c, HISTORY_WHO); }), true));
       };
       who.addEventListener('change', function () { HISTORY_WHO = who.value; paint(); });
       view.appendChild(h('div', { cls: 'toolbar' }, h('label', { cls: 'fld', for: 'f-hist-who' }, h('span', { cls: 'vh', text: t('lbl_people') }), who)));

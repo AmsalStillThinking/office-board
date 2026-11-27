@@ -379,10 +379,11 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   .phone-only { display: inline; }
   .tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px 12px; }
   .tr > div { padding: 0; }
-  .tr > .c-task, .tr > .c-due { flex: 1 1 100%; }
+  .tr > .c-task, .tr > .c-due, .tr > .c-closed { flex: 1 1 100%; }
   .tr .c-task .sub { margin-top: -6px; }
   .c-urg { order: 1; } .c-st { order: 2; } .c-due { order: 3; font-size: 14px; color: var(--muted); } .c-who { order: 4; font-size: 14px; }
   .c-from { order: 5; font-size: 14px; color: var(--muted); }
+  .c-closed { order: 3; font-size: 14px; color: var(--muted); } /* Riwayat Tugas: "Ditutup:" under "Tenggat:" */
   .c-due .sub { display: inline; font-size: 14px; }
   .c-due .sub:not(:empty)::before { content: " · "; }
 }

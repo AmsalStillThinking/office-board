@@ -439,3 +439,29 @@ Red controls: the v1.7.15 screen files and three planted bugs ("sign-out keeps t
 not offered") each fail it. Server change: the board was restarted (pid 16492). Not seen on the real board signed in.
 
 Undo: `git revert` the commit, then restart the board.
+
+# v1.7.17 (27 Nov 2026): Riwayat Tugas as a table
+
+The app owner asked: "Show Riwayat Tugas using Table instead of Card". Riwayat Tugas now shows the Papan Kantor table,
+for staff and directors alike: Tugas, Keterangan, Jenis, PIC & Tim, Dari, Status, Tenggat, Ditutup. Ditutup (the
+office day the task was closed) takes the place of Urgensi, which a closed task does not have. A click anywhere on a
+row opens the task, as on Papan Kantor. On a phone each task is one stacked box, with "Ditutup:" on the line under
+"Tenggat:".
+
+- The order is the server's, the last closed first; the table has no pages (the cards had none either), still at most
+  the 200 newest.
+- Like Papan Kantor's table, it shows no task numbers (the cards showed #id).
+- A director's person list works as in v1.7.16.
+- Screen files only: `app.js` (new `taskTable`, shared by Papan Kantor's Daftar and Riwayat Tugas; `rowItem` takes a
+  `closed` flag; the cards' "Ditutup:" line went with its only caller), `style.css` (the phone rule for Ditutup).
+
+**Checks:** a new preview check (invented people, the real app.js in headless Chrome) passes 39/39, as a director and
+as staff, at 1280, 1024 and 390 px: the columns and their headers, the Ditutup dates (blank for a task with no closing
+time), a closed sub-task named by its parent's title, no Urgensi (the server gives closed tasks no age and no Macet),
+every cell under its header, the table scrolling inside its own box at 1024 px, the person list, a click on a cell that
+is not the title, both dates labelled on a phone. Red controls: the v1.7.16 screen files and five planted bugs (the table labelled Papan Kantor, the blank
+date guard dropped, staff still on cards, rows sorted by urgency, the phone "Ditutup:" label dropped) each fail it.
+Papan Kantor is unchanged: its layout check 57/57 and row-click check 16/16, the same lines as for v1.7.15. Not seen on
+the real board signed in.
+
+Undo: `git revert` the commit (screen files only, no restart).
