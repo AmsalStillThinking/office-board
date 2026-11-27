@@ -657,13 +657,17 @@ test('v1.8 sign-in by typed username and password; no name or id is accepted in 
 });
 
 test('v1.8 an old PIN still signs in once, and must then be replaced by a password', T, async () => {
-  const a = await app({});
+  const a = await signedIn({}, [DEWI]);
+  const older = a.sessions.get(DEWI); // a session she already had (another PC), from before the upgrade
+  assert.equal((await a.req(DEWI, 'GET', '/api/me')).status, 200, 'control: that session works');
   const { hashPin } = await import(pathToFileURL(path.join(APP_DIR, 'lib', 'db.mjs')).href);
   a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('135790'), DEWI); // a PIN chosen in v1.7
   a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('sandi24680'), EKO); // a password
   const r = await a.signIn(DEWI, '135790');
   assert.equal(r.status, 200);
   assert.equal((await r.json()).must_change_pin, 1, 'asked for a password at once');
+  // the change needs no old password, so no other session of hers may stay to make it
+  assert.equal((await fetch(a.base + '/api/me', { headers: { cookie: older } })).status, 401, 'her other sessions ended');
   a.sessions.set(DEWI, r.headers.get('set-cookie').split(';')[0]);
   refusal(await a.req(DEWI, 'GET', '/api/cards'), 403, 'must_change_pin');
   assert.equal(a.db.prepare('SELECT must_change_pin FROM people WHERE id = ?').get(DEWI).must_change_pin, 1, 'stored, so a second sign-in asks too');
@@ -690,6 +694,15 @@ test('sign-in throttling: 5 failed tries per name per 5 minutes', T, async () =>
   a.clock.real += 5 * 60 * 1000 + 1000;
   assert.equal((await login(DEWI, a.pins.get(DEWI))).status, 200, 'after 5 minutes');
   refusal({ status: (await login('constructor', '1')).status, json: { error: 'pin_wrong', message: 'xxxxxxxx' } }, 401, 'pin_wrong');
+});
+
+test('v1.8 a director reset lifts the lock from wrong tries', T, async () => {
+  const a = await signedIn({}, [D1]);
+  for (let i = 0; i < 5; i++) await a.signIn(DEWI, 'salah0000');
+  assert.equal((await a.signIn(DEWI)).status, 429, 'control: locked, even with the right password');
+  const r = await a.req(D1, 'POST', '/api/people/' + DEWI + '/reset-pin', {});
+  assert.equal(r.status, 200);
+  assert.equal((await a.signIn(DEWI, r.json.pin)).status, 200, 'the new temporary password signs in at once');
 });
 
 test('v1.8 a director sets usernames: required, one per person, letters digits . _ -', T, async () => {

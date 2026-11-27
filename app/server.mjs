@@ -255,10 +255,11 @@ export function createApp(opts) {
   }
 
   // ------------------------------------------------------------------ sessions and sign-in
-  // v1.8: username as typed (normalised) -> [timestamps]. A username nobody has counts exactly as a real one, so the
-  // answers never tell which usernames exist; DUMMY_HASH gives it the same scrypt work as a wrong password.
+  // v1.8: username as typed (normalised) -> [timestamps]. A username nobody has gets the same refusal and the same
+  // lock after 5 tries as a real one. It is answered without the password check (about 25 ms of scrypt that blocks the
+  // server), so an invented username costs nothing: the answer comes sooner, which can tell someone timing it that the
+  // username does not exist. Default usernames are the ids every signed-in person receives anyway.
   const failures = new Map();
-  const DUMMY_HASH = hashPin(crypto.randomBytes(16).toString('hex'));
   function noteFailure(key) {
     failures.set(key, [...recentFailures(key), realNow()]);
     // ponytail: typed text is the key, so the map is capped; past 1000 names the oldest goes, its lock with it.
@@ -392,15 +393,19 @@ export function createApp(opts) {
     if (recentFailures(user).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
     const p = q('SELECT * FROM people WHERE username = ?').get(user);
     const live = p && p.active ? p : null;
-    if (!verifyPin(password, live ? live.pin_hash : DUMMY_HASH) || !live) {
+    if (!live || !verifyPin(password, live.pin_hash)) {
       noteFailure(user);
       if (recentFailures(user).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
       refuse(401, 'pin_wrong');
     }
     failures.delete(user);
-    // A secret that does not meet today's rule (a PIN from before v1.8) signs in once, then must be replaced.
+    // A secret that does not meet today's rule (a PIN from before v1.8) signs in once, then must be replaced. That
+    // change asks for no old password, so the person's other sessions end here, as on a reset.
     const mustChange = live.must_change_pin || !passwordOk(password) ? 1 : 0;
-    if (mustChange && !live.must_change_pin) q('UPDATE people SET must_change_pin = 1 WHERE id = ?').run(live.id);
+    if (mustChange && !live.must_change_pin) tx(() => {
+      q('UPDATE people SET must_change_pin = 1 WHERE id = ?').run(live.id);
+      q('DELETE FROM sessions WHERE person = ?').run(live.id);
+    });
     const token = crypto.randomBytes(32).toString('hex');
     q('DELETE FROM sessions WHERE expires_at <= ?').run(realNow());
     q('INSERT INTO sessions(token, person, created_at, expires_at) VALUES (?,?,?,?)').run(token, live.id, realNow(), realNow() + SESSION_MS);

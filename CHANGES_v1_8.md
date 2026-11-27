@@ -20,14 +20,19 @@ tell the director, and hand out the usernames before this version goes live.
   as before.
 - **Existing people (an existing database):** each gets their id in lower case as username on the first start of
   v1.8 (`EMP001` signs in as `emp001`) until a director changes it. Their old PIN still signs in once; the board then
-  asks for a password at once (a secret that does not meet today's rule always does). Nobody is locked out by the
-  upgrade.
+  asks for a password at once (a secret that does not meet today's rule always does), and their other sessions end
+  there, because that change asks for no old password. Nobody is locked out by the upgrade.
+- **Usernames are not secret:** only directors receive the `username` field, but a default username is the person's
+  id in lower case, and every signed-in person receives everyone's id. Give people other usernames if that matters.
 - **First start:** `first-pins.txt` has four columns now: id, name, username, temporary password. A seed
   `people.json` may give `"username"`; without one it is the id in lower case. A bad or repeated username stops the
   first start (`bad seed person`), and nobody is handed a password.
-- **Wrong tries:** 5 wrong tries lock a USERNAME for 5 minutes, as before for a name. A username nobody has answers
-  exactly as a real one (same refusal, same lock after 5 tries, the same password-hashing work), so trying usernames
-  does not tell which exist. A director's reset lifts the lock.
+- **Wrong tries:** 5 wrong tries lock a USERNAME for 5 minutes, as before for a name. A username nobody has gets the
+  same refusal and the same lock after 5 tries as a real one. It is answered without the password check (about 25 ms
+  of work that holds up the whole server), so invented usernames cost the board nothing; the price is that a quicker
+  answer can tell someone timing it that a username does not exist. A first version also ran the check for invented
+  usernames, to hide that; the code review of 27 Nov 2026 removed it, because then anyone could freeze the board by
+  sending invented usernames. A director's reset lifts the lock.
 - **Words:** every "PIN" on screen and in the server's refusals says "kata sandi" / "password". Inside the code
   "pin" stays the name of the secret (`pin_hash`, `must_change_pin`, `/api/pin`, `tools/reset-pin.mjs`, the
   `pin_*` codes, `#login-pin`): columns are never renamed, and the backups and `load-db.mjs` checks use those names.
@@ -40,11 +45,14 @@ start (`lib/db.mjs`, nothing dropped). `tools/load-db.mjs` fills the usernames o
 
 ## Checks
 
-- Node tests: 153 pass, 0 fail (new: sign-in by username, the old-PIN change, unknown-username parity, director
-  usernames, seed usernames; changed: every sign-in and password value in the tests).
-- 7 new mutants in `test/mutants.mjs` (`unknown_username_not_counted`, `username_case_sensitive`, `old_pin_kept`,
-  `username_clash_unchecked`, `username_to_everyone`, `password_without_digit`, `load_no_usernames`): run on their own,
-  7 of 7 caught, every control passed. The full mutant list was not run.
+- Node tests: the whole suite 153 pass, 0 fail on the first version (new: sign-in by username, the old-PIN change,
+  unknown-username parity, director usernames, seed usernames; changed: every sign-in and password value in the
+  tests). After the review fixes `server.test.mjs` alone was run again (the file with every sign-in test).
+- New mutants in `test/mutants.mjs` (`unknown_username_not_counted`, `username_case_sensitive`, `old_pin_kept`,
+  `old_pin_keeps_sessions`, `reset_keeps_lock`, `username_clash_unchecked`, `username_to_everyone`,
+  `password_without_digit`, `load_no_usernames`), run on their own: 9 of 9 caught, every control passed (the runner
+  prints RESULT: FAIL for any run of fewer than 10 mutants). The full mutant list was not run. The time an answer
+  takes is not pinned by any test.
 - A headless-Chrome pass of the new screens (sign-in, wrong password, forced change to a 23-character password with
   spaces, sign-in with it, the director's people table and Tambah orang with a username): 13 of 13.
 - NOT updated or run: `test/browser_check.py` (it still drives the old name list; it was already out of date, HANDOVER
