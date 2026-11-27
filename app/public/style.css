@@ -171,7 +171,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
   padding: 0 4px;
   align-items: center; border-bottom: 1px solid var(--soft); }
 /* v1.7.19: Papan Saya: Urgensi | Tenggat | Aksi in the last three places (the same minimums, so it fits as well) */
-.t-my .tr { grid-template-columns: minmax(160px, 2.2fr) minmax(90px, 1.2fr) 104px minmax(100px, 1fr) minmax(80px, .8fr) minmax(122px, 1fr) 117px 165px; }
+.t-my .tr, .t-req .tr { grid-template-columns: minmax(160px, 2.2fr) minmax(90px, 1.2fr) 104px minmax(100px, 1fr) minmax(80px, .8fr) minmax(122px, 1fr) 117px 165px; }
 .phone-only { display: none; }
 .tr > div { padding: 8px; min-width: 0; }
 .tr > .c-act { display: flex; flex-wrap: wrap; gap: 6px; cursor: auto; }
@@ -376,7 +376,7 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   #me-box { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0 0; padding: 8px 0 0; }
   #me-box .who { flex: 1 1 auto; }
   .me-acts { margin-left: auto; }
-  #nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;
+  #nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; /* v1.7.23: as many as there are (4 or 5) */
     background: var(--panel); border-top: 1px solid var(--line); }
   #nav button { flex-direction: column; justify-content: center; gap: 2px; min-height: 58px; padding: 4px 1px; border-radius: 0; color: var(--muted);
     font-size: 11px; line-height: 1.2; text-align: center; overflow-wrap: normal; word-break: normal; hyphens: none; letter-spacing: -0.1px; }

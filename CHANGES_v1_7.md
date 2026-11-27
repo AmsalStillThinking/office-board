@@ -621,3 +621,33 @@ the column at 1280 and 1024 px. Red controls: the v1.7.21 screen and the v1.7.21
 files were not run. Not seen on the real board signed in.
 
 Undo: `git revert` the commit, then restart the board.
+
+# v1.7.23 (27 Nov 2026): Papan Saya holds Tugas Saya and Permintaan Saya
+
+The app owner asked to merge Papan Saya and Permintaan Saya into one page with a toggle, "Tugas Saya" and "Permintaan
+Saya", and picked the table for Permintaan Saya and "Papan Saya" as the menu name. Papan Saya now has a toggle under its
+heading: Tugas Saya (`#my`, the summary and the sections as before) and Permintaan Saya (`#my/req`, what I gave). The
+address says which half is shown, so Back works and a link can open either half.
+
+- Permintaan Saya is now the same table as Tugas Saya, one per section: Perlu persetujuan Anda (only when there are
+  some), Menunggu konfirmasi, Masih dikerjakan. Its Aksi column holds the cards' buttons: Setujui and Tolak on a
+  proposal, Terima and Minta koreksi on a proof; the reason forms open under the row. In the 165 px Aksi column Terima
+  and Minta koreksi take two lines. Task numbers no longer show there (the cards showed #id). Sub-tasks sit under their
+  parent, as on the other tables.
+- Permintaan Saya is no button of its own any more: staff had it in the menu (the phone's bottom bar now has 4 buttons,
+  which fill its width), a director had it in Lainnya. The old address `#req` opens the Permintaan Saya half.
+- Pengecualian's cards keep their Terima and Minta koreksi (the buttons now come from one function, `confirmActs`).
+- Screen files only: `app.js`, `style.css`, `i18n.json` (new `my_tasks` "Tugas Saya"). `app/test/browser_check.py`
+  expects the staff menu with Permintaan Saya (line ~499) and was not updated or run.
+
+**Checks:** a new preview check (invented people, the real app.js in headless Chrome) passes 27/27, as staff and as a
+director: the menu without Permintaan Saya, the toggle (pressed state, focus, address, Papan Saya lit in the menu), the
+Permintaan Saya sections and columns, each button (Terima, Minta koreksi with its reason, Setujui, Tolak with its
+reason) sent for the right task without opening it, a row click opening the task and focus coming back, back to Tugas
+Saya, a slow Permintaan Saya answer not drawing over Tugas Saya, the old `#req` address, the phone bar and screen at
+390 px, Pengecualian's cards. Red controls: the v1.7.22 files and seven planted bugs (no `#req` redirect, Permintaan
+Saya with Tugas Saya's buttons, the staff button kept, the phone bar fixed at 5, no focus on the toggle, Pengecualian
+without its buttons, the answer guard removed) each fail it. Papan Saya 28/28, frozen headers 22/22, sub-tasks 20/20
+and Papan Kantor 57/57 still pass. Not seen on the real board signed in.
+
+Undo: `git revert` the commit (screen files only, no restart).

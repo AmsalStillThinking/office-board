@@ -302,11 +302,12 @@
     document.body.classList.toggle('signed-out', nav.hidden); // sign-in and the first PIN change: a card, no sidebar
     if (!ME) { dropLayer(); return; }
     if (ME.must_change_pin) return;
-    // FX5: a director's first tab is Pengecualian (his home); Permintaan Saya moves into Lainnya for him.
-    // v1.2: the same five buttons, in the same order, are the bottom bar on a phone and the sidebar on a desktop.
+    // FX5: a director's first tab is Pengecualian (their home). v1.7.23: Permintaan Saya is a half of Papan Saya now,
+    // so it is no button of its own (it was a staff tab, and in Lainnya for a director).
+    // v1.2: the same buttons, in the same order, are the bottom bar on a phone and the sidebar on a desktop.
     var dir = ME.role === 'direktur';
     var tabs = dir ? [['exc', 'exc'], ['office', 'nav_office'], ['my', 'nav_my'], ['new', 'nav_new'], ['menu', 'nav_menu']]
-      : [['my', 'nav_my'], ['office', 'nav_office'], ['req', 'nav_req'], ['new', 'nav_new'], ['menu', 'nav_menu']];
+      : [['my', 'nav_my'], ['office', 'nav_office'], ['new', 'nav_new'], ['menu', 'nav_menu']];
     var inTabs = tabs.map(function (x) { return x[0]; });
     var cur = currentRoute().name;
     if (cur === 'card') cur = LAST ? LAST.name : home(); // a task's panel lights the page under it
@@ -342,7 +343,6 @@
     items.push(['todo', 'todo']); // v1.3: everyone's own to-do list, first in Lainnya
     items.push(['ann', 'ann']); // v1.7: Pengumuman, for everyone
     items.push(['history', 'history']); // v1.6.7: the closed tasks this person received
-    if (dir) items.push(['req', 'nav_req']); // FX5: Pengecualian is a director's first tab; his requests live here
     if (dir || ME.keeper === 1) items.push(['review', 'review']);
     if (dir) { items.push(['routines', 'routines']); items.push(['people', 'people']); }
     items.push(['help', 'help']);
@@ -651,6 +651,27 @@
     slot.appendChild(f);
   }
 
+  // the Pemberi's buttons (cards on Pengecualian, Permintaan Saya's table): Terima / Kembalikan on a proof, Setujui /
+  // Tolak on a task a Penerima proposed. A form they open goes in `extra`, a message in `slot`.
+  function confirmActs(c, slot, extra) {
+    var ownProof = ME && onTeam(c, ME.id) && c.requester !== ME.id; // FX1: never judge your own (team's) proof; v1.7.11: the Pemberi may
+    if (c.status === 'bukti' && ME && !ownProof && (c.requester === ME.id || ME.role === 'direktur')) return [
+      h('button', { type: 'button', cls: 'btn-accept', text: t('btn_accept'), onclick: function () { act(c.id, 'accept', {}, slot); } }),
+      h('button', { type: 'button', cls: 'btn-return secondary', text: t('btn_return'), onclick: function () {
+        clear(extra);
+        var reason = h('input', { cls: 'return-reason', id: 'return-reason-' + c.id, type: 'text', maxlength: '1000' });
+        extra.appendChild(h('form', { cls: 'inline-form return-form', onsubmit: function (ev) { ev.preventDefault(); act(c.id, 'return', { reason: reason.value }, slot); } },
+          h('label', { for: reason.id, text: t('f_reason') }), reason,
+          h('button', { type: 'submit', cls: 'return-send', text: t('btn_send') })));
+        reason.focus();
+      } })];
+    // v1.6.8: a task a Penerima added, waiting for my approval as its Pemberi
+    if (c.status === 'usul' && ME && c.requester === ME.id) return [
+      h('button', { type: 'button', cls: 'btn-approve', text: t('btn_approve'), onclick: function () { act(c.id, 'approve', {}, slot); } }),
+      h('button', { type: 'button', cls: 'btn-reject secondary', text: t('btn_reject'), onclick: function () { rejectForm(c, slot, extra, 'btn_reject'); } })];
+    return [];
+  }
+
   function cardItem(c, opts) {
     opts = opts || {};
     deco(c);
@@ -677,23 +698,7 @@
     var acts = h('div', { cls: 'acts' });
     var slot = h('div', { cls: 'msg' });
     var extra = h('div', { cls: 'extra' });
-    var ownProof = ME && onTeam(c, ME.id) && c.requester !== ME.id; // FX1: never judge your own (team's) proof; v1.7.11: the Pemberi may
-    if (opts.confirm && c.status === 'bukti' && ME && !ownProof && (c.requester === ME.id || ME.role === 'direktur')) {
-      acts.appendChild(h('button', { type: 'button', cls: 'btn-accept', text: t('btn_accept'), onclick: function () { act(c.id, 'accept', {}, slot); } }));
-      acts.appendChild(h('button', { type: 'button', cls: 'btn-return secondary', text: t('btn_return'), onclick: function () {
-        clear(extra);
-        var reason = h('input', { cls: 'return-reason', id: 'return-reason-' + c.id, type: 'text', maxlength: '1000' });
-        extra.appendChild(h('form', { cls: 'inline-form return-form', onsubmit: function (ev) { ev.preventDefault(); act(c.id, 'return', { reason: reason.value }, slot); } },
-          h('label', { for: reason.id, text: t('f_reason') }), reason,
-          h('button', { type: 'submit', cls: 'return-send', text: t('btn_send') })));
-        reason.focus();
-      } }));
-    }
-    // v1.6.8: a task a Penerima added, waiting for my approval as its Pemberi
-    if (opts.confirm && c.status === 'usul' && ME && c.requester === ME.id) {
-      acts.appendChild(h('button', { type: 'button', cls: 'btn-approve', text: t('btn_approve'), onclick: function () { act(c.id, 'approve', {}, slot); } }));
-      acts.appendChild(h('button', { type: 'button', cls: 'btn-reject secondary', text: t('btn_reject'), onclick: function () { rejectForm(c, slot, extra, 'btn_reject'); } }));
-    }
+    if (opts.confirm) confirmActs(c, slot, extra).forEach(function (b) { acts.appendChild(b); });
     if (acts.firstChild) el.appendChild(acts);
     el.appendChild(extra);
     el.appendChild(slot);
@@ -742,38 +747,58 @@
 
   // ------------------------------------------------------------------ screens
   var ROUTES = {};
-  ROUTES.my = function () {
-    view.appendChild(h('h1', { text: t('nav_my') }));
+  // v1.7.23: Papan Saya holds two halves, switched by a toggle under the heading: Tugas Saya (#my, what I work on) and
+  // Permintaan Saya (#my/req, what I gave; its own page before). The address says which half, as on Papan Kantor.
+  ROUTES.my = function (arg) {
+    var req = arg === 'req';
+    var head = function () {
+      view.appendChild(h('h1', { text: t('nav_my') }));
+      var seg = h('div', { cls: 'seg', id: 'my-tabs', role: 'group', 'aria-label': t('view_label') });
+      [['', 'my_tasks'], ['req', 'nav_req']].forEach(function (v) {
+        var id = 'my-tab-' + (v[0] || 'my');
+        seg.appendChild(h('button', { type: 'button', id: id, 'aria-pressed': (v[0] === 'req') === req ? 'true' : 'false',
+          onclick: function () { FOCUS_AFTER = id; go('my', v[0]); } }, h('span', { text: t(v[1]) })));
+      });
+      view.appendChild(seg);
+    };
+    head();
     loading();
-    pageGet('/api/cards?view=my').then(function (r) {
+    pageGet('/api/cards?view=' + (req ? 'req' : 'my')).then(function (r) {
       if (!ME) return; // the session ended: api() has shown the sign-in page
       newDay(r);
       clear(view);
-      view.appendChild(h('h1', { text: t('nav_my') }));
+      head();
       view.appendChild(annStrip());
+      if (FOCUS_AFTER) { var f = document.getElementById(FOCUS_AFTER); FOCUS_AFTER = ''; if (f) f.focus(); } // the toggle just pressed
       if (!r.ok) return showErr(view, r);
       var cards = r.data.cards.map(deco);
-      view.appendChild(mySummary(cards));
       var by = function (st) { return cards.filter(function (c) { return c.status === st; }); };
       // v1.7.19: each section is the Papan Kantor table, in the server's order, with an Aksi column in place of Status
       // (the heading says it); an empty section keeps its one sentence
-      var table = function (rows, st) { return rows.length ? taskTable(rows, 'my', t('st_' + st)) : h('p', { cls: 'muted empty', text: t('no_cards') }); };
+      var table = function (rows, label) { return rows.length ? taskTable(rows, req ? 'req' : 'my', label) : h('p', { cls: 'muted empty', text: t('no_cards') }); };
+      var section = function (id, label, rows) { view.appendChild(h('h2', { id: id, text: label })); view.appendChild(table(rows, label)); };
+      if (req) {
+        // Permintaan Saya: waiting for my approval (only when some), waiting for my confirmation, still being worked on;
+        // Aksi holds Setujui / Tolak and Terima / Kembalikan
+        var usulR = by('usul');
+        if (usulR.length) section('req-usul', t('req_approve'), usulR);
+        section('req-bukti', t('st_bukti'), by('bukti'));
+        section('req-open', t('req_open'), cards.filter(function (c) { return c.status !== 'bukti' && c.status !== 'usul'; }));
+        return;
+      }
+      view.appendChild(mySummary(cards));
       var jalan = by('jalan');
       view.appendChild(h('h2', { id: 'sec-jalan', text: t('st_jalan') + ' ' + jalan.length + '/' + SETTINGS.maxActive }));
       view.appendChild(meter(jalan.length, SETTINGS.maxActive));
-      view.appendChild(table(jalan, 'jalan'));
-      ['antri', 'tunggu', 'bukti'].forEach(function (st) {
-        view.appendChild(h('h2', { id: 'sec-' + st, text: t('st_' + st) }));
-        view.appendChild(table(by(st), st));
-      });
+      view.appendChild(table(jalan, t('st_jalan')));
+      ['antri', 'tunggu', 'bukti'].forEach(function (st) { section('sec-' + st, t('st_' + st), by(st)); });
       // v1.6.8: the tasks I added myself, waiting for their Pemberi's approval (shown only when there are some)
       var usul = by('usul');
-      if (usul.length) {
-        view.appendChild(h('h2', { id: 'sec-usul', text: t('st_usul') }));
-        view.appendChild(table(usul, 'usul'));
-      }
+      if (usul.length) section('sec-usul', t('st_usul'), usul);
     });
   };
+  // the old address of Permintaan Saya (links, a tab left open) opens its half of Papan Saya
+  ROUTES.req = function () { location.replace('#my/req'); };
 
   // v1.2: Papan Kantor is one list of every open task the viewer may see, shown three ways: Daftar (default, paged),
   // Kanban (a column per status) and Timeline (working days). The view is in the address (#office/kanban).
@@ -898,7 +923,9 @@
   // v1.7.12: the columns in the owner's order; the phone stacks each row and hides this header (style.css).
   // v1.7.17: Riwayat Tugas uses it too (mode 'closed'): Tenggat, then Ditutup, in place of Urgensi and Tenggat.
   // v1.7.19: so does Papan Saya (mode 'my'): Urgensi, Tenggat, then Aksi (its quick buttons) in place of Status.
-  var TABLE_END = { office: ['lbl_status', 'lbl_urgency', 'lbl_due'], closed: ['lbl_status', 'lbl_due', 'lbl_closed'], my: ['lbl_urgency', 'lbl_due', 'th_act'] };
+  // v1.7.23: and Permintaan Saya (mode 'req'): the same columns, its Aksi the Pemberi's buttons
+  var TABLE_END = { office: ['lbl_status', 'lbl_urgency', 'lbl_due'], closed: ['lbl_status', 'lbl_due', 'lbl_closed'], my: ['lbl_urgency', 'lbl_due', 'th_act'],
+    req: ['lbl_urgency', 'lbl_due', 'th_act'] };
   function taskTable(rows, mode, label) {
     var tbl = h('div', { cls: 'tlist t-' + mode, role: 'table', 'aria-label': label || t(mode === 'closed' ? 'history' : 'nav_office') },
       h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from'].concat(TABLE_END[mode]).map(function (k) {
@@ -948,7 +975,8 @@
 
   // v1.7.19: Papan Saya's quick buttons, as its cards had them (they moved here with the table). A form or a message
   // they open goes in the row's full-width line under it (`extra`, `slot`).
-  function quickActs(c, slot, extra) {
+  function quickActs(c, slot, extra, mode) {
+    if (mode === 'req') return confirmActs(c, slot, extra); // v1.7.23: Permintaan Saya, as its cards had them
     if (!ME || !(onTeam(c, ME.id) || ME.role === 'direktur')) return [];
     var retry = function (action, labelKey) {
       return function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, action, slot, labelKey); };
@@ -967,7 +995,7 @@
   }
 
   function rowItem(c, mode) {
-    var closed = mode === 'closed', my = mode === 'my';
+    var closed = mode === 'closed', my = mode === 'my' || mode === 'req';
     var slot = my ? h('div', { role: 'cell', cls: 'c-extra msg' }) : null, extra = my ? h('div', { role: 'cell', cls: 'c-extra extra' }) : null;
     // v1.7.15: these notes have their own column, Keterangan, right of Tugas (the owner's list: Sub-tugas dari ...,
     // Pribadi, Rutin). Tenggat hukum, which shared the line under the title with them, moved there too.
@@ -992,7 +1020,7 @@
         h('span', { cls: 'sub', text: dueText(c) })),
       closed ? h('div', { role: 'cell', cls: 'c-closed' }, h('span', { cls: 'phone-only', text: t('lbl_closed') + ': ' }), // the office day
         h('span', { text: c.closed_at ? fmtTime(c.closed_at).slice(0, 10) : '' })) : null,
-      my ? h('div', { role: 'cell', cls: 'c-act' }, quickActs(c, slot, extra)) : null, extra, slot);
+      my ? h('div', { role: 'cell', cls: 'c-act' }, quickActs(c, slot, extra, mode)) : null, extra, slot);
   }
 
   function kanbanView(rows) {
@@ -1058,25 +1086,6 @@
     return h('div', { cls: 'tl-wrap' }, h('div', { cls: 'tl-scroll' }, tl), h('p', { cls: 'muted tl-note', text: t('tl_note') }));
   }
 
-  ROUTES.req = function () {
-    view.appendChild(h('h1', { text: t('nav_req') }));
-    pageGet('/api/cards?view=req').then(function (r) {
-      if (!r.ok) return showErr(view, r);
-      var cards = r.data.cards;
-      var wait = cards.filter(function (c) { return c.status === 'bukti'; });
-      var rest = cards.filter(function (c) { return c.status !== 'bukti' && c.status !== 'usul'; });
-      // v1.6.8: tasks a Penerima added and named me as their Pemberi (shown only when there are some)
-      var usul = cards.filter(function (c) { return c.status === 'usul'; });
-      if (usul.length) {
-        view.appendChild(h('h2', { id: 'req-usul', text: t('req_approve') }));
-        view.appendChild(cardList(usul, { confirm: true, wide: true }));
-      }
-      view.appendChild(h('h2', { text: t('st_bukti') }));
-      view.appendChild(cardList(wait, { confirm: true, wide: true }));
-      view.appendChild(h('h2', { text: t('req_open') }));
-      view.appendChild(cardList(rest, { wide: true }));
-    });
-  };
   // v1.6.7: Riwayat Tugas, the closed tasks this person received (PIC or team), the last closed first; a tap opens the
   // task with its own Riwayat
   ROUTES.history = function () {
