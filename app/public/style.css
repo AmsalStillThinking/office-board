@@ -172,9 +172,13 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .tr > div { padding: 8px; min-width: 0; }
 .tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted); }
 .tr:not(.th):hover { background: #f7f9fc; }
-.tr[data-id] { cursor: pointer; } /* v1.7.13: a click anywhere on the row opens the task */
+.tr[data-id], .tr-parent { cursor: pointer; } /* v1.7.13: a click anywhere on the row opens the task */
+/* v1.7.18: a sub-task under its parent, its title indented; the grey line names a parent that is not in the list */
+.tr-sub > .c-task { padding-left: 28px; }
+.tr-parent > .c-task { grid-column: 1 / -1; }
 .tr .title, .subs .title { display: block; width: 100%; text-align: left; min-height: 40px; padding: 0; border: 0; background: none; color: var(--ink); font-weight: 700; font-size: 15px; overflow-wrap: break-word; }
 .tr .title:hover, .subs .title:hover, .link-btn:hover { color: var(--accent-dk); text-decoration: underline; background: none; }
+.tr-parent .title, .tr-parent .title:hover { color: var(--muted); font-weight: 600; } /* after .tr .title: same specificity */
 .sub { display: block; font-size: 13px; color: var(--muted); }
 .c-urg { display: flex; flex-wrap: wrap; gap: 4px; }
 .c-who { font-weight: 600; overflow-wrap: break-word; }
@@ -379,6 +383,9 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   .phone-only { display: inline; }
   .tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px 12px; }
   .tr > div { padding: 0; }
+  .tr.tr-sub { padding-left: 32px; } /* the whole stacked box of a sub-task is indented */
+  .tr-sub > .c-task { padding-left: 0; }
+  .tr.tr-parent { padding-bottom: 0; }
   .tr > .c-task, .tr > .c-due, .tr > .c-closed { flex: 1 1 100%; }
   .tr .c-task .sub { margin-top: -6px; }
   .c-urg { order: 1; } .c-st { order: 2; } .c-due { order: 3; font-size: 14px; color: var(--muted); } .c-who { order: 4; font-size: 14px; }

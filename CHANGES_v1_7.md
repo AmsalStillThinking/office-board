@@ -465,3 +465,33 @@ Papan Kantor is unchanged: its layout check 57/57 and row-click check 16/16, the
 the real board signed in.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.18 (27 Nov 2026): sub-tasks under their parent task
+
+The app owner asked: "If it Sub Tugas, Show it inline with Parent Task" with "a little identation", and picked both
+tables and a grey line for a parent that is not in the list. In Papan Kantor's Daftar and in Riwayat Tugas a sub-task
+now sits under its parent task, its title indented 20 px (on a phone the whole stacked box is). The group takes the
+place of its first member in the list: on Papan Kantor the most urgent of them, on Riwayat Tugas the last closed. When
+the parent is not in the list (on Riwayat Tugas still open, or not a task this person received; on Papan Kantor left
+out by a filter), its sub-tasks sit under one grey line with the parent's title, and a click on it opens the parent.
+
+- Papan Kantor's pages hold whole groups: up to the page size, more only when one group is bigger than a page, so a
+  page can show fewer tasks than its size. "Menampilkan" counts tasks; the grey lines are not counted.
+- Keterangan still says "Sub-tugas dari ..." (the owner's v1.7.15 list), though it now repeats the line above.
+- Kanban and Timeline are unchanged.
+- On today's board (backup of 27 Nov): 1 parent task with 2 sub-tasks; one sub-task is open, the other closed while the
+  parent is still open, so on Riwayat Tugas it sits under a grey line.
+- Screen files only: `app.js` (`groups`, `parentLine`, `opener`; `listView` pages by group), `style.css`, `i18n.json`
+  (new `parent_line`, read out before the grey line's title).
+
+**Checks:** a new preview check (invented people, the real app.js in headless Chrome) passes 20/20: a sub-task more
+urgent than its parent with another task ranked between them, a group that would straddle the end of page 1, two
+sister sub-tasks whose parent a PIC filter leaves out, a sub-task the server lists before its parent (cancelled
+together), a closed sub-task whose parent is open, the 20 px indent at 1280 and 390 px, the grey line (no task id, one
+cell, a click opens the parent, focus comes back), Kanban order unchanged. Red controls: the v1.7.17 files and six
+planted bugs (no grouping, a page running past its size, a task id on the grey line, one grey line per sister, Kanban
+grouped, the title indented twice on a phone) each fail it. The Riwayat Tugas table check passes 39/39 with its one
+sub-task now under its parent; Papan Kantor's layout check 57/57 and row-click check 16/16. Not seen on the real board
+signed in.
+
+Undo: `git revert` the commit (screen files only, no restart).

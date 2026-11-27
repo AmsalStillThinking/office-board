@@ -862,9 +862,19 @@
   }
 
   function listView(rows, repaint, body) {
-    var size = OFFICE.size, pages = Math.max(1, Math.ceil(rows.length / size));
+    // v1.7.18: a page holds whole groups (a parent with its sub-tasks): up to `size` tasks, more only when one group is
+    // bigger than that. The grey parent lines are not counted.
+    var size = OFFICE.size, book = [[]], n = 0;
+    groups(rows).forEach(function (g) {
+      var k = (g.head ? 1 : 0) + g.subs.length;
+      if (n && n + k > size) { book.push([]); n = 0; }
+      book[book.length - 1].push(g);
+      n += k;
+    });
+    var tasks = function (gs) { var a = []; gs.forEach(function (g) { if (g.head) a.push(g.head); a.push.apply(a, g.subs); }); return a; };
+    var pages = book.length;
     OFFICE.page = Math.min(Math.max(1, OFFICE.page), pages); // a stale page number (the list shrank) is clamped
-    var from = (OFFICE.page - 1) * size, part = rows.slice(from, from + size);
+    var from = tasks([].concat.apply([], book.slice(0, OFFICE.page - 1))).length, part = tasks(book[OFFICE.page - 1]);
     var wrap = taskTable(part, false); // the page was clamped above, so part is empty only when rows is
     // "Baris per halaman" is always there; "Menampilkan" and the page buttons only once there is a second page
     var sizeSel = h('select', { id: 'f-size' });
@@ -908,10 +918,45 @@
       h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from', 'lbl_status'].concat(closed ? ['lbl_due', 'lbl_closed'] : ['lbl_urgency', 'lbl_due']).map(function (k) {
         return h('div', { role: 'columnheader', text: t(k) });
       })));
-    rows.forEach(function (c) { tbl.appendChild(rowItem(c, closed)); });
+    groups(rows).forEach(function (g) {
+      tbl.appendChild(g.head ? rowItem(g.head, closed) : parentLine(g));
+      g.subs.forEach(function (c) { tbl.appendChild(rowItem(c, closed)); });
+    });
     var wrap = h('div', { cls: 'tlist-wrap' }, h('div', { cls: 'tlist-scroll' }, tbl));
     if (!rows.length) wrap.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
     return wrap;
+  }
+
+  // v1.7.18: a sub-task sits under its parent, indented (the owner's ask). A group takes the place of its first member
+  // in the rows as they come (Papan Kantor: the most urgent; Riwayat Tugas: the last closed), the parent first.
+  // Sub-tasks whose parent is not in the list share one grey line with the parent's title.
+  function groups(rows) {
+    var out = [], at = {};
+    rows.forEach(function (c) {
+      var k = String(c.parent != null ? c.parent : c.id);
+      if (!at[k]) out.push(at[k] = { id: k, title: c.parent_title, head: null, subs: [] });
+      if (c.parent != null) at[k].subs.push(c); else at[k].head = c;
+    });
+    return out;
+  }
+
+  // v1.7.13: a click anywhere on a row opens the task. The title stays a button for the keyboard: its click bubbles up
+  // to the row. The title takes the focus first, so closing the panel gives it back to this row.
+  function opener(title, id) {
+    return function () {
+      if (String(window.getSelection())) return; // text dragged over to copy it does not open the task
+      title.focus();
+      go('card', String(id));
+    };
+  }
+
+  // the grey line over sub-tasks whose parent is not in this list (on Riwayat Tugas still open or not received, or
+  // filtered out); no
+  // data-id, it is not a task of the list. A click opens the parent (the list names it only to those who may see it).
+  function parentLine(g) {
+    var title = h('button', { type: 'button', cls: 'title' }, h('span', { cls: 'vh', text: t('parent_line') + ': ' }), h('span', { text: g.title }));
+    return h('div', { cls: 'tr tr-parent', role: 'row', 'data-parent': g.id, onclick: opener(title, g.id) },
+      h('div', { role: 'cell', cls: 'c-task' }, title));
   }
 
   function rowItem(c, closed) {
@@ -921,16 +966,10 @@
       c.routine_key ? t('note_routine') : '', c.hard ? t('lbl_hard') : ''].filter(Boolean); // the table shows no task numbers
     var jenis = t('type_' + c.type), from = personName(c.requester);
     var title = h('button', { type: 'button', cls: 'title', text: c.title });
-    // v1.7.13: a click anywhere on the row opens the task. The title stays a button for the keyboard: its click bubbles
-    // up to here. The title takes the focus first, so closing the panel gives it back to this row.
-    var open = function () {
-      if (String(window.getSelection())) return; // text dragged over to copy it does not open the task
-      title.focus();
-      go('card', String(c.id));
-    };
     // the phone has no header row: its stacked row says the jenis and the notes under the title, "Tenggat:" and
     // "dari X" itself, and hides the Jenis and Keterangan cells
-    return h('div', { cls: 'tr' + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status, onclick: open },
+    return h('div', { cls: 'tr' + (c.parent != null ? ' tr-sub' : '') + (c.age ? ' age-' + c.age : ''), role: 'row', 'data-id': String(c.id), 'data-status': c.status,
+      onclick: opener(title, c.id) },
       h('div', { role: 'cell', cls: 'c-task' }, title,
         h('span', { cls: 'sub' }, h('span', { cls: 'phone-only', text: [jenis].concat(flags).join(' · ') }))),
       h('div', { role: 'cell', cls: 'c-note' }, flags.map(function (f) { return h('span', { text: f }); })), // one note a line
