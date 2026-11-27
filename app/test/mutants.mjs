@@ -43,6 +43,9 @@ const TM13 = 'TM13 Riwayat Tugas for a director: every closed task, their own an
 const TD10 = 'TD10 a monthly to-do comes back on the 1st, unticked, dated this month; it needs a date';
 const TD11 = "TD11 a day-31 to-do falls on a short month's last day and keeps its day; an old page keeps the repeat";
 const TD12 = 'TD12 "Hapus yang selesai" leaves a monthly to-do waiting to come back';
+const V18_LOGIN = 'v1.8 sign-in by typed username and password; no name or id is accepted in its place';
+const V18_OLDPIN = 'v1.8 an old PIN still signs in once, and must then be replaced by a password';
+const V18_USERS = 'v1.8 a director sets usernames: required, one per person, letters digits . _ -';
 const V15_TESTS = path.join(HERE, 'v15.test.mjs');
 const V1 = 'V1 a comment is proof: Kirim bukti needs no file, and after a correction a new comment counts';
 const V2 = 'V2 a to-do has a title and an optional description';
@@ -85,6 +88,21 @@ const MUTANTS = [
     edits: [['=${token}; HttpOnly; SameSite=Strict;', '=${token}; SameSite=Strict;']] },
   { name: 'throttle_too_loose', file: 'server.mjs', test: SERVER_TESTS, check: 'sign-in throttling: 5 failed tries per name per 5 minutes',
     edits: [['const THROTTLE_TRIES = 5;', 'const THROTTLE_TRIES = 50;']] },
+  // v1.8: a typed username and a password
+  { name: 'unknown_username_not_counted', file: 'server.mjs', test: SERVER_TESTS, check: 'sign-in throttling: 5 failed tries per name per 5 minutes',
+    edits: [['      noteFailure(user);', '      if (live) noteFailure(user);']] },
+  { name: 'username_case_sensitive', file: 'server.mjs', test: SERVER_TESTS, check: V18_LOGIN,
+    edits: [['const user = normUsername(body.username);', "const user = typeof body.username === 'string' ? body.username : '';"]] },
+  { name: 'old_pin_kept', file: 'server.mjs', test: SERVER_TESTS, check: V18_OLDPIN,
+    edits: [['const mustChange = live.must_change_pin || !passwordOk(password) ? 1 : 0;', 'const mustChange = live.must_change_pin ? 1 : 0;']] },
+  { name: 'username_clash_unchecked', file: 'server.mjs', test: SERVER_TESTS, check: V18_USERS,
+    edits: [["if (other && other.id !== self) refuse(409, 'username_taken');", '/* planted: no clash check */']] },
+  { name: 'username_to_everyone', file: 'server.mjs', test: SERVER_TESTS, check: V18_USERS,
+    edits: [['const pubPerson = (p) => ({ id: p.id, name: p.name,', 'const pubPerson = (p) => ({ id: p.id, name: p.name, username: p.username,']] },
+  { name: 'password_without_digit', file: path.join('lib', 'db.mjs'), test: SERVER_TESTS, check: 'sign-in forces a PIN change; PIN rules',
+    edits: [['&& /\\p{L}/u.test(s) && /\\d/.test(s);', '&& /\\p{L}/u.test(s);']] },
+  { name: 'load_no_usernames', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG1,
+    edits: [['  db.exec(FILL_USERNAMES); // v1.8', '  // planted: no usernames filled']] },
   { name: 'action_lookup_on_object', file: 'server.mjs', test: SERVER_TESTS, check: 'hygiene: prototype keys give 404 and the server stays up',
     edits: [['const fn = ACTIONS.get(name);', "const fn = ({ start: ACTIONS.get('start') })[name];"]] },
   // ---- v1.1 fix round

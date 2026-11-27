@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { startApp, at, MSG, APP_DIR, FIXTURE, freshDir, dropDir, rawDb, hasColumn } from './helpers.mjs';
+import { startApp, at, MSG, APP_DIR, FIXTURE, freshDir, dropDir, rawDb, hasColumn, PW, signIn, readFirstPins } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* closed */ } } });
@@ -133,7 +133,7 @@ test('TD6 a session and a changed PIN are needed', T, async () => {
     ['POST', `/api/todos/${id}/delete`, {}], ['POST', '/api/todos/clear-done', {}]];
   for (const [m, u, b] of calls) refusal(await a.req(null, m, u, b), 401, 'unauthorized');
   // Gita signs in with her temporary PIN and has not changed it yet
-  const r = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: GITA, pin: a.pins.get(GITA) }) });
+  const r = await a.signIn(GITA);
   assert.equal(r.status, 200);
   a.sessions.set(GITA, r.headers.get('set-cookie').split(';')[0]);
   for (const [m, u, b] of calls) refusal(await a.req(GITA, m, u, b), 403, 'must_change_pin');
@@ -200,12 +200,12 @@ test('TD8 an existing data folder without the to-do table gains it', T, async ()
   try {
     assert.ok(hasColumn(a2.db, 'todos'), 'table added on open');
     assert.equal(a2.db.prepare('SELECT COUNT(*) AS n FROM people').get().n, 6, 'nothing dropped, nobody seeded again');
-    const pin = fs.readFileSync(path.join(dataDir, 'first-pins.txt'), 'utf8').split(/\r?\n/).map((l) => l.split('\t')).find((p) => p[0] === DEWI)[2];
+    const { pins, users } = readFirstPins(dataDir);
     const base = `http://127.0.0.1:${port}`;
-    const login = await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin }) });
+    const login = await signIn(base, users.get(DEWI), pins.get(DEWI));
     const cookie = login.headers.get('set-cookie').split(';')[0];
     const post = (url, body) => fetch(base + url, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    assert.equal((await post('/api/pin', { pin: '135790' })).status, 200);
+    assert.equal((await post('/api/pin', { pin: PW })).status, 200);
     assert.equal((await post('/api/todos', { text: 'Setelah pembaruan' })).status, 201, 'a to-do can be added on the upgraded folder');
   } finally {
     await a2.close();

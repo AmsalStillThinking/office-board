@@ -30,6 +30,11 @@
 > the To-Do Saya screen is NOT in them: it stays on branch feat/todo-list until the director has been asked.
 > `browser_check.py` still expects the screens before the layout edits (top bar, Angka): bring it up to date before
 > trusting it.
+> v1.8 (27 Nov 2026, in the copy `F:\Office Board Hosting`): people sign in with a typed username and a password
+> (8+ characters, a letter and a digit) instead of picking their name and typing a PIN; no list of names is given out
+> before sign-in. Existing people get their id in lower case as username and are asked for a password after their
+> next sign-in with the old PIN. Read CHANGES_v1_8.md; tell the director, and hand out the usernames, before it goes
+> live. `browser_check.py` and `seat_checks\` still sign in the old way.
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."
@@ -264,10 +269,10 @@ about anything that changes who sees what).
    period (month or quarter) instead of the date would fix it.
 5. **Double-tap guard** covers buttons whose click sends the write at once, not a write sent after an earlier
    request in the same click. The server refuses most repeats anyway.
-6. **Plain HTTP**: PINs and files travel unencrypted on the office network. Options: Tailscale HTTPS, or a reverse
-   proxy with a certificate.
-7. **Name lock-out**: five wrong PINs lock a name for 5 minutes, so anyone on the network can lock anyone. A per-device
-   limit would be better.
+6. **Plain HTTP**: passwords (PINs before v1.8) and files travel unencrypted on the office network. Options: Tailscale
+   HTTPS, or a reverse proxy with a certificate. Required before the board is reachable from the Internet.
+7. **Username lock-out**: five wrong tries lock a username for 5 minutes (a name before v1.8), so anyone who knows a
+   username can lock that person out. A per-device limit would be better.
 8. **Capture from chat**: the plan was a Telegram bot that turns a message or photo into a card (staff already use
    the leave-request bot); WhatsApp is harder (official API needs its own number and cannot read existing chats).
 9. **When the requester has left** and the only director owns the card, nobody can accept its proof; it can only be

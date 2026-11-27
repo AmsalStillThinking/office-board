@@ -105,8 +105,11 @@ The deploy script below is for any other installation (a program folder without 
 ## First start
 
 On an empty data folder, people and routine templates are loaded from `seed\people.json` and `seed\routines.json`,
-and every person gets a temporary PIN written to `data\first-pins.txt`. Hand each PIN out in person, then DELETE that
-file. Everyone must choose a new PIN (6 to 12 digits) at first sign-in.
+and every person gets a username and a temporary password written to `data\first-pins.txt` (id, name, username,
+password). Hand each one out in person, then DELETE that file. Everyone must choose their own password (8 to 128
+characters, with at least one letter and one digit) at first sign-in. Since v1.8 people sign in by typing their
+username; a seed person may carry `"username"`, otherwise it is their id in lower case. A director sees and changes
+usernames in Lainnya -> Orang & Pengaturan (CHANGES_v1_8.md).
 
 `seed\people.json` holds the real staff names, so it is NOT in git (the repository is public): it exists only on the
 board PC. For a new installation, write it yourself in the shape of `test\fixture\people.json` (fictional people).
@@ -137,10 +140,11 @@ who owns a running routine cannot be switched off until the routine has another 
 ## The data folder is as sensitive as the PINs
 
 Anyone holding a copy of `data\` can read `database.url` and with it the whole database, or read the daily backups
-directly: try 6-digit PINs against the stored hashes offline, read every card including the private ones, read every
+directly: try passwords (or the 6-digit PINs of people who have not signed in since v1.8) against the stored hashes
+offline, read every card including the private ones, read every
 person's own To-Do Saya list (which no page shows to anyone else, a director included), and open every uploaded
 file. The same goes for anyone who can sign in to PostgreSQL as `postgres` or `office_board`. Keep the folder and its
-backups where only the directors can reach them. `first-pins.txt` is plain text: hand the PINs out, then delete it.
+backups where only the directors can reach them. `first-pins.txt` is plain text: hand the passwords out, then delete it.
 After the move, `office.db` holds the same data as it was on that day: keep it as safe as the rest, or delete it once
 the board has run well on PostgreSQL for a while.
 
@@ -176,25 +180,29 @@ To check a backup without touching the real one: give a scratch folder its own `
 database, load the backup into it and start a second copy on another port, e.g.
 `node server.mjs --port 3016 --host 127.0.0.1 --data "D:\Backup\office-board-check"`.
 
-## Reset a PIN
+## Reset a password
 
-A director signs in, opens Lainnya -> Orang & Pengaturan, presses "Atur" on the person's row, then "Reset PIN" in the
-dialog. A new temporary PIN is shown once; the person must change it at the next sign-in, and their sessions end.
-Every reset appears in the "Catatan perubahan" list on the same page, so the other director can see it. After 5 wrong
-PINs a name is locked for 5 minutes (a director's reset clears the lock). Changing your own PIN ends your other sessions.
+(Since v1.8 people sign in with a username and a password; the tool and the codes keep the old name "PIN".)
 
-If no director can sign in, reset a PIN offline on the server PC (works while the server runs):
+A director signs in, opens Lainnya -> Orang & Pengaturan, presses "Atur" on the person's row, then "Reset kata sandi"
+in the dialog. A new temporary password is shown once; the person must change it at the next sign-in, and their
+sessions end. The person's username is in the same table. Every reset appears in the "Catatan perubahan" list on the
+same page, so the other director can see it. After 5 wrong tries a username is locked for 5 minutes (a director's
+reset clears the lock). Changing your own password ends your other sessions.
+
+If no director can sign in, reset a password offline on the server PC (works while the server runs):
 
 ```powershell
-node tools/reset-pin.mjs --data "D:\apps\office-board\data" --list              # id and name of everyone
-node tools/reset-pin.mjs --data "D:\apps\office-board\data" --person EMP001     # prints a new temporary PIN once
+node tools/reset-pin.mjs --data "D:\apps\office-board\data" --list              # id, name and username of everyone
+node tools/reset-pin.mjs --data "D:\apps\office-board\data" --person EMP001     # prints a new temporary password once
 ```
 
 It uses the database named in that folder's `database.url`. It refuses an unknown id and a folder without
 `database.url` (it creates nothing), and records the reset in the change
 log with no actor ("offline"). A lock from 5 wrong tries lives in the running server's memory: the tool cannot lift
 it, and it ends by itself within 5 minutes or when the server restarts. The tool warns when the person is switched
-off (inactive): that PIN cannot sign in until a director switches the person on again.
+off (inactive): that password cannot sign in until a director switches the person on again. On a database a v1.8
+board has never opened it stops and says the username column is missing: start the board once first.
 
 ## Checks (run from `_taskmonitor_build\app`)
 

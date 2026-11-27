@@ -16,6 +16,19 @@ export const R = await import(pathToFileURL(path.join(APP_DIR, 'lib', 'rules.mjs
 export const MSG = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'lib', 'messages.json'), 'utf8'));
 
 export const at = (iso) => Date.parse(iso);
+// the password a test person chooses at first sign-in (v1.8: letters and digits, 8 or more)
+export const PW = 'sandi135790';
+export const signIn = (base, username, password) => fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username, password }) });
+/** first-pins.txt: id -> temporary password, id -> username */
+export function readFirstPins(dataDir) {
+  const pins = new Map(), users = new Map();
+  for (const line of fs.readFileSync(path.join(dataDir, 'first-pins.txt'), 'utf8').split(/\r?\n/)) {
+    const m = /^(\S+)\t[^\t]+\t(\S+)\t(\S+)$/.exec(line);
+    if (m) { users.set(m[1], m[2]); pins.set(m[1], m[3]); }
+  }
+  if (!pins.size) throw new Error('first-pins.txt: no person line read');
+  return { pins, users };
+}
 
 // { db: false }: a folder with no database.url (no database at all).
 export function freshDir(tag, { db = true } = {}) {
@@ -39,13 +52,10 @@ export async function startApp(opts = {}) {
   const app = mod.createApp({ dataDir, seedDir: FIXTURE, now: () => clock.t, realNow: () => clock.real, quiet: true, hooks: opts.hooks || {} });
   const port = await app.listen(0, '127.0.0.1');
   if (port === 3006) throw new Error('port 3006 is reserved');
-  const pins = new Map();
-  for (const line of fs.readFileSync(path.join(dataDir, 'first-pins.txt'), 'utf8').split(/\r?\n/)) {
-    const m = /^(\S+)\t[^\t]+\t(\d+)$/.exec(line);
-    if (m) pins.set(m[1], m[2]);
-  }
+  // v1.8: first-pins.txt is id, name, username, temporary password ("pin" stays the internal name of the password)
+  const { pins, users } = readFirstPins(dataDir);
   const base = `http://127.0.0.1:${port}`;
-  const ctx = { app, port, base, dataDir, clock, pins, db: app.db, sessions: new Map() };
+  const ctx = { app, port, base, dataDir, clock, pins, users, db: app.db, sessions: new Map() };
   ctx.close = async () => { await app.close(); dropDir(dataDir); };
   // request helper: as(personId) uses that person's session cookie (null = anonymous)
   ctx.req = async (who, method, url, body, headers = {}) => {
@@ -60,8 +70,10 @@ export async function startApp(opts = {}) {
     try { json = JSON.parse(text); } catch { json = null; }
     return { status: r.status, json, text, headers: r.headers };
   };
-  ctx.login = async (who, newPin = '135790') => {
-    const r = await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: who, pin: pins.get(who) }) });
+  // the sign-in request itself: a person id is sent as their username; any other text is sent as typed
+  ctx.signIn = (who, password = pins.get(who)) => signIn(base, users.get(who) ?? who, password);
+  ctx.login = async (who, newPin = PW) => {
+    const r = await ctx.signIn(who);
     if (r.status !== 200) throw new Error('login failed for ' + who + ': ' + r.status);
     const cookie = r.headers.get('set-cookie').split(';')[0];
     ctx.sessions.set(who, cookie);

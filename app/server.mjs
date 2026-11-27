@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openDb, seedIfEmpty, hashPin, verifyPin, tempPin, TABLES } from './lib/db.mjs';
+import { openDb, seedIfEmpty, hashPin, verifyPin, tempPin, passwordOk, normUsername, USERNAME_RE, TABLES } from './lib/db.mjs';
 import * as R from './lib/rules.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -255,7 +255,16 @@ export function createApp(opts) {
   }
 
   // ------------------------------------------------------------------ sessions and sign-in
-  const failures = new Map(); // person id -> [timestamps]; only ids of real people are ever stored
+  // v1.8: username as typed (normalised) -> [timestamps]. A username nobody has counts exactly as a real one, so the
+  // answers never tell which usernames exist; DUMMY_HASH gives it the same scrypt work as a wrong password.
+  const failures = new Map();
+  const DUMMY_HASH = hashPin(crypto.randomBytes(16).toString('hex'));
+  function noteFailure(key) {
+    failures.set(key, [...recentFailures(key), realNow()]);
+    // ponytail: typed text is the key, so the map is capped; past 1000 names the oldest goes, its lock with it.
+    // A per-device limit is the upgrade (HANDOVER, known limits).
+    if (failures.size > 1000) failures.delete(failures.keys().next().value);
+  }
   function parseCookies(h) {
     const out = new Map();
     for (const part of String(h || '').split(';')) {
@@ -368,31 +377,34 @@ export function createApp(opts) {
   const routes = new Map(); // "METHOD /exact/path" -> { fn, auth }
   const add = (method, p, fn, auth = 'user') => routes.set(method + ' ' + p, { fn, auth });
 
-  add('GET', '/api/people-public', (ctx) => {
-    send(ctx.res, 200, { people: q('SELECT id, name, nick FROM people WHERE active = 1 ORDER BY name').all() });
-  }, 'none');
-
   // Lets the page know whether to show the sign-in screen without provoking a 401. Reveals only yes/no.
   add('GET', '/api/session', (ctx) => {
     const me = sessionPerson(ctx.req);
     send(ctx.res, 200, { signed_in: !!me });
   }, 'none');
 
+  // v1.8: a typed username and a password (was: a person picked from a list, and a PIN)
   add('POST', '/api/login', async (ctx) => {
     const body = await readJson(ctx);
-    const p = getPerson(str(body.id, 40));
-    if (!p || !p.active) refuse(401, 'pin_wrong');
-    if (recentFailures(p.id).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
-    if (typeof body.pin !== 'string' || !verifyPin(body.pin, p.pin_hash)) {
-      failures.set(p.id, [...recentFailures(p.id), realNow()]);
-      if (recentFailures(p.id).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
+    const user = normUsername(body.username);
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!user || user.length > 40) refuse(401, 'pin_wrong'); // no username is longer, so it is never a map key
+    if (recentFailures(user).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
+    const p = q('SELECT * FROM people WHERE username = ?').get(user);
+    const live = p && p.active ? p : null;
+    if (!verifyPin(password, live ? live.pin_hash : DUMMY_HASH) || !live) {
+      noteFailure(user);
+      if (recentFailures(user).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
       refuse(401, 'pin_wrong');
     }
-    failures.delete(p.id);
+    failures.delete(user);
+    // A secret that does not meet today's rule (a PIN from before v1.8) signs in once, then must be replaced.
+    const mustChange = live.must_change_pin || !passwordOk(password) ? 1 : 0;
+    if (mustChange && !live.must_change_pin) q('UPDATE people SET must_change_pin = 1 WHERE id = ?').run(live.id);
     const token = crypto.randomBytes(32).toString('hex');
     q('DELETE FROM sessions WHERE expires_at <= ?').run(realNow());
-    q('INSERT INTO sessions(token, person, created_at, expires_at) VALUES (?,?,?,?)').run(token, p.id, realNow(), realNow() + SESSION_MS);
-    send(ctx.res, 200, { ok: true, must_change_pin: p.must_change_pin },
+    q('INSERT INTO sessions(token, person, created_at, expires_at) VALUES (?,?,?,?)').run(token, live.id, realNow(), realNow() + SESSION_MS);
+    send(ctx.res, 200, { ok: true, must_change_pin: mustChange },
       { 'Set-Cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}` });
   }, 'none');
 
@@ -405,8 +417,8 @@ export function createApp(opts) {
     const body = await readJson(ctx);
     const me = ctx.me;
     if (!me.must_change_pin && (typeof body.old !== 'string' || !verifyPin(body.old, me.pin_hash))) refuse(403, 'pin_wrong');
-    const pin = typeof body.pin === 'string' ? body.pin : '';
-    if (!/^\d{6,12}$/.test(pin)) refuse(400, 'pin_weak');
+    const pin = body.pin; // v1.8: the new password
+    if (!passwordOk(pin)) refuse(400, 'pin_weak');
     if (verifyPin(pin, me.pin_hash)) refuse(400, 'pin_same');
     tx(() => {
       q('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin(pin), me.id);
@@ -626,7 +638,8 @@ export function createApp(opts) {
 
   add('GET', '/api/people', (ctx) => {
     if (!isDir(ctx.me)) refuse(403, 'forbidden');
-    send(ctx.res, 200, { people: q('SELECT * FROM people ORDER BY name').all().map((p) => ({ ...pubPerson(p), must_change_pin: p.must_change_pin })), settings: settings() });
+    // v1.8: the usernames go to directors only (pubPerson, which everyone gets, leaves them out)
+    send(ctx.res, 200, { people: q('SELECT * FROM people ORDER BY name').all().map((p) => ({ ...pubPerson(p), username: p.username, must_change_pin: p.must_change_pin })), settings: settings() });
   });
   // FX17j: the change log (events without a card). A PIN reset lets a director sign in as that person, so the
   // other director must be able to see it.
@@ -649,13 +662,14 @@ export function createApp(opts) {
     if (!isDir(me)) refuse(403, 'forbidden');
     const name = str(body.name, 100);
     if (!name || !['direktur', 'staf'].includes(body.role)) refuse(400, 'bad_input');
+    const username = checkUsername(body.username, null);
     const id = 'P' + crypto.randomBytes(4).toString('hex').toUpperCase();
     const pin = tempPin();
     tx(() => {
       // v1.7.24: their bell starts now, not at the beginning of the events log
-      q('INSERT INTO people(id, name, nick, role, keeper, active, pin_hash, must_change_pin, notif_seen_id) VALUES (?,?,?,?,?,1,?,1,(SELECT COALESCE(MAX(id), 0) FROM events))')
-        .run(id, name, str(body.nick, 40), body.role, body.keeper ? 1 : 0, hashPin(pin));
-      writeEvent(null, me.id, 'person_add', { after: { id, name, role: body.role, keeper: body.keeper ? 1 : 0 } });
+      q('INSERT INTO people(id, name, nick, role, keeper, active, pin_hash, must_change_pin, notif_seen_id, username) VALUES (?,?,?,?,?,1,?,1,(SELECT COALESCE(MAX(id), 0) FROM events),?)')
+        .run(id, name, str(body.nick, 40), body.role, body.keeper ? 1 : 0, hashPin(pin), username);
+      writeEvent(null, me.id, 'person_add', { after: { id, name, role: body.role, keeper: body.keeper ? 1 : 0, username } });
     });
     send(ctx.res, 201, { person: pubPerson(getPerson(id)), pin });
   });
@@ -1346,6 +1360,15 @@ export function createApp(opts) {
     send(ctx.res, r ? 200 : 201, { routine: routineOut(q('SELECT * FROM routines WHERE id = ?').get(rid)), created });
   }
 
+  // v1.8: a username a director gives (new person: self null). The unique index is the backstop for a race.
+  function checkUsername(v, self) {
+    const u = normUsername(v);
+    if (!USERNAME_RE.test(u)) refuse(400, 'username_bad');
+    const other = q('SELECT id FROM people WHERE username = ?').get(u);
+    if (other && other.id !== self) refuse(409, 'username_taken');
+    return u;
+  }
+
   async function personUpdate(ctx, id) {
     if (!isDir(ctx.me)) refuse(403, 'forbidden'); // shortcut only; repeated after the body (FX11)
     const body = await readJson(ctx);
@@ -1359,15 +1382,16 @@ export function createApp(opts) {
     if (body.role !== undefined) { if (!['direktur', 'staf'].includes(body.role)) refuse(400, 'bad_input'); next.role = body.role; }
     if (body.keeper !== undefined) next.keeper = body.keeper ? 1 : 0;
     if (body.active !== undefined) next.active = body.active ? 1 : 0;
+    if (body.username !== undefined) next.username = checkUsername(body.username, p.id);
     if (p.id === me.id && (next.active === 0 || next.role !== 'direktur')) refuse(400, 'self_lockout');
     if (p.active === 1 && next.active === 0) { // FX13: a person who leaves must not silently stop routine work
       const n = q('SELECT COUNT(*) AS n FROM routines WHERE active = 1 AND owner = ?').get(p.id).n;
       if (n > 0) refuse(409, 'has_routines', { n });
     }
     tx(() => {
-      q('UPDATE people SET name = ?, nick = ?, role = ?, keeper = ?, active = ? WHERE id = ?').run(next.name, next.nick, next.role, next.keeper, next.active, p.id);
+      q('UPDATE people SET name = ?, nick = ?, role = ?, keeper = ?, active = ?, username = ? WHERE id = ?').run(next.name, next.nick, next.role, next.keeper, next.active, next.username, p.id);
       if (!next.active) q('DELETE FROM sessions WHERE person = ?').run(p.id);
-      writeEvent(null, me.id, 'person', { person: p.id, before: pubPerson(p), after: pubPerson(next) });
+      writeEvent(null, me.id, 'person', { person: p.id, before: { ...pubPerson(p), username: p.username }, after: { ...pubPerson(next), username: next.username } });
     });
     send(ctx.res, 200, { person: pubPerson(getPerson(p.id)) });
   }
@@ -1383,7 +1407,7 @@ export function createApp(opts) {
       q('DELETE FROM sessions WHERE person = ?').run(p.id);
       writeEvent(null, me.id, 'pin_reset', { person: p.id });
     });
-    failures.delete(p.id);
+    failures.delete(p.username); // a reset lifts the lock from wrong tries
     send(ctx.res, 200, { pin });
   }
 

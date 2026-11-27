@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { openDb, TABLES, SERIAL_TABLES } from '../lib/db.mjs';
+import { openDb, TABLES, SERIAL_TABLES, FILL_USERNAMES } from '../lib/db.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf('--' + name);
@@ -62,6 +62,7 @@ try {
     if (n !== rows[t].length) throw new Error(`${t}: ${rows[t].length} rows read, ${n} in the database`);
     lines.push(`${t.padEnd(9)} ${n} rows`);
   }
+  db.exec(FILL_USERNAMES); // v1.8: people from an older database or backup get their default username
   // The next new id continues after the highest one copied.
   for (const t of SERIAL_TABLES) db.prepare(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), (SELECT COALESCE(MAX(id), 0) + 1 FROM ${t}), false)`).get();
   const want = pinPrint(rows.people), got = pinPrint(db.prepare('SELECT id, pin_hash, must_change_pin FROM people').all());

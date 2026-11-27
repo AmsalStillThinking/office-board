@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, HERE } from './helpers.mjs';
+import { pathToFileURL } from 'node:url';
+import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, HERE, PW, readFirstPins } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* already closed */ } } });
@@ -579,9 +580,8 @@ test('auth: every route needs a session', T, async () => {
     const r = await a.req(null, m, u, m === 'POST' ? {} : undefined);
     assert.equal(r.status, 401, m + ' ' + u); assert.equal(r.json.error, 'unauthorized');
   }
-  const pub = await a.req(null, 'GET', '/api/people-public');
-  assert.equal(pub.status, 200);
-  assert.ok(pub.json.people.every((p) => !('pin_hash' in p) && !('role' in p)), 'no hashes or roles before sign-in');
+  // v1.8: the username is typed, so no list of names is given out before sign-in
+  refusal(await a.req(null, 'GET', '/api/people-public'), 404, 'not_found');
   assert.equal((await a.req(null, 'GET', '/')).status, 200);
   assert.equal((await a.req(null, 'GET', '/app.js')).status, 200);
 });
@@ -621,7 +621,10 @@ test('files are served with nosniff, inline images, other files as download', T,
 
 test('sign-in forces a PIN change; PIN rules', T, async () => {
   const a = await app({});
-  const r = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin: a.pins.get(DEWI) }) });
+  // v1.8: the temporary secret is a password too (letters and digits), and the username is the third column
+  assert.equal(a.users.get(DEWI), 't03', 'the username defaults to the id in lower case');
+  assert.match(a.pins.get(DEWI), /^(?=.*[a-z])(?=.*\d)[a-z0-9]{10}$/, 'a temporary password, not a PIN');
+  const r = await a.signIn(DEWI);
   assert.equal(r.status, 200);
   const cookie = r.headers.get('set-cookie');
   assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/); assert.match(cookie, /Max-Age=43200/);
@@ -629,29 +632,115 @@ test('sign-in forces a PIN change; PIN rules', T, async () => {
   assert.equal((await r.json()).must_change_pin, 1);
   refusal(await a.req(DEWI, 'GET', '/api/cards'), 403, 'must_change_pin');
   refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 'x', owner: DEWI, due: '2026-11-25', source: 'Lisan' }), 403, 'must_change_pin');
-  refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: '123' }), 400, 'pin_weak');
-  refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: 'abcdefgh' }), 400, 'pin_weak');
+  for (const weak of ['ab12', '12345678', 'abcdefgh', 'ab1' + 'x'.repeat(126), 12345678]) refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: weak }), 400, 'pin_weak');
   refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: a.pins.get(DEWI) }), 400, 'pin_same');
-  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: '246810' })).status, 200);
+  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'kata sandi 2468' })).status, 200, 'any characters, spaces too');
   assert.equal((await a.req(DEWI, 'GET', '/api/cards')).status, 200);
-  refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: '999999', old: '000000' }), 403, 'pin_wrong');
-  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: '999999', old: '246810' })).status, 200);
+  refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: 'sandi99999', old: 'salah0000' }), 403, 'pin_wrong');
+  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'ab1' + 'x'.repeat(125), old: 'kata sandi 2468' })).status, 200, '128 characters is the most');
   const h = a.db.prepare('SELECT pin_hash FROM people WHERE id = ?').get(DEWI).pin_hash;
   assert.match(h, /^scrypt\$/);
 });
 
+test('v1.8 sign-in by typed username and password; no name or id is accepted in its place', T, async () => {
+  const a = await app({});
+  const pw = a.pins.get(DEWI);
+  assert.equal((await a.signIn('  T03 ', pw)).status, 200, 'the username is trimmed and not case-sensitive');
+  a.db.prepare("UPDATE people SET username = 'dewi.k' WHERE id = ?").run(DEWI);
+  assert.equal((await a.signIn('Dewi.K', pw)).status, 200, 'a changed username signs in');
+  for (const [u, p] of [['t03', pw], ['Dewi Kartika', pw], ['', pw], [null, pw], ['dewi.k', ''], ['dewi.k', 'x' + pw], ['constructor', pw], ['d'.repeat(41), pw]]) {
+    const r = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+    refusal({ status: r.status, json: await r.json(), text: '' }, 401, 'pin_wrong');
+  }
+  const old = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin: pw }) });
+  assert.equal(old.status, 401, 'the v1.7 request (person id and PIN) no longer signs in');
+});
+
+test('v1.8 an old PIN still signs in once, and must then be replaced by a password', T, async () => {
+  const a = await app({});
+  const { hashPin } = await import(pathToFileURL(path.join(APP_DIR, 'lib', 'db.mjs')).href);
+  a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('135790'), DEWI); // a PIN chosen in v1.7
+  a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('sandi24680'), EKO); // a password
+  const r = await a.signIn(DEWI, '135790');
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).must_change_pin, 1, 'asked for a password at once');
+  a.sessions.set(DEWI, r.headers.get('set-cookie').split(';')[0]);
+  refusal(await a.req(DEWI, 'GET', '/api/cards'), 403, 'must_change_pin');
+  assert.equal(a.db.prepare('SELECT must_change_pin FROM people WHERE id = ?').get(DEWI).must_change_pin, 1, 'stored, so a second sign-in asks too');
+  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: PW })).status, 200);
+  assert.equal((await a.req(DEWI, 'GET', '/api/cards')).status, 200);
+  const e = await a.signIn(EKO, 'sandi24680');
+  assert.equal((await e.json()).must_change_pin, 0, 'a password that meets the rule is not asked again (control)');
+});
+
 test('sign-in throttling: 5 failed tries per name per 5 minutes', T, async () => {
   const a = await app({});
-  const login = (id, pin) => fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, pin }) });
-  for (let i = 0; i < 4; i++) assert.equal((await login(DEWI, '000000')).status, 401, 'try ' + (i + 1));
-  const fifth = await login(DEWI, '000000');
+  const login = (u, pin) => a.signIn(u, pin);
+  for (let i = 0; i < 4; i++) assert.equal((await login(DEWI, 'salah0000')).status, 401, 'try ' + (i + 1));
+  const fifth = await login(DEWI, 'salah0000');
   assert.equal(fifth.status, 429);
   assert.equal((await fifth.json()).error, 'pin_throttled');
   assert.equal((await login(DEWI, a.pins.get(DEWI))).status, 429, 'even the right PIN waits');
+  assert.equal((await login(' T03', a.pins.get(DEWI))).status, 429, 'the same username however it is typed');
   assert.equal((await login(EKO, a.pins.get(EKO))).status, 200, 'per name: another person is not blocked');
+  // v1.8: a username nobody has answers exactly as a real one does, so trying names tells nothing
+  const seen = [];
+  for (let i = 0; i < 6; i++) { const x = await login('tidak.ada', 'salah0000'); seen.push(x.status + ':' + (await x.json()).error); }
+  assert.deepEqual(seen, ['401:pin_wrong', '401:pin_wrong', '401:pin_wrong', '401:pin_wrong', '429:pin_throttled', '429:pin_throttled']);
   a.clock.real += 5 * 60 * 1000 + 1000;
   assert.equal((await login(DEWI, a.pins.get(DEWI))).status, 200, 'after 5 minutes');
   refusal({ status: (await login('constructor', '1')).status, json: { error: 'pin_wrong', message: 'xxxxxxxx' } }, 401, 'pin_wrong');
+});
+
+test('v1.8 a director sets usernames: required, one per person, letters digits . _ -', T, async () => {
+  const a = await signedIn({}, [D1, DEWI]);
+  refusal(await a.req(D1, 'POST', '/api/people', { name: 'Hana Wulandari', role: 'staf' }), 400, 'username_bad');
+  for (const bad of ['hana w', 'hana@x', 'h'.repeat(41), '', 12]) refusal(await a.req(D1, 'POST', '/api/people', { name: 'Hana', role: 'staf', username: bad }), 400, 'username_bad');
+  refusal(await a.req(D1, 'POST', '/api/people', { name: 'Hana', role: 'staf', username: ' T03 ' }), 409, 'username_taken');
+  const n = a.db.prepare('SELECT COUNT(*) AS n FROM people').get().n;
+  const add = await a.req(D1, 'POST', '/api/people', { name: 'Hana Wulandari', role: 'staf', username: ' Hana.W ' });
+  assert.equal(add.status, 201);
+  assert.equal(a.db.prepare('SELECT COUNT(*) AS n FROM people').get().n, n + 1, 'only the good one was added');
+  const hana = add.json.person.id;
+  assert.equal((await a.signIn('hana.w', add.json.pin)).status, 200, 'the new person signs in with the username given');
+  refusal(await a.req(D1, 'POST', '/api/people/' + DEWI, { username: 'HANA.W' }), 409, 'username_taken');
+  refusal(await a.req(D1, 'POST', '/api/people/' + DEWI, { username: 'dewi k' }), 400, 'username_bad');
+  assert.equal(a.db.prepare('SELECT username FROM people WHERE id = ?').get(DEWI).username, 't03', 'a refusal changes nothing');
+  assert.equal((await a.req(D1, 'POST', '/api/people/' + DEWI, { username: 'Dewi' })).status, 200);
+  assert.equal((await a.req(D1, 'POST', '/api/people/' + DEWI, { username: 'dewi' })).status, 200, 'keeping your own username is no clash');
+  assert.equal((await a.signIn('dewi', PW)).status, 200, 'the new username signs in');
+  assert.equal((await a.signIn('t03', PW)).status, 401, 'the old one no longer does');
+  const list = await a.req(D1, 'GET', '/api/people');
+  assert.equal(list.json.people.find((p) => p.id === DEWI).username, 'dewi', 'directors see the usernames');
+  assert.equal(list.json.people.find((p) => p.id === hana).username, 'hana.w');
+  const me = await a.req(DEWI, 'GET', '/api/me');
+  assert.ok(me.json.people.length && me.json.people.every((p) => !('username' in p)), 'everyone else gets no usernames');
+  const ev = a.db.prepare("SELECT detail FROM events WHERE kind = 'person' ORDER BY id DESC LIMIT 1").get();
+  assert.equal(JSON.parse(ev.detail).after.username, 'dewi', 'a username change is in the change log');
+});
+
+test('v1.8 a seed may give usernames; a bad or repeated one stops the first start', T, async () => {
+  const { createApp } = await import(pathToFileURL(path.join(APP_DIR, 'server.mjs')).href);
+  const seed = freshDir('seed_u', { db: false });
+  const people = JSON.parse(fs.readFileSync(path.join(FIXTURE, 'people.json'), 'utf8')).people;
+  const write = (list) => fs.writeFileSync(path.join(seed, 'people.json'), JSON.stringify({ people: list }));
+  try {
+    for (const bad of [[{ ...people[0], username: 'b a' }], [{ ...people[0], username: 'Sama' }, { ...people[1], username: 'sama' }]]) {
+      write(bad);
+      const d = freshDir('seed_bad');
+      assert.throws(() => createApp({ dataDir: d, seedDir: seed, quiet: true }), /bad seed person/);
+      assert.ok(!fs.existsSync(path.join(d, 'first-pins.txt')), 'nobody is handed a password');
+      dropDir(d);
+    }
+    write([{ ...people[0], username: ' Bagas ' }, people[1]]);
+    const d = freshDir('seed_ok');
+    const b = createApp({ dataDir: d, seedDir: seed, quiet: true });
+    try {
+      const { users } = readFirstPins(d);
+      assert.equal(users.get('T01'), 'bagas', 'the seed username, trimmed and in lower case');
+      assert.equal(users.get('T02'), 't02', 'no username in the seed: the id in lower case');
+    } finally { await b.close(); dropDir(d); }
+  } finally { fs.rmSync(seed, { recursive: true, force: true }); }
 });
 
 test('sessions expire after 12 hours; director reset PIN', T, async () => {
@@ -659,9 +748,9 @@ test('sessions expire after 12 hours; director reset PIN', T, async () => {
   assert.equal((await a.req(DEWI, 'GET', '/api/me')).status, 200);
   const r = await a.req(D1, 'POST', '/api/people/' + DEWI + '/reset-pin', {});
   assert.equal(r.status, 200);
-  assert.match(r.json.pin, /^\d{8}$/);
+  assert.match(r.json.pin, /^(?=.*[a-z])(?=.*\d)[a-z0-9]{10}$/);
   assert.equal((await a.req(DEWI, 'GET', '/api/me')).status, 401, 'reset ends the old session');
-  const lr = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin: r.json.pin }) });
+  const lr = await a.signIn(DEWI, r.json.pin);
   assert.equal(lr.status, 200);
   assert.equal((await lr.json()).must_change_pin, 1);
   a.clock.real += 12 * 3600 * 1000 + 1;
@@ -672,8 +761,8 @@ test('director manages people and settings', T, async () => {
   const a = await signedIn({}, [D1, DEWI]);
   refusal(await a.req(D1, 'POST', '/api/people/' + D1, { active: false }), 400, 'self_lockout');
   refusal(await a.req(D1, 'POST', '/api/people/' + D1, { role: 'staf' }), 400, 'self_lockout');
-  const add = await a.req(D1, 'POST', '/api/people', { name: 'Hana Wulandari', role: 'staf' });
-  assert.equal(add.status, 201); assert.match(add.json.pin, /^\d{8}$/);
+  const add = await a.req(D1, 'POST', '/api/people', { name: 'Hana Wulandari', role: 'staf', username: 'hana' });
+  assert.equal(add.status, 201); assert.match(add.json.pin, /^(?=.*[a-z])(?=.*\d)[a-z0-9]{10}$/);
   assert.equal((await a.req(D1, 'POST', '/api/people/' + DEWI, { active: false })).status, 200);
   assert.equal((await a.req(DEWI, 'GET', '/api/me')).status, 401, 'deactivated: signed out');
   refusal(await a.req(D1, 'POST', '/api/settings', { maxActive: 0 }), 400, 'bad_input');
@@ -826,8 +915,9 @@ test('CLI: --now prints a loud line, random port, own data folder', T, async () 
     assert.notEqual(port, 3006);
     assert.match(out, /CLOCK FIXED AT 2026-11-18T02:00:00\.000Z/);
     assert.ok(fs.existsSync(path.join(dir, 'first-pins.txt')));
-    assert.ok(!out.match(/\t\d{8}/), 'PINs are not printed');
-    const r = await fetch(`http://127.0.0.1:${port}/api/people-public`);
+    const { pins } = readFirstPins(dir);
+    assert.ok(pins.size && [...pins.values()].every((pw) => !out.includes(pw)), 'temporary passwords are not printed');
+    const r = await fetch(`http://127.0.0.1:${port}/api/session`);
     assert.equal(r.status, 200);
   } finally {
     child.kill();

@@ -1,4 +1,6 @@
 // Schema, first seed and PIN hashing. PostgreSQL through lib/pgsync.mjs (synchronous, like node:sqlite was).
+// v1.8: people sign in with a typed username and a PASSWORD. "pin" stays the internal name of that secret (pin_hash,
+// must_change_pin, /api/pin, reset-pin, the pin_* codes): columns are never renamed, and backups carry those names.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -75,9 +77,22 @@ export function verifyPin(pin, stored) {
   return crypto.timingSafeEqual(want, got);
 }
 
+// v1.8: a temporary password, 10 characters (4 letters, 4 digits, 2 letters; no l, i, o, 0 or 1 to misread). It meets
+// passwordOk, but the person must choose their own at the first sign-in anyway.
 export function tempPin() {
-  return String(crypto.randomInt(0, 100000000)).padStart(8, '0');
+  const pick = (s, n) => Array.from({ length: n }, () => s[crypto.randomInt(s.length)]).join('');
+  const L = 'abcdefghjkmnpqrstuvwxyz', D = '23456789';
+  return pick(L, 4) + pick(D, 4) + pick(L, 2);
 }
+
+/** v1.8: a password is 8 to 128 characters with at least one letter and one digit (so never a PIN). */
+export const passwordOk = (s) => typeof s === 'string' && s.length >= 8 && s.length <= 128 && /\p{L}/u.test(s) && /\d/.test(s);
+/** v1.8: usernames are compared trimmed and in lower case; a stored one is 1 to 40 of a-z 0-9 . _ - */
+export const normUsername = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+export const USERNAME_RE = /^[a-z0-9._-]{1,40}$/;
+// A person without a username (a database from before v1.8, or one loaded from an older backup) gets their id in lower
+// case. Run on every open and by tools/load-db.mjs, so rows added later are filled too.
+export const FILL_USERNAMES = 'UPDATE people SET username = lower(id) WHERE username IS NULL';
 
 /** The connection URL from <data>\database.url (one line). It is never taken from a command line. */
 export function readDbUrl(dataDir) {
@@ -101,6 +116,8 @@ export function openDb(dataDir) {
   db.exec('ALTER TABLE todos ADD COLUMN IF NOT EXISTS monthly INTEGER NOT NULL DEFAULT 0 CHECK(monthly BETWEEN 0 AND 31)');
   // v1.7: when the person last opened Pengumuman (Aktif); a post by someone else after it is new. Never sent to anyone.
   db.exec('ALTER TABLE people ADD COLUMN IF NOT EXISTS ann_seen_at BIGINT NOT NULL DEFAULT 0');
+  // v1.8: the username typed at sign-in, unique (stored in lower case)
+  db.exec(`ALTER TABLE people ADD COLUMN IF NOT EXISTS username TEXT; ${FILL_USERNAMES}; CREATE UNIQUE INDEX IF NOT EXISTS people_username ON people(username)`);
   // v1.7.24: the newest event a person has seen in their notifications (the bell); a later one that rings for them is
   // new. The column starts at the newest event when it is added, so nobody's bell opens on the whole history; a
   // restart changes nobody's. Never sent to anyone.
@@ -139,17 +156,20 @@ export function seedIfEmpty(db, dataDir, seedDir, log) {
   const rPath = path.join(seedDir, 'routines.json');
   if (fs.existsSync(rPath)) routines = JSON.parse(fs.readFileSync(rPath, 'utf8')).routines || [];
   if (!people.length) throw new Error('seed people.json holds no people');
-  const lines = ['# Temporary PINs. Hand each one out in person, then delete this file. Each PIN must be changed at first sign-in.', ''];
-  const ids = new Set();
+  const lines = ['# Temporary passwords: id, name, username, password. Hand each one out in person, then delete this file. Each password must be changed at first sign-in.', ''];
+  const ids = new Set(), usernames = new Set();
   db.exec('BEGIN');
   try {
     for (const p of people) {
-      if (!p.id || !p.name || !['direktur', 'staf'].includes(p.role)) throw new Error('bad seed person ' + JSON.stringify(p.id));
+      // v1.8: a seed person may carry a username; without one it is the id in lower case
+      const username = p.username === undefined ? String(p.id).toLowerCase() : normUsername(p.username);
+      if (!p.id || !p.name || !['direktur', 'staf'].includes(p.role) || !USERNAME_RE.test(username) || usernames.has(username)) throw new Error('bad seed person ' + JSON.stringify(p.id));
       const pin = tempPin();
-      db.prepare('INSERT INTO people(id, name, nick, role, keeper, active, pin_hash, must_change_pin) VALUES (?,?,?,?,?,1,?,1)')
-        .run(String(p.id), String(p.name), String(p.nick || ''), p.role, p.keeper ? 1 : 0, hashPin(pin));
+      db.prepare('INSERT INTO people(id, name, nick, role, keeper, active, pin_hash, must_change_pin, username) VALUES (?,?,?,?,?,1,?,1,?)')
+        .run(String(p.id), String(p.name), String(p.nick || ''), p.role, p.keeper ? 1 : 0, hashPin(pin), username);
       ids.add(String(p.id));
-      lines.push(`${p.id}\t${p.name}\t${pin}`);
+      usernames.add(username);
+      lines.push(`${p.id}\t${p.name}\t${username}\t${pin}`);
     }
     for (const r of routines) {
       if (!r.title || !validSchedule(r.schedule)) throw new Error('bad seed routine ' + JSON.stringify(r.title));
@@ -166,6 +186,6 @@ export function seedIfEmpty(db, dataDir, seedDir, log) {
   }
   const pinFile = path.join(dataDir, 'first-pins.txt');
   fs.writeFileSync(pinFile, lines.join('\r\n') + '\r\n', { mode: 0o600 });
-  log(`first start: ${people.length} people and ${routines.length} routine templates seeded; temporary PINs written to ${pinFile}`);
+  log(`first start: ${people.length} people and ${routines.length} routine templates seeded; usernames and temporary passwords written to ${pinFile}`);
   return pinFile;
 }

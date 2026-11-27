@@ -517,7 +517,8 @@
   }
 
   // ------------------------------------------------------------------ sign-in
-  // v1.2: one card in the middle of the page (no sidebar while signed out): the name from a list, then the PIN.
+  // v1.2: one card in the middle of the page (no sidebar while signed out).
+  // v1.8: the username and the password are typed; no list of names is shown before sign-in.
   function showSignin() {
     ME = null;
     LAST = null;
@@ -527,61 +528,9 @@
     setChrome();
     clear(view);
     var msg = h('div', { cls: 'msg' });
-    // v1.6.5: ONE name field. Typing opens a list of the names (or nicknames) that contain the text; a click, a tap or
-    // Enter picks one and fills in the full name; a click on the empty field lists everyone. The person sent is kept
-    // apart from the text (`chosen`) and is set only by a pick or by a full name typed out, and any keystroke that
-    // changes the text drops it, so the name in the field is always the one signed in.
-    var who = h('input', { id: 'login-name', type: 'text', role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false',
-      'aria-controls': 'login-names', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: '160', placeholder: t('pick_name') });
-    var list = h('ul', { id: 'login-names', cls: 'name-list', role: 'listbox', 'aria-label': t('name_label'), hidden: true });
-    var pin = h('input', { id: 'login-pin', type: 'password', inputmode: 'numeric', autocomplete: 'current-password', maxlength: '12' });
-    var all = [], shown = [], chosen = '', active = -1;
-    var mark = function () {
-      Array.prototype.forEach.call(list.children, function (li, i) { li.classList.toggle('on', i === active); });
-      if (active < 0) return who.removeAttribute('aria-activedescendant');
-      who.setAttribute('aria-activedescendant', list.children[active].id);
-      list.children[active].scrollIntoView({ block: 'nearest' });
-    };
-    var hideList = function () { list.hidden = true; who.setAttribute('aria-expanded', 'false'); active = -1; mark(); };
-    var showList = function () {
-      var q = who.value.trim().toLowerCase();
-      shown = all.filter(function (p) { return p.text.toLowerCase().indexOf(q) >= 0; });
-      active = shown.length === 1 ? 0 : -1; // a sole match is marked, so Enter takes it
-      clear(list);
-      shown.forEach(function (p) {
-        list.appendChild(h('li', { id: 'lo-' + p.id, role: 'option', 'aria-selected': p.id === chosen ? 'true' : 'false', text: p.text, onclick: function () { pick(p); } }));
-      });
-      if (!shown.length) list.appendChild(h('li', { cls: 'none', text: t('no_name_match') }));
-      list.hidden = false;
-      who.setAttribute('aria-expanded', 'true');
-      mark();
-    };
-    var pick = function (p) { chosen = p.id; who.value = p.text; hideList(); pin.focus(); };
-    var typed = function () {
-      var q = who.value.trim().toLowerCase();
-      var full = all.filter(function (p) { return p.text.toLowerCase() === q; });
-      chosen = full.length === 1 ? full[0].id : '';
-      showList();
-    };
-    who.addEventListener('input', typed);
-    who.addEventListener('click', showList);
-    who.addEventListener('blur', hideList);
-    who.addEventListener('keydown', function (ev) {
-      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-        ev.preventDefault();
-        if (list.hidden) return showList();
-        if (!shown.length) return;
-        active = ev.key === 'ArrowDown' ? Math.min(active + 1, shown.length - 1) : Math.max(active - 1, 0);
-        mark();
-      } else if (ev.key === 'Enter') {
-        ev.preventDefault(); // Enter here never sends the form: it picks, or moves on to the PIN
-        if (!list.hidden && active >= 0) pick(shown[active]);
-        else if (chosen) pin.focus();
-      } else if (ev.key === 'Escape') hideList();
-    });
-    // a press on the list must not take the focus from the field: blur would close the list before the click lands
-    list.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
-    // a missing name or PIN is said here, in the page's language, and costs no sign-in attempt
+    var who = h('input', { id: 'login-name', type: 'text', autocomplete: 'username', autocapitalize: 'off', spellcheck: 'false', maxlength: '40' });
+    var pin = h('input', { id: 'login-pin', type: 'password', autocomplete: 'current-password', maxlength: '128' });
+    // a missing username or password is said here, in the page's language, and costs no sign-in attempt
     var missing = function (code, key, field) {
       clear(msg);
       msg.appendChild(h('p', { cls: 'err', role: 'alert', 'data-code': code, text: t(key) }));
@@ -589,14 +538,14 @@
     };
     var form = h('form', { id: 'login-form', onsubmit: function (ev) {
       ev.preventDefault();
-      if (!chosen) return missing('client_no_name', 'login_need_name', who);
+      if (!who.value.trim()) return missing('client_no_name', 'login_need_name', who);
       if (!pin.value) return missing('client_no_pin', 'login_need_pin', pin);
-      api('POST', '/api/login', { id: chosen, pin: pin.value }).then(function (r) {
+      api('POST', '/api/login', { username: who.value, password: pin.value }).then(function (r) {
         if (!r.ok) return showErr(msg, r);
         boot();
       });
     } },
-      h('label', { for: 'login-name', text: t('name_label') }), h('div', { cls: 'name-pick' }, who, list),
+      h('label', { for: 'login-name', text: t('name_label') }), who,
       h('label', { for: 'login-pin', text: t('pin') }), pin,
       h('button', { type: 'submit', id: 'login-btn', text: t('signin_btn') }),
       msg);
@@ -605,11 +554,7 @@
       h('h1', { id: 'signin-h', text: t('signin_title') }),
       h('p', { cls: 'muted', text: t('framing') }),
       form));
-    api('GET', '/api/people-public').then(function (res) {
-      all = (res.data.people || []).map(function (p) { return { id: p.id, text: p.nick ? p.name + ' (' + p.nick + ')' : p.name }; });
-      if (who.value && document.activeElement === who) typed(); // something was typed before the names arrived
-    });
-    who.focus(); // the list stays closed until the field is clicked or typed in, so it never covers the PIN on load
+    who.focus();
   }
 
   // v1.3: the sidebar (and Settings, which holds Keluar since v1.7.26) is hidden while signed out, so the first PIN
@@ -658,9 +603,10 @@
   }
   function pinForm(forced) {
     var msg = h('div', { cls: 'msg' });
-    var old = forced ? null : h('input', { id: 'old-pin', type: 'password', inputmode: 'numeric', maxlength: '12' });
-    var p1 = h('input', { id: 'new-pin', type: 'password', inputmode: 'numeric', maxlength: '12', autocomplete: 'new-password' });
-    var p2 = h('input', { id: 'new-pin2', type: 'password', inputmode: 'numeric', maxlength: '12', autocomplete: 'new-password' });
+    // v1.8: a password (8 to 128 characters, checked by the server), no longer a numeric PIN
+    var old = forced ? null : h('input', { id: 'old-pin', type: 'password', maxlength: '128', autocomplete: 'current-password' });
+    var p1 = h('input', { id: 'new-pin', type: 'password', maxlength: '128', autocomplete: 'new-password' });
+    var p2 = h('input', { id: 'new-pin2', type: 'password', maxlength: '128', autocomplete: 'new-password' });
     var form = h('form', { id: 'pin-form', cls: forced ? 'signin-card' : null, onsubmit: function (ev) {
       ev.preventDefault();
       if (p1.value !== p2.value) { clear(msg); msg.appendChild(h('p', { cls: 'err', role: 'alert', 'data-code': 'client_mismatch', text: t('pin_mismatch') })); return; }
@@ -1819,7 +1765,7 @@
     (isNew ? title : owner).focus();
   }
 
-  // v1.7.1: the people are one table (Nama | Panggilan | Peran | Pengaturan); a row's Atur opens personDialog, and
+  // v1.7.1: the people are one table (Nama | Nama pengguna (v1.8) | Panggilan | Peran | Pengaturan); a row's Atur opens personDialog, and
   // Tambah orang sits at the top right and opens the same dialog empty.
   ROUTES.people = function () {
     var pmsg = h('div', { cls: 'msg', id: 'people-msg' });
@@ -1830,6 +1776,7 @@
         tb.appendChild(h('tr', { 'data-person': p.id },
           h('td', {}, p.name,
             p.active === 1 ? null : h('span', { cls: 'muted', text: ' · ' + t('r_inactive') })),
+          h('td', { text: p.username }),
           h('td', { text: p.nick }),
           h('td', { text: t('role_' + p.role) }),
           h('td', {}, h('button', { type: 'button', id: 'p-open-' + p.id, cls: 'small secondary', 'aria-label': t('p_open') + ' ' + p.name, text: t('p_open'),
@@ -1838,7 +1785,7 @@
       var a = document.activeElement, keep = a && tableBox.contains(a) ? a.id : ''; // an Atur that had the cursor keeps it
       clear(tableBox);
       tableBox.appendChild(h('table', { id: 'people-table' },
-        h('thead', {}, h('tr', {}, ['p_name', 'p_nick', 'p_role', 'p_col_settings'].map(function (k) { return h('th', { scope: 'col', text: t(k) }); }))), tb));
+        h('thead', {}, h('tr', {}, ['p_name', 'p_username', 'p_nick', 'p_role', 'p_col_settings'].map(function (k) { return h('th', { scope: 'col', text: t(k) }); }))), tb));
       if (keep && document.getElementById(keep)) document.getElementById(keep).focus();
     };
     var reload = function () {
@@ -1880,11 +1827,12 @@
     var openerId = p ? 'p-open-' + p.id : 'p-add-open';
     var msg = h('div', { cls: 'msg' }), rmsg = h('div', { cls: 'msg' });
     var name = h('input', { id: 'pd-name', type: 'text', maxlength: '100', autocomplete: 'off' });
+    var user = h('input', { id: 'pd-user', type: 'text', maxlength: '40', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' }); // v1.8
     var nick = h('input', { id: 'pd-nick', type: 'text', maxlength: '40', autocomplete: 'off' });
     var role = h('select', { id: 'pd-role' }, h('option', { value: 'staf', text: t('role_staf') }), h('option', { value: 'direktur', text: t('role_direktur') }));
     var keeper = h('input', { id: 'pd-keeper', type: 'checkbox', checked: !!(p && p.keeper === 1) });
     var active = p ? h('input', { id: 'pd-active', type: 'checkbox', checked: p.active === 1 }) : null;
-    if (p) { name.value = p.name; nick.value = p.nick; role.value = p.role; }
+    if (p) { name.value = p.name; user.value = p.username || ''; nick.value = p.nick; role.value = p.role; }
     var pinLine = function (who, pin) { return h('p', { cls: 'ok', role: 'status' }, (who ? who + ': ' : '') + t('p_temp_pin') + ' ', h('span', { cls: 'pin-show', text: pin })); };
     // where an answer shows: in the dialog while it is open, else on the page (naming the person there)
     var answer = function (slot, x, okNode) {
@@ -1903,22 +1851,23 @@
         h('form', { id: 'person-form', onsubmit: function (ev) {
           ev.preventDefault();
           if (p) {
-            api('POST', '/api/people/' + encodeURIComponent(p.id), { name: name.value, nick: nick.value, role: role.value, keeper: keeper.checked, active: active.checked }).then(function (x) {
+            api('POST', '/api/people/' + encodeURIComponent(p.id), { name: name.value, username: user.value, nick: nick.value, role: role.value, keeper: keeper.checked, active: active.checked }).then(function (x) {
               answer(msg, x, function (open) { return h('p', { cls: 'ok', role: 'status', text: (open ? '' : p.name + ': ') + t('saved') }); });
               if (x.ok) reload();
             });
           } else {
-            api('POST', '/api/people', { name: name.value, nick: nick.value, role: role.value, keeper: keeper.checked }).then(function (x) {
+            api('POST', '/api/people', { name: name.value, username: user.value, nick: nick.value, role: role.value, keeper: keeper.checked }).then(function (x) {
               // the PIN has its own slot (as Reset PIN's): a refused next try on the emptied form must not wipe it
               answer(x.ok ? rmsg : msg, x, function () { return pinLine(x.data.person.name, x.data.pin); });
               if (!x.ok) return;
               clear(msg);
-              name.value = ''; nick.value = ''; role.value = 'staf'; keeper.checked = false; // ready for the next person
+              name.value = ''; user.value = ''; nick.value = ''; role.value = 'staf'; keeper.checked = false; // ready for the next person
               reload();
             });
           }
         } },
           h('label', { for: 'pd-name', text: t('p_name') }), name,
+          h('label', { for: 'pd-user', text: t('p_username') }), user,
           h('label', { for: 'pd-nick', text: t('p_nick') }), nick,
           h('label', { for: 'pd-role', text: t('p_role') }), role,
           active ? h('label', { cls: 'check', for: 'pd-active' }, active, h('span', { text: t('p_active') })) : null,

@@ -8,7 +8,7 @@ import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, rawDb, hasColumn, R } from './helpers.mjs';
+import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, rawDb, hasColumn, R, PW } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* closed */ } } });
@@ -125,15 +125,14 @@ test('FX11 S4 delayed upload after cancel', T, async () => {
 
 test('FX11 S5 delayed PIN change after a reset', T, async () => {
   const a = await signedIn({}, [D1, DEWI]);
-  const A = delayed(a, DEWI, 'POST', '/api/pin', JSON.stringify({ old: '135790', pin: '999888' }));
+  const A = delayed(a, DEWI, 'POST', '/api/pin', JSON.stringify({ old: PW, pin: 'sandi999888' }));
   await A.sendHeaders();
   const reset = await a.req(D1, 'POST', `/api/people/${DEWI}/reset-pin`, {});
   assert.equal(reset.status, 200);
   A.sendBody();
   refusal(await A.response(), 401, 'unauthorized');
-  const login = (pin) => fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin }) });
-  assert.equal((await login('999888')).status, 401, 'the delayed PIN was not stored');
-  assert.equal((await login(reset.json.pin)).status, 200, 'the reset PIN signs in');
+  assert.equal((await a.signIn(DEWI, 'sandi999888')).status, 401, 'the delayed PIN was not stored');
+  assert.equal((await a.signIn(DEWI, reset.json.pin)).status, 200, 'the reset PIN signs in');
 });
 
 test('FX11 S6 delayed settings after demotion', T, async () => {
@@ -304,11 +303,11 @@ test('FX16 listen error exits 1', T, async () => {
 // ------------------------------------------------------------------ FX7
 test('FX7 pin change ends other sessions', T, async () => {
   const a = await signedIn({}, [DEWI]);
-  const r = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin: '135790' }) });
+  const r = await a.signIn(DEWI, PW);
   const second = r.headers.get('set-cookie').split(';')[0];
   const me = (cookie) => fetch(a.base + '/api/me', { headers: { cookie } }).then((x) => x.status);
   assert.equal(await me(second), 200);
-  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { old: '135790', pin: '777111' })).status, 200);
+  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { old: PW, pin: 'sandi777111' })).status, 200);
   assert.equal(await me(second), 401, 'the other session ended');
   assert.equal(await me(a.sessions.get(DEWI)), 200, 'the current one stays');
 });
@@ -319,7 +318,7 @@ test('FX8 offline reset-pin tool', T, async () => {
   const tool = path.join(APP_DIR, 'tools', 'reset-pin.mjs');
   const list = await runNode([tool, '--data', a.dataDir, '--list'], 15000);
   assert.equal(list.code, 0, list.stderr);
-  assert.match(list.stdout, /T03\tDewi Kartika/);
+  assert.match(list.stdout, /T03\tDewi Kartika\tt03\t/, 'the username is listed too');
   assert.ok(!/scrypt/.test(list.stdout), 'no hashes');
   const people = JSON.stringify(a.db.prepare('SELECT * FROM people ORDER BY id').all());
   const bad = await runNode([tool, '--data', a.dataDir, '--person', 'NOPE'], 15000);
@@ -327,12 +326,13 @@ test('FX8 offline reset-pin tool', T, async () => {
   assert.equal(JSON.stringify(a.db.prepare('SELECT * FROM people ORDER BY id').all()), people, 'nothing changed');
   const ok = await runNode([tool, '--data', a.dataDir, '--person', DEWI], 15000);
   assert.equal(ok.code, 0, ok.stderr);
-  const pin = /\b(\d{8})\b/.exec(ok.stdout)[1];
+  assert.match(ok.stdout, /username t03/, 'says which username to sign in with');
+  const pin = /: ([a-z0-9]{10})\r?\n/.exec(ok.stdout)[1];
   assert.equal(a.db.prepare('SELECT must_change_pin FROM people WHERE id = ?').get(DEWI).must_change_pin, 1);
   assert.equal((await a.req(DEWI, 'GET', '/api/me')).status, 401, 'sessions deleted while the server runs');
   const ev = a.db.prepare("SELECT * FROM events WHERE kind = 'pin_reset' ORDER BY id DESC LIMIT 1").get();
   assert.equal(ev.actor, null); assert.deepEqual(JSON.parse(ev.detail), { person: DEWI, offline: true });
-  const login = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin }) });
+  const login = await a.signIn(DEWI, pin);
   assert.equal(login.status, 200, 'the printed PIN signs in');
   const empty = freshDir('fx_nodb', { db: false });
   const nodb = await runNode([tool, '--data', empty, '--list'], 15000);
@@ -443,15 +443,15 @@ test('FX15 due and owner frozen in bukti', T, async () => {
 // ------------------------------------------------------------------ FX17
 test('FX17a me while must_change_pin returns only me', T, async () => {
   const a = await signedIn({}, []);
-  const r = await fetch(a.base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: DEWI, pin: a.pins.get(DEWI) }) });
+  const r = await a.signIn(DEWI);
   const cookie = r.headers.get('set-cookie').split(';')[0];
   const me = await (await fetch(a.base + '/api/me', { headers: { cookie } })).json();
   assert.deepEqual(Object.keys(me), ['me']);
 });
 
 test('FX17b pin_same sentence', T, async () => {
-  assert.equal(MSG.pin_same.id, 'PIN baru harus berbeda dari PIN yang sekarang.');
-  assert.equal(MSG.pin_same.en, 'The new PIN must differ from the current one.'); // v1.7.25: English is back
+  assert.equal(MSG.pin_same.id, 'Kata sandi baru harus berbeda dari kata sandi yang sekarang.'); // v1.8: a password
+  assert.equal(MSG.pin_same.en, 'The new password must differ from the current one.'); // v1.7.25: English is back
 });
 
 test('FX17c owner_is_waited_on', T, async () => {

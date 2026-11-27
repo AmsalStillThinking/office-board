@@ -123,8 +123,8 @@ parts.append('</table>\n<p class="note">Tenggat hukum (pajak, BPJS, laporan waji
              'Overdue sehari setelah tenggat. Hari kerja: Senin sampai Sabtu.</p>\n</div>\n' % hard_lead)
 parts.append('<div>\n<h2>Cara membuka</h2>\n<div class="open"><ol>\n'
              '<li>Pakai WiFi kantor, di HP atau komputer. Buka <span class="addr" id="addr">%s</span></li>\n'
-             '<li>Pilih nama Anda, ketik PIN. PIN pertama dari Direktur; langsung ganti dengan PIN Anda sendiri (6 sampai 12 angka).</li>\n'
-             '<li>Lupa PIN? Minta Direktur reset.</li>\n</ol></div>\n</div>\n</div>\n' % e(address))
+             '<li>Ketik nama pengguna dan kata sandi. Kata sandi pertama dari Direktur; langsung ganti dengan kata sandi Anda sendiri (minimal 8 karakter, ada huruf dan angka).</li>\n'
+             '<li>Lupa kata sandi? Minta Direktur reset.</li>\n</ol></div>\n</div>\n</div>\n' % e(address))
 parts.append('<footer><span>PT Logam Murni Nusantara · Office Board v1.2 · 21 Nov 2026</span>'
              '<span>Batas hari bisa diubah Direktur di Pengaturan.</span></footer>\n</div>\n</body>\n</html>\n')
 text = "".join(parts)

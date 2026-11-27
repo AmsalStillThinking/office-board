@@ -9,7 +9,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { startApp, APP_DIR, FIXTURE, freshDir, dropDir, rawDb } from './helpers.mjs';
+import { startApp, APP_DIR, FIXTURE, freshDir, dropDir, rawDb, signIn } from './helpers.mjs';
 
 const T = { timeout: 120000 };
 const DEWI = 'T03', EKO = 'T04';
@@ -32,15 +32,16 @@ function runNode(args, ms = 60000) {
     p.on('close', (code) => { clearTimeout(t); resolve({ code, stdout, stderr }); });
   });
 }
+// v1.8: by username; the fixture people have the default one, their id in lower case
 async function login(base, id, pin) {
-  const r = await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, pin }) });
+  const r = await signIn(base, id.toLowerCase(), pin);
   return { status: r.status, json: await r.json() };
 }
 // A v1.3 board's rows: DEWI has chosen her PIN, EKO still has his first-start PIN; a card with a link, a to-do.
 async function sourceBoard() {
   const a = await startApp({ tag: 'pg_src' });
   const firstEko = a.pins.get(EKO);
-  await a.login(DEWI, '246801');
+  await a.login(DEWI, 'sandi246801');
   const id = await a.create(DEWI, {});
   assert.equal((await a.act(DEWI, id, 'link', { url: 'https://drive.example/1' })).status, 200);
   assert.equal((await a.req(DEWI, 'POST', '/api/todos', { text: 'Catatan saya' })).status, 201);
@@ -97,7 +98,7 @@ test('PG1 the move from office.db keeps every row, id, session and PIN', T, asyn
   const base = `http://127.0.0.1:${port}`;
   try {
     assert.ok(!fs.existsSync(path.join(data, 'first-pins.txt')), 'nobody is given a new PIN');
-    const dewi = await login(base, DEWI, '246801');
+    const dewi = await login(base, DEWI, 'sandi246801');
     assert.equal(dewi.status, 200, 'DEWI signs in with the PIN she chose');
     assert.equal(dewi.json.must_change_pin, 0, 'and is not asked to choose one again');
     const eko = await login(base, EKO, firstEko);
