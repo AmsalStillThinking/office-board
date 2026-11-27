@@ -153,7 +153,6 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .sum-tile strong { font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
 
 /* task card */
-.cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0;
   display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 2px rgba(17, 45, 78, .06); }
 .card.age-layu { border-color: #e5c878; }
@@ -166,7 +165,6 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .card .meta { font-size: 14px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 14px; color: var(--muted); }
 .card-foot .who { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
-.card .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .inline-form { margin-top: 8px; padding: 10px; border: 1px dashed var(--line-2); border-radius: 10px; background: #fcfcfd; }
 
 /* ------------------------------------------------------------------ Papan Kantor */
@@ -195,6 +193,10 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
   align-items: center; border-bottom: 1px solid var(--soft); }
 /* v1.7.19: Papan Saya: Urgensi | Tenggat | Aksi in the last three places (the same minimums, so it fits as well) */
 .t-my .tr, .t-req .tr { grid-template-columns: minmax(160px, 2.2fr) minmax(90px, 1.2fr) 104px minmax(100px, 1fr) minmax(80px, .8fr) minmax(122px, 1fr) 117px 165px; }
+/* v1.7.28: Pengecualian's Menunggu Anda: Status | Tenggat | Aksi. Aksi is at least 141 px, so "Minta koreksi" (125 px
+   measured) stays on one line. Tugas gives 30 px and Keterangan takes 10 more (at its 90 px floor, which it reaches
+   here, "Sub-tugas dari Perpanjangan ..." ran out of it), so the minimums still fit 946 px (1280 wide) */
+.t-exc .tr { grid-template-columns: minmax(130px, 2.2fr) minmax(100px, 1.2fr) 104px minmax(100px, 1fr) minmax(80px, .8fr) 165px 117px minmax(141px, 1fr); }
 .phone-only { display: none; }
 .tr > div { padding: 8px; min-width: 0; }
 .tr > .c-act { display: flex; flex-wrap: wrap; gap: 6px; cursor: auto; }
@@ -386,7 +388,6 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
 .todos .todo-acts { display: inline-flex; gap: 8px; margin-left: auto; } /* Ubah and Hapus stay together, at the right */
 
 @media (min-width: 900px) {
-  .cards.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
   .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .menu { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

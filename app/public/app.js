@@ -796,21 +796,7 @@
     el.appendChild(meta);
     el.appendChild(h('div', { cls: 'card-foot' }, h('span', { cls: 'who' }, avatar(c.owner, 'sm'), h('span', { text: teamLabel(c) })),
       opts.showRequester && c.requester !== c.owner ? h('span', { text: tf('from_req', { name: personName(c.requester) }) }) : null));
-    var acts = h('div', { cls: 'acts' });
-    var slot = h('div', { cls: 'msg' });
-    var extra = h('div', { cls: 'extra' });
-    if (opts.confirm) confirmActs(c, slot, extra).forEach(function (b) { acts.appendChild(b); });
-    if (acts.firstChild) el.appendChild(acts);
-    el.appendChild(extra);
-    el.appendChild(slot);
-    return el;
-  }
-
-  function cardList(cards, opts) {
-    var box = h('div', { cls: 'cards' + (opts && opts.wide ? ' wide' : '') });
-    if (!cards.length) box.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
-    cards.forEach(function (c) { box.appendChild(cardItem(c, opts)); });
-    return box;
+    return el; // v1.7.28: the buttons it carried for Pengecualian live in that page's table (Aksi) now
   }
 
   function legend() {
@@ -1025,8 +1011,10 @@
   // v1.7.17: Riwayat Tugas uses it too (mode 'closed'): Tenggat, then Ditutup, in place of Urgensi and Tenggat.
   // v1.7.19: so does Papan Saya (mode 'my'): Urgensi, Tenggat, then Aksi (its quick buttons) in place of Status.
   // v1.7.23: and Permintaan Saya (mode 'req'): the same columns, its Aksi the Pemberi's buttons
+  // v1.7.28: Pengecualian's "Menunggu Anda" (mode 'exc'): Status in place of Urgensi (every row there waits for you;
+  // the owner's pick), its Aksi the Pemberi's buttons as in 'req'. Its other two sections are 'office' tables.
   var TABLE_END = { office: ['lbl_status', 'lbl_urgency', 'lbl_due'], closed: ['lbl_status', 'lbl_due', 'lbl_closed'], my: ['lbl_urgency', 'lbl_due', 'th_act'],
-    req: ['lbl_urgency', 'lbl_due', 'th_act'] };
+    req: ['lbl_urgency', 'lbl_due', 'th_act'], exc: ['lbl_status', 'lbl_due', 'th_act'] };
   function taskTable(rows, mode, label) {
     var tbl = h('div', { cls: 'tlist t-' + mode, role: 'table', 'aria-label': label || t(mode === 'closed' ? 'history' : 'nav_office') },
       h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from'].concat(TABLE_END[mode]).map(function (k) {
@@ -1077,7 +1065,7 @@
   // v1.7.19: Papan Saya's quick buttons, as its cards had them (they moved here with the table). A form or a message
   // they open goes in the row's full-width line under it (`extra`, `slot`).
   function quickActs(c, slot, extra, mode) {
-    if (mode === 'req') return confirmActs(c, slot, extra); // v1.7.23: Permintaan Saya, as its cards had them
+    if (mode === 'req' || mode === 'exc') return confirmActs(c, slot, extra); // v1.7.23: Permintaan Saya, as its cards had them
     if (!ME || !(onTeam(c, ME.id) || ME.role === 'direktur')) return [];
     var retry = function (action, labelKey) {
       return function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, action, slot, labelKey); };
@@ -1096,7 +1084,7 @@
   }
 
   function rowItem(c, mode) {
-    var closed = mode === 'closed', my = mode === 'my' || mode === 'req';
+    var closed = mode === 'closed', exc = mode === 'exc', my = mode === 'my' || mode === 'req' || exc;
     var slot = my ? h('div', { role: 'cell', cls: 'c-extra msg' }) : null, extra = my ? h('div', { role: 'cell', cls: 'c-extra extra' }) : null;
     // v1.7.15: these notes have their own column, Keterangan, right of Tugas (the owner's list: Sub-tugas dari ...,
     // Pribadi, Rutin). Tenggat hukum, which shared the line under the title with them, moved there too.
@@ -1114,8 +1102,8 @@
       h('div', { role: 'cell', cls: 'c-type', text: jenis }), // v1.7.14: Jenis before PIC & Tim (the owner's choice)
       h('div', { role: 'cell', cls: 'c-who', text: teamLabel(c) }), // names only, no avatar (the owner's choice)
       h('div', { role: 'cell', cls: 'c-from' }, h('span', { cls: 'wide-only', text: from }), h('span', { cls: 'phone-only', text: tf('from_req', { name: from }) })),
-      my ? null : h('div', { role: 'cell', cls: 'c-st' }, statusBadge(c.status)),
-      closed ? null : h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
+      my && !exc ? null : h('div', { role: 'cell', cls: 'c-st' }, statusBadge(c.status)),
+      closed || exc ? null : h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null),
       h('div', { role: 'cell', cls: 'c-due' }, h('span', { cls: 'phone-only', text: t('lbl_due') + ': ' }), h('span', { text: fmtDate(c.due) }),
         h('span', { cls: 'sub', text: dueText(c) })),
@@ -1615,7 +1603,7 @@
         var cards = r.data[s[0]];
         var sec = h('section', { id: 'exc-' + s[0] }, h('h2', { text: t(s[1]) + ' (' + cards.length + ')' }));
         if (!cards.length) sec.appendChild(h('p', { cls: 'muted empty', text: t('none') }));
-        else sec.appendChild(cardList(cards, { wide: true, showRequester: true, confirm: s[0] === 'waiting' }));
+        else sec.appendChild(taskTable(cards.map(deco), s[0] === 'waiting' ? 'exc' : 'office', t(s[1]))); // v1.7.28: a table each
         view.appendChild(sec);
       });
     });

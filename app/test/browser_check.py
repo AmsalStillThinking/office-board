@@ -753,7 +753,7 @@ def run(width, lang):
         check("presence control: card C exists and is Segar", cage == "segar", cage)
         nav(ch, "exc")
         wait(ch, "!!document.querySelector('#exc-waiting')", "exceptions sections")
-        sets = ch.eval("""(function(){var o={}; ['aged','macet','waiting'].forEach(function(s){ o[s]=Array.prototype.map.call(document.querySelectorAll('#exc-'+s+' .card'), function(c){return c.getAttribute('data-id');}).sort(); }); return o;})()""")
+        sets = ch.eval("""(function(){var o={}; ['aged','macet','waiting'].forEach(function(s){ o[s]=Array.prototype.map.call(document.querySelectorAll('#exc-'+s+' .tr[data-id]'), function(c){return c.getAttribute('data-id');}).sort(); }); return o;})()""")
         check("exceptions %d %s: Layu/Busuk = exactly card A" % (width, lang), sets["aged"] == [A], sets)
         check("exceptions %d %s: Macet = exactly card B" % (width, lang), sets["macet"] == [B], sets)
         check("exceptions %d %s: Menunggu Anda = exactly card B" % (width, lang), sets["waiting"] == [B], sets)

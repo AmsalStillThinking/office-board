@@ -818,3 +818,24 @@ server.mjs at 13:25:32, board restarted as pid 27012 at 13:25:34, app.js at 13:2
 server); the served app.js equals the file. Not seen on the real board signed in.
 
 Undo: `git revert` the commit and restart the board (server.mjs changed).
+
+# v1.7.28 (27 Nov 2026): Pengecualian as tables
+
+Asked on 27 Nov 2026: "Use table for pengecualian page".
+
+- The director's Pengecualian keeps its three sections (Menunggu Anda, Due dan overdue, Macet lebih dari 2 hari kerja,
+  in that order, counts in the headings), each now a table like Papan Kantor's: sub-tasks under their parent, a click
+  on a row opens the task, a frozen header in its own scroll box, stacked rows on a phone.
+- Due dan overdue and Macet use Papan Kantor's columns (Status, Urgensi, Tenggat).
+- Menunggu Anda (the app owner's pick, offered beside "like Permintaan Saya" and "both"): Status in place of Urgensi,
+  then Tenggat and Aksi. Every row there waits for the director, and Status tells the three kinds apart (Menunggu
+  konfirmasi, Menunggu persetujuan, Menunggu). Aksi has the buttons the cards had: Terima / Minta koreksi, Setujui /
+  Tolak (the reason form opens in the line under the row); none for a task blocked on the director.
+- To keep Aksi at least 141 px (one line for "Minta koreksi") and still fit 1280 px, that table's Tugas column starts
+  at 130 px instead of 160, and its Keterangan at 100 instead of 90. In English, "Ask for correction" takes two lines.
+- The task cards lost the action row only Pengecualian used: `cardList`, the `confirm` option of `cardItem` and the
+  CSS for `.cards`, `.cards.wide` and `.card .acts` are gone. The cards left (Kanban, Review Jumat) no longer carry
+  two empty lines, so they are 12 px shorter (measured on Kanban: 261 to 249 px).
+- `browser_check.py` counts the rows (`.tr[data-id]`) instead of cards on this page. Not run.
+- Files: `public/app.js`, `public/style.css`, `test/browser_check.py`. Screen files only, live as soon as they are
+  saved; no restart.
