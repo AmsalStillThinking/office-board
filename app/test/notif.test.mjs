@@ -1,5 +1,6 @@
-// v1.7.24: the bell. What rings, for whom, and what is new: GET /api/notifications (the newest 30; opening it marks
-// them seen), GET /api/notifications/count and /api/me's notif_new. Fictional people only (test/fixture/people.json).
+// v1.7.24: the bell. What rings, for whom, and what is new: GET /api/notifications (since v1.7.27 only the ones not seen
+// yet; POST /api/notifications/seen marks them once the screen has drawn them), GET /api/notifications/count and
+// /api/me's notif_new. Fictional people only (test/fixture/people.json).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -16,8 +17,14 @@ async function signedIn() {
   const a = await startApp({ tag: 'notif' });
   apps.push(a);
   for (const w of EVERYONE) await a.login(w);
-  // what rings for w, as [kind, card, actor] (opening the list marks it seen)
-  a.bell = async (w) => { const r = await a.req(w, 'GET', '/api/notifications'); assert.equal(r.status, 200, r.text); return r.json.items; };
+  // what rings for w, as [kind, card, actor]; a.bell opens the list as the screen does (load it, then mark what it drew)
+  a.list = async (w) => { const r = await a.req(w, 'GET', '/api/notifications'); assert.equal(r.status, 200, r.text); return r.json.items; };
+  a.seen = (w, upto) => a.req(w, 'POST', '/api/notifications/seen', { upto });
+  a.bell = async (w) => {
+    const items = await a.list(w);
+    if (items.length) { const r = await a.seen(w, items[0].id); assert.equal(r.status, 200, r.text); }
+    return items;
+  };
   a.rings = async (w) => (await a.bell(w)).map((n) => [n.kind, n.card, n.actor]);
   a.count = async (w) => { const r = await a.req(w, 'GET', '/api/notifications/count'); assert.equal(r.status, 200, r.text); return r.json.n; };
   a.me = async (w) => (await a.req(w, 'GET', '/api/me')).json.notif_new;
@@ -33,9 +40,9 @@ test('NT1 a new task rings its PIC and its team; not its maker, a viewer, a dire
   assert.equal(await a.count(FAJAR), 1, 'and for the team');
   for (const w of [DEWI, GITA, D1, D2]) assert.equal(await a.count(w), 0, w + ' is not rung');
   const items = await a.bell(EKO);
-  assert.deepEqual(items.map((n) => [n.kind, n.card, n.actor, n.title, n.is_new]), [['create', c, DEWI, 'Tugas untuk Eko', true]]);
+  assert.deepEqual(items.map((n) => [n.kind, n.card, n.actor, n.title]), [['create', c, DEWI, 'Tugas untuk Eko']]);
   assert.equal(await a.count(EKO), 0, 'opening the list marks it seen');
-  assert.equal((await a.bell(EKO))[0].is_new, false, 'still listed, no longer new');
+  assert.deepEqual(await a.list(EKO), [], 'seen, it has left the list');
   // a sub-task made with the task rings its own PIC
   const r = await a.req(DEWI, 'POST', '/api/cards', { title: 'Induk', owner: EKO, due: '2026-11-25', source: 'Lisan', type: 'umum',
     subtasks: [{ title: 'Anak', owner: GITA, due: '2026-11-24' }] });
@@ -65,7 +72,7 @@ test('NT2 a comment rings the PIC, the team and the Pemberi, not its writer; a f
   assert.equal((await a.act(EKO, c, 'comment', { text: 'Separuh sudah' })).status, 200);
   for (const [w, n] of [[DEWI, 1], [FAJAR, 1], [EKO, 0], [GITA, 0], [D1, 0]]) assert.equal(await a.count(w), n, w);
   const dewi = await a.bell(DEWI);
-  assert.deepEqual(dewi.map((n) => [n.kind, n.card, n.actor, n.text, n.is_new]), [['comment', c, EKO, 'Separuh sudah', true]], 'the Pemberi, with the text');
+  assert.deepEqual(dewi.map((n) => [n.kind, n.card, n.actor, n.text]), [['comment', c, EKO, 'Separuh sudah']], 'the Pemberi, with the text');
   await a.readAll();
   assert.equal((await a.act(DEWI, c, 'comment', { text: 'Catatan Pemberi', purpose: 'lampiran' })).status, 200);
   for (const [w, n] of [[EKO, 1], [FAJAR, 1], [DEWI, 0]]) assert.equal(await a.count(w), n, 'the Pemberi\'s note: ' + w);
@@ -87,6 +94,31 @@ test('NT3 a private task someone was taken off drops out of their bell', T, asyn
   assert.equal((await a.act(DEWI, p, 'team', { members: [] })).status, 200);
   assert.equal(await a.count(FAJAR), 0, 'off the team: not counted');
   assert.deepEqual((await a.rings(FAJAR)).filter((n) => n[1] === p), [], 'nor listed (title and text)');
+});
+
+test('NT6 v1.7.27: the list holds only what is not seen; loading it marks nothing; the mark is checked', T, async () => {
+  const a = await signedIn();
+  const f = await a.create(DEWI, { owner: FAJAR, title: 'Untuk Fajar' });
+  const c1 = await a.create(DEWI, { owner: EKO, title: 'Satu' });
+  const c2 = await a.create(DEWI, { owner: EKO, title: 'Dua' });
+  const two = await a.list(EKO);
+  assert.deepEqual(two.map((n) => n.card), [c2, c1], 'newest first');
+  assert.deepEqual((await a.list(EKO)).map((n) => n.card), [c2, c1], 'loading the list marks nothing (a list that never arrived takes nothing away)');
+  assert.equal(await a.count(EKO), 2);
+  const r = await a.seen(EKO, two[1].id);
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.n, 1, 'marked up to the older one: the answer carries the count left');
+  assert.deepEqual((await a.list(EKO)).map((n) => n.card), [c2], 'only the newer one is left');
+  assert.equal((await a.seen(EKO, 0)).status, 200);
+  assert.deepEqual((await a.list(EKO)).map((n) => n.card), [c2], 'a lower mark does not move it back');
+  for (const bad of ['x', '5', -1, 1.5, null, true, [5], undefined]) assert.equal((await a.seen(EKO, bad)).status, 400, 'refused: ' + JSON.stringify(bad));
+  assert.deepEqual((await a.list(EKO)).map((n) => n.card), [c2], 'and none of them moved the mark');
+  assert.equal((await a.seen(EKO, Number.MAX_SAFE_INTEGER)).status, 200);
+  assert.deepEqual(await a.list(EKO), [], 'all seen');
+  const c3 = await a.create(DEWI, { owner: EKO, title: 'Tiga' });
+  assert.deepEqual((await a.list(EKO)).map((n) => n.card), [c3], 'a mark past the newest event is kept to it: a later task still rings');
+  assert.deepEqual((await a.list(FAJAR)).map((n) => n.card), [f], "Eko's marks leave Fajar's list alone");
+  assert.equal((await a.req(null, 'POST', '/api/notifications/seen', { upto: 1 })).status, 401, 'the mark needs a session');
 });
 
 test('NT5 a NUL pasted into a comment or a title breaks neither /api/me nor the bell', T, async () => {

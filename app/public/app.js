@@ -391,22 +391,23 @@
       if (ME !== me || !dlg.isConnected) return;
       clear(list);
       if (!r.ok) return showErr(list, r);
-      notifCount(0);
-      if (!r.data.items.length) return list.appendChild(h('p', { cls: 'muted', text: t('notif_none') }));
+      if (!r.data.items.length) { notifCount(0); return list.appendChild(h('p', { cls: 'muted', text: t('notif_none') })); }
       var ul = h('ul', { cls: 'notif-items' });
-      r.data.items.forEach(function (n) {
-        ul.appendChild(h('li', {}, h('button', { type: 'button', cls: 'notif-item' + (n.is_new ? ' is-new' : ''), 'data-card': String(n.card), onclick: function () {
+      r.data.items.forEach(function (n) { // v1.7.27: the list holds only new ones
+        ul.appendChild(h('li', {}, h('button', { type: 'button', cls: 'notif-item is-new', 'data-card': String(n.card), onclick: function () {
           dlg.close(); // the bell has the focus again (a closed <dialog> gives it back), so the panel returns it there
           go('card', String(n.card));
         } },
-          h('span', { cls: 'notif-what' }, n.is_new ? h('span', { cls: 'notif-dot', 'aria-hidden': 'true' }) : null,
+          h('span', { cls: 'notif-what' }, h('span', { cls: 'notif-dot', 'aria-hidden': 'true' }),
             h('span', { text: tf(n.kind === 'create' ? 'notif_create' : 'notif_comment', { name: personName(n.actor) }) }),
-            n.is_new ? h('span', { cls: 'vh', text: ', ' + t('notif_is_new') }) : null),
+            h('span', { cls: 'vh', text: ', ' + t('notif_is_new') })),
           h('span', { cls: 'notif-title', text: n.title }),
           n.text ? h('span', { cls: 'notif-text', text: n.text }) : null,
           h('span', { cls: 'notif-at', text: fmtTime(n.at) }))));
       });
       list.appendChild(ul);
+      // drawn, so seen: the next open shows only what came after (a mark that failed to save shows them again)
+      api('POST', '/api/notifications/seen', { upto: r.data.items[0].id }).then(function (s) { if (s.ok && ME === me) notifCount(s.data.n); });
     });
   }
   // v1.7: the count of new posts beside Pengumuman (sidebar, Lainnya page) and on the phone's Lainnya button

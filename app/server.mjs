@@ -809,12 +809,19 @@ export function createApp(opts) {
   const notifSeen = (me) => q('SELECT notif_seen_id AS s FROM people WHERE id = ?').get(me.id).s;
   function notifNew(me) { return notifRows(me, notifSeen(me), 100).length; } // the screen shows 99+ past 99
   add('GET', '/api/notifications/count', (ctx) => send(ctx.res, 200, { n: notifNew(ctx.me) }));
-  // the newest 30; opening the list marks them seen (what is new is worked out against the mark before it moves)
+  // v1.7.27: the list holds only what is not seen yet (the app owner: once seen, it leaves the list), the newest 100
+  // like the count. The screen marks them seen once it has drawn them (POST .../seen), so a list that never arrived
+  // takes nothing away. ponytail: past 100 unseen, the older ones go with the mark; a page of them if that ever happens.
   add('GET', '/api/notifications', (ctx) => {
-    const me = ctx.me, seen = notifSeen(me), rows = notifRows(me, 0, 30);
-    if (rows.length) q('UPDATE people SET notif_seen_id = GREATEST(notif_seen_id, ?) WHERE id = ?').run(rows[0].id, me.id);
-    send(ctx.res, 200, { items: rows.map((e) => ({ id: e.id, card: e.card, title: e.title, actor: e.actor, at: e.at,
-      kind: e.kind === 'create' ? 'create' : 'comment', text: e.kind === 'create' ? '' : String(e.after.name || ''), is_new: e.id > seen })) });
+    send(ctx.res, 200, { items: notifRows(ctx.me, notifSeen(ctx.me), 100).map((e) => ({ id: e.id, card: e.card, title: e.title, actor: e.actor, at: e.at,
+      kind: e.kind === 'create' ? 'create' : 'comment', text: e.kind === 'create' ? '' : String(e.after.name || '') })) });
+  });
+  // up to the newest one drawn; never past the newest event (so a bad number cannot hide the ones still to come)
+  add('POST', '/api/notifications/seen', async (ctx) => {
+    const upto = (await readJson(ctx)).upto; // a JSON number, as the list sent it (ids are BIGINT read as numbers)
+    if (!Number.isSafeInteger(upto) || upto < 0) refuse(400, 'bad_input');
+    q('UPDATE people SET notif_seen_id = GREATEST(notif_seen_id, LEAST(?, (SELECT COALESCE(MAX(id), 0) FROM events))) WHERE id = ?').run(upto, ctx.me.id);
+    send(ctx.res, 200, { n: notifNew(ctx.me) });
   });
   add('GET', '/api/announcements', (ctx) => {
     const me = ctx.me, td = today();

@@ -785,3 +785,36 @@ Asked on 27 Nov 2026: "Drop the button sign out, show it only at settings modal"
 browser_check.py parses. Not seen in a browser (the owner asked for nothing to open on their screen).
 
 Undo: `git revert` the commit (no restart).
+
+# v1.7.27 (27 Nov 2026): a seen notification leaves the bell's list
+
+Asked on 27 Nov 2026: "At notification, when user seeing that notification, move it from notification". The app owner
+picked "After the bell is opened": opening the bell shows the new ones, and the next time it opens they are gone.
+
+- GET /api/notifications now lists only what the person has not seen yet (newest first, at most 100, like the count),
+  and no longer marks anything. `is_new` is gone from its answer: everything listed is new.
+- New POST /api/notifications/seen `{ upto }`: the screen sends it once it has drawn the list, with the newest one
+  drawn, and shows the count it answers. A list closed before it loaded, or a mark that failed to save, takes nothing
+  away: those notifications are listed again next time. The mark never moves back, and never past the newest event, so
+  a wrong number cannot hide notifications still to come. `upto` must be a JSON whole number of 0 or more (text, null, true or a list: 400).
+- The screen draws every item the way a new one looked (dot, bold, ", baru" for a screen reader); an empty list says
+  "Belum ada notifikasi." and clears the count.
+- Past 100 unseen, the older ones are marked with the newest 100 without being shown (ponytail: a page of them if
+  that ever happens).
+- Files: `server.mjs`, `public/app.js`, `test/notif.test.mjs` (NT1/NT2 no longer read `is_new`; new NT6).
+- A tab opened before this version still runs the old screen: its list loses the dots and its count comes back within
+  a minute of opening the bell, until that tab is reloaded once (F5; the screen files are served `no-cache`). Nothing
+  is lost: the old screen never marks anything seen.
+
+**Checks:** notif.test.mjs passes 6/6 against the new server (NT6 new: only unseen ones are listed, loading the list
+marks nothing, a mark is refused unless it is a JSON whole number of 0 or more, never moves back, stops at the newest
+event, and touches only its own person; it needs a session). Against the old server.mjs it fails 6/6 (the mark route
+is missing, and NT6 sees the old list mark everything it loads). The run shared one hidden start of the test database
+(f8267b8): no window and no conhost appeared. A browser check in headless Chrome with invented people (scratch
+s27-check.mjs) passes 17/17 on the new screen and 5/17 on the old one, and catches each of six planted bugs (no mark,
+marking the oldest, marking before the list is drawn, the count not read from the mark, the count cleared when the
+mark failed, an empty list keeping a stale count). Server mutants beyond the old-server control were not run. Live:
+server.mjs at 13:25:32, board restarted as pid 27012 at 13:25:34, app.js at 13:25:53 (19 s of old screen on the new
+server); the served app.js equals the file. Not seen on the real board signed in.
+
+Undo: `git revert` the commit and restart the board (server.mjs changed).
