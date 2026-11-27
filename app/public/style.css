@@ -161,7 +161,9 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .fld-search input { min-height: 40px; width: 100%; padding-left: 36px; }
 
 .tlist-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-.tlist-scroll { overflow-x: auto; }
+/* v1.7.20: every table is at most a screen tall and scrolls inside itself, its header row frozen (the owner's pick);
+   the room left is for the page heading and the toolbar. scroll-padding keeps a focused row out from under the header */
+.tlist-scroll { overflow: auto; max-height: calc(100vh - 140px); scroll-padding-top: 48px; }
 .tlist { min-width: 946px; } /* = the column minimums + 8 px row padding: fits the 967 px box at 1280, a scrollbar too */
 /* Tugas | Keterangan | Jenis | PIC & Tim | Dari | Status | Urgensi | Tenggat. Status fits "Menunggu konfirmasi",
    Urgensi one badge, Jenis "Administrasi", PIC & Tim "(nonaktif)"; the text columns wrap between words */
@@ -176,7 +178,8 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .c-act button { padding-left: 12px; padding-right: 12px; } /* Macet and Buka side by side in the 165 px column */
 .tr > .c-extra { grid-column: 1 / -1; cursor: auto; } /* the Macet form or a message, under the row */
 .tr > .c-extra:empty { display: none; }
-.tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted); }
+.tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted);
+  position: sticky; top: 0; z-index: 2; }
 .tr:not(.th):hover { background: #f7f9fc; }
 .tr[data-id], .tr-parent { cursor: pointer; } /* v1.7.13: a click anywhere on the row opens the task */
 /* v1.7.18: a sub-task under its parent, its title indented; the grey line names a parent that is not in the list */
@@ -294,7 +297,11 @@ fieldset.ppick legend { font-weight: 600; padding: 0 4px; }
 .thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex: 0 0 auto; }
 
 /* tables (numbers, review history, task facts) */
-.table-wrap { overflow-x: auto; max-width: 100%; }
+.table-wrap { overflow: auto; max-width: 100%; max-height: calc(100vh - 140px); scroll-padding-top: 44px; } /* v1.7.20, as .tlist-scroll */
+/* only a header row in <thead> is frozen: the task panel's facts table has a <th> on every row. Collapsed borders do not
+   move with a frozen cell, so its line under it is a shadow */
+.table-wrap thead th { position: sticky; top: 0; z-index: 1; box-shadow: inset 0 -1px var(--line); }
+@media print { .tlist-scroll, .table-wrap { max-height: none; overflow: visible; } } /* a printed table is whole, as before */
 table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--panel); }
 th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
 th { background: var(--bg); font-weight: 600; }
@@ -385,6 +392,7 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   .toolbar .fld select { flex: 1 1 auto; min-width: 0; }
   /* Papan Kantor Daftar: each task is one stacked box with no header row; the cells say "Tenggat:" and "dari X" */
   .tlist { min-width: 0; }
+  .tlist-scroll { max-height: none; } /* no header row to freeze on a phone: the stacked list scrolls with the page */
   .tr.th, .tr > .c-type, .tr > .c-note, .wide-only { display: none; }
   .phone-only { display: inline; }
   .tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px 12px; }

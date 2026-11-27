@@ -533,3 +533,36 @@ the badges computed nowhere, Status kept, Lanjutkan gone, the wide buttons) each
 Riwayat Tugas 39/39 and the sub-task check 20/20 still pass. Not seen on the real board signed in.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.20 (27 Nov 2026): frozen table headers
+
+The app owner asked: "Freeze all the header table", and picked (from two ways) a scroll box per table. Every table is
+now at most a screen tall (the window height less 140 px, for the page heading and toolbar) and scrolls inside itself,
+up and down and, when the window is narrow, sideways; its header row stays at the top of the box. That is Papan Kantor
+(Daftar), Papan Saya (each section), Riwayat Tugas, Rutin, Orang & Pengaturan and Review Jumat's past reviews. A table
+shorter than its box looks as before; on a short window even Papan Kantor's default 10 rows get the box's own scrollbar
+(at a 700 px tall window it scrolls by about 50 px). The page keeps its own scrollbar for everything else. Printing is
+unchanged: a printed table is whole, with no box.
+
+- On a phone the three task tables are stacked lists with no header row, so there they are no boxes and scroll with the
+  page. Rutin, Orang & Pengaturan and Review Jumat keep their box there too.
+- Only a header row in `<thead>` is frozen: the task panel's facts table has a `<th>` on every row and is unchanged.
+  Review Jumat's table got a `<thead>` for this.
+- A row reached with the keyboard scrolls out from under the frozen header (scroll-padding; measured on Papan Kantor).
+- A box that scrolls up and down has a scrollbar (15 px in the test browser), so a long task table that just fit
+  (windows of about 1259 to 1276 px) now also scrolls sideways a little. At 1280 px and up it fits.
+- Kanban and Timeline are not tables and are unchanged.
+- Screen files only: `style.css`, `app.js` (the Review Jumat `<thead>`).
+
+**Checks:** a new preview check (invented people, the real app.js in headless Chrome) passes 22/22: each of the six
+tables taller than its box, the box no taller than the window less 140 px, and after scrolling inside it the header at
+the top of the box with the rows under it; at 1024 px the header following the columns sideways; a focused title
+scrolling out from under the header; the facts table's `<th>` not frozen; the phone task list no box, and Rutin, Orang &
+Pengaturan and Review Jumat boxed at 390 px with no sideways page scroll; printing Papan Kantor and Rutin whole. Red
+controls: the v1.7.19 files, seven planted bugs (header not sticky in the task tables, no box, no scroll-padding, every
+`<th>` frozen, `<thead>` cells not sticky, the phone list boxed, Review Jumat without `<thead>`) and the first cut
+without the print rule (which cut a printed table at the box height) each fail it. Papan Kantor
+57/57 and 16/16, Riwayat Tugas 39/39, the sub-task check 20/20 and Papan Saya 28/28 still pass. Not seen on the real
+board signed in.
+
+Undo: `git revert` the commit (screen files only, no restart).

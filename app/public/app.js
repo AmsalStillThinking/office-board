@@ -1555,8 +1555,8 @@
       view.appendChild(h('h2', { text: t('rv_past') }));
       if (!d.past.length) view.appendChild(h('p', { cls: 'muted', text: t('none') }));
       else {
-        var tb = h('table', {}, h('tr', {}, h('th', { text: t('n_from') }), h('th', { text: t('lbl_owner') }),
-          h('th', { text: t('age_layu') }), h('th', { text: t('age_busuk') }), h('th', { text: t('macet') }), h('th', { text: t('rv_wait_dir') })));
+        var tb = h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: t('n_from') }), h('th', { text: t('lbl_owner') }), // v1.7.20: thead, to be frozen
+          h('th', { text: t('age_layu') }), h('th', { text: t('age_busuk') }), h('th', { text: t('macet') }), h('th', { text: t('rv_wait_dir') }))));
         d.past.forEach(function (p) {
           var cell = function (k) { return p.counts.before[k] + ' -> ' + p.counts.after[k]; };
           tb.appendChild(h('tr', {}, h('td', { text: fmtDate(p.date) }), h('td', { text: personName(p.chair) }),
