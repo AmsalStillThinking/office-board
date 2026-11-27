@@ -80,7 +80,6 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 #today-line:empty { display: none; }
 #me-avatar:empty { display: none; }
 #me-box .av { box-shadow: 0 0 0 2px rgba(219, 226, 239, .45); } /* one avatar colour is the sidebar's own navy */
-.me-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 #me-box button { background: transparent; color: #e7ecf5; border-color: rgba(219, 226, 239, .35); }
 #me-box button:hover { background: rgba(219, 226, 239, .12); border-color: rgba(219, 226, 239, .55); color: #fff; }
 #settings-btn, #theme-btn { width: 40px; padding: 0; }
@@ -399,7 +398,6 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   #nav-more, #nav .nav-label { display: none !important; }
   #me-box { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0 0; padding: 8px 0 0; }
   #me-box .who { flex: 1 1 auto; }
-  .me-acts { margin-left: auto; }
   #nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; /* v1.7.23: as many as there are (4 or 5) */
     background: var(--panel); border-top: 1px solid var(--line); }
   #nav button { flex-direction: column; justify-content: center; gap: 2px; min-height: 58px; padding: 4px 1px; border-radius: 0; color: var(--muted);

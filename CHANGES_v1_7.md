@@ -768,3 +768,20 @@ placeholder, and the dictionary test's static half (run from its own lines, with
 refusal whose English equals its Indonesian. Not seen on the real board signed in.
 
 Undo: `git revert` the commit and restart the board (server.mjs changed).
+
+# v1.7.26 (27 Nov 2026): Keluar only in Settings
+
+Asked on 27 Nov 2026: "Drop the button sign out, show it only at settings modal".
+
+- The Keluar button under the name in the sidebar is gone (`#logout-btn` and its `.me-acts` row in index.html, its
+  two lines in app.js, its two CSS rules). Keluar stays where it already was: at the foot of the Settings dialog (the
+  gear beside the name, `#settings-logout`). On a phone the gear is in the top block too.
+- The first PIN change (a page of its own, no sidebar and no gear) keeps its own Keluar on the card, otherwise a
+  person on a shared PC could not leave that page.
+- Screen files only, live as soon as they are saved; no restart.
+- `browser_check.py` signs out through the gear and Settings, and uses `#me-prefs` as its "signed in" marker. Not run.
+
+**Checks:** app.js parses (`node --check`), no `logout-btn` or `me-acts` left in app\public or browser_check.py,
+browser_check.py parses. Not seen in a browser (the owner asked for nothing to open on their screen).
+
+Undo: `git revert` the commit (no restart).

@@ -260,7 +260,9 @@ def close_panel(ch):
 
 def sign_out(ch):
     close_panel(ch)
-    ch.tap("#logout-btn")
+    ch.tap("#settings-btn")  # v1.7.26: Keluar is only in the Settings dialog
+    wait(ch, "!!document.getElementById('settings-logout')", "Settings open")
+    ch.tap("#settings-logout")
     wait(ch, NAMES_READY, "sign-in page after logout")
 
 
@@ -730,7 +732,7 @@ def run(width, lang):
         ch.goto_url("about:blank")
         ch.hold_requests("*view=my*")
         ch.goto_url(srv.base + "/")
-        wait(ch, "!!document.querySelector('#logout-btn') && !document.querySelector('#logout-btn').hidden", "still signed in after restart")
+        wait(ch, "!!document.querySelector('#me-prefs') && !document.querySelector('#me-prefs').hidden", "still signed in after restart")
         sign_out(ch)
         sign_in(ch, D1, pins[D1], NEWPIN)
         wait(ch, "!!document.querySelector('#exc-waiting')", "director home")
@@ -739,7 +741,7 @@ def run(width, lang):
         check("late answer %d %s: Dewi's Papan Saya request was held past her sign-out" % (width, lang), held == ["GET"], held)
         wait(ch, "performance.getEntriesByType('resource').some(function(e){return /view=my/.test(e.name) && e.responseEnd > 0;})", "the late answer arrived")
         ch.pump(0.5)
-        late = ch.eval("(function(){var h=document.querySelector('#view h1'), lo=document.getElementById('logout-btn'); return [h && h.textContent, !!document.querySelector('#exc-waiting'), !lo.hidden];})()")
+        late = ch.eval("(function(){var h=document.querySelector('#view h1'), lo=document.getElementById('me-prefs'); return [h && h.textContent, !!document.querySelector('#exc-waiting'), !lo.hidden];})()")
         check("late answer %d %s: the director stays signed in on Pengecualian" % (width, lang), late == [DICT[lang]["exc"], True, True], late)
         check("FX5 director %d %s: lands on Pengecualian without a tap" % (width, lang), ch.eval("document.querySelector('#view h1').textContent") == DICT[lang]["exc"],
               ch.eval("document.querySelector('#view h1').textContent"))

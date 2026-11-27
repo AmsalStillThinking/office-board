@@ -297,8 +297,6 @@
     document.documentElement.lang = LANG;
     document.title = t('app_name');
     document.getElementById('app-name').textContent = t('app_name');
-    var lo = document.getElementById('logout-btn');
-    lo.textContent = t('logout'); lo.hidden = !ME;
     document.getElementById('me-name').textContent = ME ? (ME.nick || ME.name) : '';
     var av = document.getElementById('me-avatar');
     clear(av);
@@ -613,7 +611,8 @@
     who.focus(); // the list stays closed until the field is clicked or typed in, so it never covers the PIN on load
   }
 
-  // v1.3: the sidebar (with the sign-out button) is hidden while signed out, so the first PIN change carries its own
+  // v1.3: the sidebar (and Settings, which holds Keluar since v1.7.26) is hidden while signed out, so the first PIN
+  // change carries its own
   function cardTools() {
     return h('div', { cls: 'card-tools' },
       ME ? h('button', { type: 'button', id: 'card-logout', cls: 'small secondary', text: t('logout'), onclick: signOut }) : null);
@@ -2322,7 +2321,6 @@
       if (b && b.disabled) { e.preventDefault(); e.stopPropagation(); return; } // Enter while it is still sending
       if (b) { ARMED = b; setTimeout(function () { if (ARMED === b) ARMED = null; }, 0); }
     }, true);
-    document.getElementById('logout-btn').addEventListener('click', signOut);
     document.getElementById('settings-btn').addEventListener('click', openSettings);
     document.getElementById('lang-id').addEventListener('click', function () { switchLang('id'); });
     document.getElementById('lang-en').addEventListener('click', function () { switchLang('en'); });
