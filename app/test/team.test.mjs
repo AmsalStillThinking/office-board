@@ -442,6 +442,25 @@ test('TM12 Riwayat Tugas: the closed tasks I received (PIC or team), newest clos
   assert.deepEqual(eko[0].members, [EKO], 'a card carries its team, as on the boards');
   assert.deepEqual(ids(await history(GITA)), [O, Rq, V, B], 'closed at the same moment: the newest task first');
   assert.deepEqual(await history(DEWI), [], 'the requester of them all received none of them');
-  assert.deepEqual(await history(D1), [], 'a director sees every task, but none was given to them');
+  assert.deepEqual(ids(await history(D1)), [O, Rq, V, B, A], 'v1.7.16: a director gets every closed task (TM13)');
   refusal(await a.req(EKO, 'GET', '/api/cards?view=nope'), 400, 'bad_input'); // control: the views are still checked
+});
+
+test('TM13 Riwayat Tugas for a director: every closed task, their own and private ones included; the keeper gets only their own', T, async () => {
+  const a = await signedIn();
+  const history = async (w) => { const r = await a.req(w, 'GET', '/api/cards?view=history'); assert.equal(r.status, 200, r.text); return ids(r.json.cards); };
+  // A: Eko PIC; B: Gita PIC, Eko on the team; P: private, nobody picked; M: the director is PIC; F: the keeper is PIC
+  const A = await a.create(DEWI, { title: 'A eko', owner: EKO });
+  const B = await a.create(DEWI, { title: 'B gita, tim eko', owner: GITA, members: [EKO] });
+  const P = await a.create(DEWI, { title: 'P rahasia', owner: GITA, private: true });
+  const M = await a.create(DEWI, { title: 'M direktur', owner: D1 });
+  const F = await a.create(DEWI, { title: 'F keeper', owner: FAJAR });
+  const C = await a.create(DEWI, { title: 'C terbuka', owner: EKO });
+  for (const id of [A, B, P, M, F]) assert.equal((await a.act(D2, id, 'cancel', { reason: 'tidak jadi' })).status, 200);
+  assert.equal(a.card(C).status, 'antri', 'fixture: C stays open');
+  const all = [F, M, P, B, A]; // closed at the same moment: the newest task first
+  assert.deepEqual(await history(D1), all, 'everyone\'s closed tasks, the director\'s own and the private one included');
+  assert.deepEqual(await history(D2), all, 'the other director too');
+  assert.deepEqual(await history(FAJAR), [F], 'the keeper is no director: only what they received');
+  assert.deepEqual(await history(EKO), [B, A], 'a staff member: only what they received, as before');
 });

@@ -410,3 +410,32 @@ Jenis column (spills) and a planted 90 px PIC & Tim column (splits a 9-letter na
 real board.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.16 (27 Nov 2026): a director's Riwayat Tugas holds everyone's
+
+The app owner asked: "At Riwayat Tugas, for Direktur, give access so that they can see all riwayat tugas of the staff
+including themslef". A director's Riwayat Tugas now lists every closed task (Selesai or Batal) in the office, newest
+close first, their own included and private ones too (a director already sees every task). Above the list, a person
+list keeps the tasks one person received as PIC or team, the same rule as that person's own page. It offers "Semua
+orang" first, then, in the board's name order, everyone active and anyone who left with a task in the list, the latter
+marked "(nonaktif)". The person
+list is my addition; the owner's request did not name it. The pick stays while the director opens tasks and moves
+between pages, and goes back to "Semua orang" at sign-out. Staff and the keeper see what they saw before: only what
+they received.
+
+- Server: `closedReceived` (`GET /api/cards?view=history`) drops the "received by me" condition for a director. No new
+  request input: the person list filters in the page.
+- Still the 200 newest only, now office-wide for a director (the 27 Nov backup holds 9 closed tasks).
+- A proposal its Pemberi turned down (usul, then batal) is a closed task, so it now shows in a director's list too.
+- Screen: `app.js` (`ROUTES.history`, `HISTORY_WHO`, reusing `onTeam`), `i18n.json` (new `history_intro_dir`).
+
+**Checks:** TM12 (its director line now expects every closed task) and the new TM13 pass. TM13 covers both directors
+getting every closed task, their own and a private one nobody was picked for included, but not an open one; and the
+keeper and a staff member getting only their own. The planted bugs `history_dir_own_only` and `history_keeper_all` are
+each caught by TM13, and the four older Riwayat Tugas bugs are still caught by TM12 (the runner prints RESULT: FAIL
+for any run of fewer than 10 bugs, by design). The preview check
+(invented people, the real app.js in headless Chrome) passes 22/22, as a director and as staff, at 1280 and 390 px.
+Red controls: the v1.7.15 screen files and three planted bugs ("sign-out keeps the pick", "PIC only", "people who left
+not offered") each fail it. Server change: the board was restarted (pid 16492). Not seen on the real board signed in.
+
+Undo: `git revert` the commit, then restart the board.

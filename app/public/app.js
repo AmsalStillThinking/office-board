@@ -16,6 +16,7 @@
   var OFFICE_START = { q: 'all', owner: '', text: '', page: 1, size: 10 };
   var OFFICE = Object.assign({}, OFFICE_START); // Papan Kantor filters survive opening and closing a task
   var PAGE_SIZES = [10, 25, 50]; // v1.7.12: "Baris per halaman", kept like the filters until the page is reloaded
+  var HISTORY_WHO = ''; // v1.7.16: the person a director picked on Riwayat Tugas ('' = everyone), kept like OFFICE
   var AVATAR_BG = ['#112D4E', '#2E5A88', '#3F72AF', '#4D6A92', '#1D4E7A', '#365F91'];
   var ANN_NEW = 0; // v1.7: posts by others since my last visit to Pengumuman (the count beside it in the menu)
 
@@ -436,6 +437,7 @@
     LAST = null;
     RENDERED = '';
     OFFICE = Object.assign({}, OFFICE_START);
+    HISTORY_WHO = '';
     setChrome();
     clear(view);
     var msg = h('div', { cls: 'msg' });
@@ -1022,11 +1024,29 @@
   // v1.6.7: Riwayat Tugas, the closed tasks this person received (PIC or team), the last closed first; a tap opens the
   // task with its own Riwayat
   ROUTES.history = function () {
+    var dir = ME.role === 'direktur';
     view.appendChild(h('h1', { text: t('history') }));
-    view.appendChild(h('p', { cls: 'muted', text: t('history_intro') }));
+    view.appendChild(h('p', { cls: 'muted', text: t(dir ? 'history_intro_dir' : 'history_intro') }));
     pageGet('/api/cards?view=history').then(function (r) {
       if (!r.ok) return showErr(view, r);
-      view.appendChild(cardList(r.data.cards, { wide: true, showRequester: true, closed: true }));
+      var opts = { wide: true, showRequester: true, closed: true };
+      if (!dir) return view.appendChild(cardList(r.data.cards, opts));
+      // v1.7.16: a director gets everyone's; a name keeps what that person received (PIC or team), as on their own page
+      var who = h('select', { id: 'f-hist-who' }, h('option', { value: '', text: t('all_people') }));
+      PEOPLE.filter(function (p) { return p.active || r.data.cards.some(function (c) { return onTeam(c, p.id); }); }).forEach(function (p) {
+        who.appendChild(h('option', { value: p.id, text: (p.nick || p.name) + (p.active ? '' : ' ' + t('inactive_lane')) }));
+      });
+      who.value = HISTORY_WHO;
+      HISTORY_WHO = who.value; // a name no longer offered falls back to everyone
+      var box = h('div');
+      var paint = function () {
+        clear(box);
+        box.appendChild(cardList(r.data.cards.filter(function (c) { return !HISTORY_WHO || onTeam(c, HISTORY_WHO); }), opts));
+      };
+      who.addEventListener('change', function () { HISTORY_WHO = who.value; paint(); });
+      view.appendChild(h('div', { cls: 'toolbar' }, h('label', { cls: 'fld', for: 'f-hist-who' }, h('span', { cls: 'vh', text: t('lbl_people') }), who)));
+      view.appendChild(box);
+      paint();
     });
   };
 

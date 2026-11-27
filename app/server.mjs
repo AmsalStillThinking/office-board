@@ -146,13 +146,15 @@ export function createApp(opts) {
   }
   // v1.6.7: Riwayat Tugas, the closed tasks this person received (the PIC or on the team; a picked viewer or the
   // requester did not receive it), newest close first. Still through visibleClause, as every card path is.
-  // ponytail: the 200 newest only; a page of older ones when someone needs them.
+  // v1.7.16 (owner, 27 Nov 2026): a director gets every closed task, theirs included; the page picks one person's.
+  // ponytail: the 200 newest only (office-wide for a director); a page of older ones when someone needs them.
   function closedReceived(me) {
     const v = visibleClause(me);
     const td = today(), st = settings();
+    const everyone = isDir(me);
     return withPeople(me, q(`SELECT c.* FROM cards c WHERE c.status IN ('selesai','batal')
-      AND (c.owner = ? OR EXISTS (SELECT 1 FROM card_people r WHERE r.card = c.id AND r.person = ? AND r.kind = 'member')) AND ${v.sql}
-      ORDER BY c.closed_at DESC NULLS LAST, c.id DESC LIMIT 200`).all(me.id, me.id, ...v.args)).map((c) => decorate(c, td, st));
+      ${everyone ? '' : "AND (c.owner = ? OR EXISTS (SELECT 1 FROM card_people r WHERE r.card = c.id AND r.person = ? AND r.kind = 'member'))"} AND ${v.sql}
+      ORDER BY c.closed_at DESC NULLS LAST, c.id DESC LIMIT 200`).all(...(everyone ? [] : [me.id, me.id]), ...v.args)).map((c) => decorate(c, td, st));
   }
   // v1.6: every card sent to a viewer carries its team (members), and its parent only when the viewer may see the
   // parent: others must not learn a private task exists (R11).

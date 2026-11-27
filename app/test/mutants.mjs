@@ -39,6 +39,7 @@ const TM8 = 'TM8 cancelling a task cancels its open sub-tasks';
 const TM9 = 'TM9 sub-tasks and parents do not reveal a private task to someone who may not see it';
 const TM11 = 'TM11 Tugas baru makes a task and its sub-tasks in one go; a bad row makes nothing at all';
 const TM12 = 'TM12 Riwayat Tugas: the closed tasks I received (PIC or team), newest close first; not ones I only see or asked for';
+const TM13 = 'TM13 Riwayat Tugas for a director: every closed task, their own and private ones included; the keeper gets only their own';
 const TD10 = 'TD10 a monthly to-do comes back on the 1st, unticked, dated this month; it needs a date';
 const TD11 = "TD11 a day-31 to-do falls on a short month's last day and keeps its day; an old page keeps the repeat";
 const TD12 = 'TD12 "Hapus yang selesai" leaves a monthly to-do waiting to come back';
@@ -170,6 +171,11 @@ const MUTANTS = [
     edits: [['ORDER BY c.closed_at DESC NULLS LAST, c.id DESC LIMIT 200', 'ORDER BY c.id DESC LIMIT 200']] },
   { name: 'history_anyone', file: 'server.mjs', test: TEAM_TESTS, check: TM12,
     edits: [['AND (c.owner = ? OR EXISTS (SELECT 1 FROM card_people r', 'AND (c.owner = ? OR c.id > 0 OR EXISTS (SELECT 1 FROM card_people r']] },
+  // ---- v1.7.16: a director's Riwayat Tugas holds every closed task; nobody else's does
+  { name: 'history_dir_own_only', file: 'server.mjs', test: TEAM_TESTS, check: TM13,
+    edits: [['const everyone = isDir(me);', 'const everyone = false;']] },
+  { name: 'history_keeper_all', file: 'server.mjs', test: TEAM_TESTS, check: TM13,
+    edits: [['const everyone = isDir(me);', 'const everyone = isDir(me) || me.keeper === 1;']] },
   { name: 'todo_edit_any_person', file: 'server.mjs', test: TODO_TESTS, check: 'TD9 its person edits a to-do; nobody else can, and a refused edit changes nothing',
     edits: [["description = ? WHERE id = ? AND person = ?').run(text, due, description, id, ctx.me.id);", "description = ? WHERE id = ? AND (person = ? OR 1 = 1)').run(text, due, description, id, ctx.me.id);"]] },
   { name: 'todo_edit_no_recheck', file: 'server.mjs', test: TODO_TESTS, check: 'TD7 a write whose body arrives after sign-out is refused',

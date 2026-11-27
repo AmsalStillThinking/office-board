@@ -54,6 +54,7 @@
   "todo_back_on": "muncul lagi {d}",
   "history": "Riwayat Tugas",
   "history_intro": "Tugas yang Anda terima (sebagai PIC atau tim) yang sudah selesai atau batal. Yang terakhir ditutup ada di atas.",
+  "history_intro_dir": "Tugas semua orang yang sudah selesai atau batal, termasuk tugas Anda. Pilih nama untuk melihat tugas yang diterima orang itu (sebagai PIC atau tim). Yang terakhir ditutup ada di atas.",
   "lbl_closed": "Ditutup",
   "st_antri": "Antri",
   "st_jalan": "Jalan",
