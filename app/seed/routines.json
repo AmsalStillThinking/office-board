@@ -23,9 +23,9 @@
    "note": "Pemilik belum ditetapkan ulang sejak Juli 2026."},
   {"title": "Rekap PPh 21 Desember dan bukti potong A1", "owner": null, "type": "pajak", "hard": 1, "schedule": {"kind": "yearly", "month": 1, "day": 20}, "lead_days": 14, "active": 0,
    "note": "Pemilik belum ditetapkan ulang sejak Juli 2026."},
-  {"title": "Kalender konten bulan depan", "owner": "EMP042", "type": "konten", "hard": 0, "schedule": {"kind": "monthly", "day": 25}, "lead_days": 5, "active": 0,
+  {"title": "Kalender konten bulan depan", "owner": "EMP042", "type": "media", "hard": 0, "schedule": {"kind": "monthly", "day": 25}, "lead_days": 5, "active": 0,
    "note": "Draft kontrak: paling lambat tanggal 25 bulan sebelumnya."},
-  {"title": "Laporan konten bulanan", "owner": "EMP042", "type": "konten", "hard": 0, "schedule": {"kind": "monthly", "day": 5}, "lead_days": 3, "active": 0,
+  {"title": "Laporan konten bulanan", "owner": "EMP042", "type": "media", "hard": 0, "schedule": {"kind": "monthly", "day": 5}, "lead_days": 3, "active": 0,
    "note": "Draft kontrak: paling lambat tanggal 5."},
   {"title": "Rekap pengadaan dan status perizinan", "owner": "EMP012", "type": "administrasi", "hard": 0, "schedule": {"kind": "monthly", "day": 5}, "lead_days": 3, "active": 0,
    "note": "Draft kontrak: bulanan; tanggalnya belum ditetapkan di dokumen."}

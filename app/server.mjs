@@ -449,7 +449,9 @@ export function createApp(opts) {
     if (!owner || !owner.active) refuse(400, 'need_owner');
     if (!R.isDate(body.due)) refuse(400, 'need_due');
     if (!R.SOURCES.includes(body.source)) refuse(400, 'bad_source');
-    const type = body.type === undefined || body.type === '' ? 'umum' : body.type;
+    // v1.7.22: the form's Jenis starts blank and must be picked; a request with no type at all still gets Umum
+    const type = body.type === undefined ? 'umum' : body.type;
+    if (type === '') refuse(400, 'need_type');
     if (!R.TYPES.includes(type)) refuse(400, 'bad_input'); // FX17e: one list, on the server
     // v1.6: the team besides the PIC; a sub-task names the task it belongs to (one level only)
     const members = peopleList(body.members).filter((p) => p !== owner.id);
@@ -1247,7 +1249,11 @@ export function createApp(opts) {
       : { title: '', type: 'umum', note: '', owner: null, schedule: null, lead_days: 5, hard: 0, active: 0, requester: null, active_since: null,
         members: [], private: 0, viewers: [] };
     if (!r || body.title !== undefined) { next.title = str(body.title, 200); if (!next.title) refuse(400, 'need_title'); }
-    if (body.type !== undefined) { if (!R.TYPES.includes(body.type)) refuse(400, 'bad_input'); next.type = body.type; }
+    if (body.type !== undefined) {
+      if (body.type === '') refuse(400, 'need_type'); // v1.7.22: blank in the form, or a Jenis no longer offered
+      if (!R.TYPES.includes(body.type)) refuse(400, 'bad_input');
+      next.type = body.type;
+    }
     if (body.note !== undefined) next.note = str(body.note, 1000);
     if (body.owner !== undefined) {
       if (body.owner === null || body.owner === '') next.owner = null;

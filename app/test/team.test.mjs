@@ -394,14 +394,14 @@ test('TM11 Tugas baru makes a task and its sub-tasks in one go; a bad row makes 
   refusal(await a.req(DEWI, 'POST', '/api/cards', { ...base, subtasks: Array.from({ length: 21 }, () => row('x', EKO, '2026-11-26')) }), 400, 'bad_input');
   assert.deepEqual([a.cardCount(), a.eventCount()], [cards0, events0], 'a refused create writes nothing, not even the parent');
 
-  const r = await a.req(DEWI, 'POST', '/api/cards', { ...base, type: 'konten', private: true, viewers: [FAJAR],
+  const r = await a.req(DEWI, 'POST', '/api/cards', { ...base, type: 'media', private: true, viewers: [FAJAR],
     subtasks: [row('Kumpulkan data', EKO, '2026-11-26'), row('Susun tabel', FAJAR, '2026-11-28')] });
   assert.equal(r.status, 201, r.text);
   const pid = r.json.card.id;
   const subs = a.db.prepare('SELECT * FROM cards WHERE parent = ? ORDER BY id').all(pid);
   assert.deepEqual(subs.map((s) => [s.title, s.owner, s.due, s.requester, s.private, s.status, s.type, s.source, s.hard]), [
-    ['Kumpulkan data', EKO, '2026-11-26', DEWI, 1, 'antri', 'konten', 'WhatsApp', 0],
-    ['Susun tabel', FAJAR, '2026-11-28', DEWI, 1, 'antri', 'konten', 'WhatsApp', 0]], 'each takes the parent type, source and privacy');
+    ['Kumpulkan data', EKO, '2026-11-26', DEWI, 1, 'antri', 'media', 'WhatsApp', 0],
+    ['Susun tabel', FAJAR, '2026-11-28', DEWI, 1, 'antri', 'media', 'WhatsApp', 0]], 'each takes the parent type, source and privacy');
   assert.equal(a.cardCount(), cards0 + 3);
   // the people picked on the parent are picked on each sub-task too, its own PIC left out (as "+ Sub-tugas" starts)
   assert.deepEqual([a.members(subs[0].id, 'viewer'), a.members(subs[1].id, 'viewer')], [[FAJAR], []]);

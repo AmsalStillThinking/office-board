@@ -476,10 +476,18 @@ test('FX17d review counts over non-private cards', T, async () => {
 });
 
 test('FX17e card type from one server list', T, async () => {
-  const a = await signedIn({}, [DEWI]);
+  const a = await signedIn({}, [DEWI, D1]);
   const me = await a.req(DEWI, 'GET', '/api/me');
-  assert.deepEqual(me.json.types, ['umum', 'pajak', 'keuangan', 'sdm', 'laporan', 'konten', 'administrasi', 'it', 'media', 'legal', 'produksi', 'ga']);
-  refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 'x', owner: DEWI, due: '2026-11-25', source: 'Lisan', type: 'rahasia' }), 400, 'bad_input');
+  assert.deepEqual(me.json.types, ['umum', 'pajak', 'keuangan', 'sdm', 'laporan', 'administrasi', 'it', 'media', 'legal', 'produksi']);
+  const card = { title: 'x', owner: DEWI, due: '2026-11-25', source: 'Lisan' };
+  refusal(await a.req(DEWI, 'POST', '/api/cards', { ...card, type: 'rahasia' }), 400, 'bad_input');
+  for (const gone of ['konten', 'ga']) refusal(await a.req(DEWI, 'POST', '/api/cards', { ...card, type: gone }), 400, 'bad_input'); // v1.7.22: dropped
+  refusal(await a.req(DEWI, 'POST', '/api/cards', { ...card, type: '' }), 400, 'need_type'); // v1.7.22: the form's blank Jenis
+  const id = await a.create(DEWI, {}); // a request with no type at all still gets Umum
+  assert.equal(a.db.prepare('SELECT type FROM cards WHERE id = ?').get(id).type, 'umum');
+  const routine = { title: 'Uji jenis', schedule: { kind: 'yearly', month: 3, day: 31 } };
+  refusal(await a.req(D1, 'POST', '/api/routines', { ...routine, type: '' }), 400, 'need_type');
+  assert.equal((await a.req(D1, 'POST', '/api/routines', { ...routine, type: 'produksi' })).status, 201);
   assert.ok(await a.create(DEWI, { type: 'pajak' }));
   assert.ok(await a.create(DEWI, { type: 'legal' })); // v1.7.21: a new one is taken too
   const dict = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'public', 'i18n.json'), 'utf8')).id;

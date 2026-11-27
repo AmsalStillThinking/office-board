@@ -591,3 +591,33 @@ controls: the old dictionary with the new list, and the new dictionary with the 
 files were not run. Not seen on the real board signed in.
 
 Undo: `git revert` the commit, then restart the board (no task uses a new Jenis yet; one that does would show its key).
+
+# v1.7.22 (27 Nov 2026): Jenis starts blank; Konten and Umum & GA dropped
+
+The app owner asked: "Start on a blank", then "drop the "Konten" dan "Umum & GA"". The Jenis list is now ten: Umum,
+Pajak, Keuangan, SDM, Laporan, Administrasi, IT & Sistem, Media & Konten, Legal & Perizinan, Produksi & QC.
+
+- Tugas baru (also "+ Sub-tugas" and a Penerima's own task, the same form) and Tambah rutin now start Jenis on
+  "Pilih...". Saving with it left blank is refused with "Jenis wajib dipilih." (the server decides, `need_type`, as for
+  the other fields). A request with no type at all, as the tests and older pages send, still gets Umum; an open tab
+  from before the change still offers its old list until it is reloaded, and a dropped Jenis sent from it is refused.
+- Dropped, not moved: tasks and routines that have Konten or Umum & GA keep it, and i18n.json keeps both words, so they
+  still show "Konten" / "Umum & GA". A task's Jenis cannot be changed; a routine's Atur shows Jenis blank when its Jenis
+  is no longer offered, so a save there asks for a new one. On the 27 Nov backup that is 2 tasks and 2 routines
+  (both routines off) with Konten; Umum & GA was offered only from 10:55 to 11:02 today.
+- The first-install seed's two Konten routines are now Media & Konten (the seed check refuses a Jenis not in the list).
+- Files: `lib/rules.mjs`, `server.mjs` (create and routine save: blank refused), `lib/messages.json` (`need_type`),
+  `public/app.js`, `seed/routines.json`, `test/fx.test.mjs` (FX17e), `test/team.test.mjs` (TM11 used Konten). Server
+  change: the board was restarted (pid 22524, 11:01:59). For about 23 s before that (app.js saved 11:01:36) a task
+  saved with Jenis left blank would have been made as Umum by the old server.
+
+**Checks:** FX17e passes: the ten in order; Konten and Umum & GA refused; a blank Jenis refused with `need_type`, for a
+task and for a routine; a request with no type made as Umum; every Jenis has its word. Red controls: a copy of the app
+with the old "blank means Umum" line, and one without the routine check, each fail it at that line. TM11 passes with
+Media & Konten. A preview check (the real app.js and rules.mjs in headless Chrome) passes 12/12: "Pilih..." first in
+both forms and picked at the start, a blank save sent blank with the server's message shown and the form kept, a
+picked Jenis sent, Atur on a Konten routine showing blank, old Konten and Umum & GA tasks still named in Papan Kantor,
+the column at 1280 and 1024 px. Red controls: the v1.7.21 screen and the v1.7.21 list each fail it. The other test
+files were not run. Not seen on the real board signed in.
+
+Undo: `git revert` the commit, then restart the board.

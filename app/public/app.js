@@ -1139,7 +1139,8 @@
     owner.addEventListener('change', hideOwner);
     hideOwner();
     var due = h('input', { id: 'new-due', type: 'date' });
-    var type = h('select', { id: 'new-type' });
+    // v1.7.22: Jenis starts blank and must be picked (the owner's word): a preset Umum filled up with tasks nobody sorted
+    var type = h('select', { id: 'new-type' }, h('option', { value: '', text: t('choose') }));
     TYPES.forEach(function (x) { type.appendChild(h('option', { value: x, text: t('type_' + x) })); });
     var hard = h('input', { id: 'new-hard', type: 'checkbox' });
     var source = h('select', { id: 'new-source' });
@@ -1618,13 +1619,13 @@
   function routineDialog(rt, reload, rmsg) {
     var isNew = !rt;
     var openerId = isNew ? 'rt-add-open' : 'rt-open-' + rt.id;
-    rt = rt || { title: '', type: 'umum', hard: 0, note: '', owner: null, schedule: { kind: 'monthly', day: '' }, lead_days: 5, active: 0,
+    rt = rt || { title: '', type: '', hard: 0, note: '', owner: null, schedule: { kind: 'monthly', day: '' }, lead_days: 5, active: 0,
       members: [], 'private': 0, viewers: [] };
     var msg = h('div', { cls: 'msg' });
     var title = h('input', { id: 'rt-title', type: 'text', maxlength: '200', autocomplete: 'off', value: rt.title });
-    var type = h('select', { id: 'rt-type' });
+    var type = h('select', { id: 'rt-type' }, h('option', { value: '', text: t('choose') })); // v1.7.22, as in Tugas baru
     TYPES.forEach(function (x) { type.appendChild(h('option', { value: x, text: t('type_' + x) })); });
-    type.value = rt.type;
+    type.value = TYPES.indexOf(rt.type) >= 0 ? rt.type : ''; // a Jenis no longer offered (Konten, Umum & GA) shows blank
     var hard = h('input', { id: 'rt-hard', type: 'checkbox', checked: rt.hard === 1 });
     var note = h('textarea', { id: 'rt-note', maxlength: '1000', rows: '2', value: rt.note });
     var owner = peopleSelect('rt-owner', null, true);

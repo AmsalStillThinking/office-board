@@ -2,6 +2,7 @@
  "need_owner": {"id":"Tugas harus punya satu pemilik yang aktif."},
  "need_due": {"id":"Tugas harus punya tenggat (tanggal)."},
  "need_title": {"id":"Judul tugas wajib diisi."},
+ "need_type": {"id":"Jenis wajib dipilih."},
  "need_todo_text": {"id":"Tulis to-do-nya dulu."},
  "need_todo_date": {"id":"To-do yang diulang tiap bulan perlu tanggal."},
  "bad_source": {"id":"Sumber harus WhatsApp, Lisan, Rapat, Email, atau Lainnya."},
