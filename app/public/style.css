@@ -168,8 +168,14 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .tr { display: grid; grid-template-columns: minmax(160px, 2.2fr) minmax(90px, 1.2fr) 104px minmax(100px, 1fr) minmax(80px, .8fr) 165px minmax(122px, 1fr) 117px;
   padding: 0 4px;
   align-items: center; border-bottom: 1px solid var(--soft); }
+/* v1.7.19: Papan Saya: Urgensi | Tenggat | Aksi in the last three places (the same minimums, so it fits as well) */
+.t-my .tr { grid-template-columns: minmax(160px, 2.2fr) minmax(90px, 1.2fr) 104px minmax(100px, 1fr) minmax(80px, .8fr) minmax(122px, 1fr) 117px 165px; }
 .phone-only { display: none; }
 .tr > div { padding: 8px; min-width: 0; }
+.tr > .c-act { display: flex; flex-wrap: wrap; gap: 6px; cursor: auto; }
+.c-act button { padding-left: 12px; padding-right: 12px; } /* Macet and Buka side by side in the 165 px column */
+.tr > .c-extra { grid-column: 1 / -1; cursor: auto; } /* the Macet form or a message, under the row */
+.tr > .c-extra:empty { display: none; }
 .tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted); }
 .tr:not(.th):hover { background: #f7f9fc; }
 .tr[data-id], .tr-parent { cursor: pointer; } /* v1.7.13: a click anywhere on the row opens the task */
@@ -386,7 +392,8 @@ ul.todos { list-style: none; margin: 0; padding: 0; }
   .tr.tr-sub { padding-left: 32px; } /* the whole stacked box of a sub-task is indented */
   .tr-sub > .c-task { padding-left: 0; }
   .tr.tr-parent { padding-bottom: 0; }
-  .tr > .c-task, .tr > .c-due, .tr > .c-closed { flex: 1 1 100%; }
+  .tr > .c-task, .tr > .c-due, .tr > .c-closed, .tr > .c-act, .tr > .c-extra { flex: 1 1 100%; }
+  .tr > .c-act { order: 6; } .tr > .c-extra { order: 7; }
   .tr .c-task .sub { margin-top: -6px; }
   .c-urg { order: 1; } .c-st { order: 2; } .c-due { order: 3; font-size: 14px; color: var(--muted); } .c-who { order: 4; font-size: 14px; }
   .c-from { order: 5; font-size: 14px; color: var(--muted); }

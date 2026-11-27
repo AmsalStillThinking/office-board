@@ -656,13 +656,13 @@
     deco(c);
     var el = h('article', { cls: 'card' + (c.age ? ' age-' + c.age : ''), 'data-id': String(c.id), 'data-status': c.status });
     el.appendChild(h('div', { cls: 'card-top' },
-      h('span', { cls: 'tag', text: t('type_' + c.type) }), opts.noId ? null : h('span', { cls: 'tid', text: '#' + c.id }),
+      h('span', { cls: 'tag', text: t('type_' + c.type) }), h('span', { cls: 'tid', text: '#' + c.id }),
       h('span', { cls: 'flags' },
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null,
         c.hard ? h('span', { cls: 'flag', text: t('lbl_hard') }) : null,
         c.routine_key ? h('span', { cls: 'flag', text: t('lbl_routine') }) : null,
         c.private ? h('span', { cls: 'flag' }, icon('lock'), h('span', { text: t('lbl_private') })) : null,
-        c.parent ? h('span', { cls: 'flag', text: tf(opts.noId ? 'lbl_sub_of_title' : 'lbl_sub_of', { id: c.parent, t: c.parent_title }) }) : null)));
+        c.parent ? h('span', { cls: 'flag', text: tf('lbl_sub_of', { id: c.parent }) }) : null)));
     var title = h('button', { type: 'button', cls: 'title', text: c.title, onclick: function () { go('card', String(c.id)); } });
     el.appendChild(title);
     var due = dueText(c);
@@ -672,28 +672,11 @@
       c.status === 'tunggu' && c.waiting_on ? h('span', { text: t('lbl_waiting_on') + ': ' + personName(c.waiting_on) }) : null,
       c.status === 'bukti' && c.macet ? h('span', { cls: 'waiting-confirm', text: t('waiting_confirm') + ': ' + personName(c.requester) }) : null);
     el.appendChild(meta);
-    var who = h('div', { cls: 'card-foot' },
-      opts.showOwner !== false ? h('span', { cls: 'who' }, avatar(c.owner, 'sm'), h('span', { text: teamLabel(c) })) : null,
-      opts.showOwner === false && (c.members || []).length ? h('span', { cls: 'team', text: t('lbl_team') + ': ' + teamLabel(c) }) : null,
-      opts.showRequester && c.requester !== c.owner ? h('span', { text: tf('from_req', { name: personName(c.requester) }) }) : null);
-    if (who.firstChild) el.appendChild(who);
+    el.appendChild(h('div', { cls: 'card-foot' }, h('span', { cls: 'who' }, avatar(c.owner, 'sm'), h('span', { text: teamLabel(c) })),
+      opts.showRequester && c.requester !== c.owner ? h('span', { text: tf('from_req', { name: personName(c.requester) }) }) : null));
     var acts = h('div', { cls: 'acts' });
     var slot = h('div', { cls: 'msg' });
     var extra = h('div', { cls: 'extra' });
-    var mine = ME && (onTeam(c, ME.id) || ME.role === 'direktur');
-    if (opts.quick && mine) {
-      if (c.status === 'antri') acts.appendChild(h('button', { type: 'button', cls: 'btn-start', text: t('btn_start'), onclick: function () {
-        act(c.id, 'start', {}, slot).then(function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, 'start', slot, 'btn_start_override'); });
-      } }));
-      if (c.status === 'jalan') {
-        acts.appendChild(h('button', { type: 'button', cls: 'btn-block secondary', text: t('btn_block'), onclick: function () { clear(extra); blockForm(c, slot, extra); } }));
-        // proof is sent from the task panel, where the evidence is attached (Kirim bukti lives there)
-        acts.appendChild(h('button', { type: 'button', cls: 'btn-open', text: t('btn_open'), onclick: function () { go('card', String(c.id)); } }));
-      }
-      if (c.status === 'tunggu') acts.appendChild(h('button', { type: 'button', cls: 'btn-unblock secondary', text: t('btn_unblock'), onclick: function () {
-        act(c.id, 'unblock', {}, slot).then(function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, 'unblock', slot, 'btn_unblock_override'); });
-      } }));
-    }
     var ownProof = ME && onTeam(c, ME.id) && c.requester !== ME.id; // FX1: never judge your own (team's) proof; v1.7.11: the Pemberi may
     if (opts.confirm && c.status === 'bukti' && ME && !ownProof && (c.requester === ME.id || ME.role === 'direktur')) {
       acts.appendChild(h('button', { type: 'button', cls: 'btn-accept', text: t('btn_accept'), onclick: function () { act(c.id, 'accept', {}, slot); } }));
@@ -769,24 +752,25 @@
       view.appendChild(h('h1', { text: t('nav_my') }));
       view.appendChild(annStrip());
       if (!r.ok) return showErr(view, r);
-      var cards = r.data.cards;
+      var cards = r.data.cards.map(deco);
       view.appendChild(mySummary(cards));
       var by = function (st) { return cards.filter(function (c) { return c.status === st; }); };
+      // v1.7.19: each section is the Papan Kantor table, in the server's order, with an Aksi column in place of Status
+      // (the heading says it); an empty section keeps its one sentence
+      var table = function (rows, st) { return rows.length ? taskTable(rows, 'my', t('st_' + st)) : h('p', { cls: 'muted empty', text: t('no_cards') }); };
       var jalan = by('jalan');
       view.appendChild(h('h2', { id: 'sec-jalan', text: t('st_jalan') + ' ' + jalan.length + '/' + SETTINGS.maxActive }));
       view.appendChild(meter(jalan.length, SETTINGS.maxActive));
-      view.appendChild(cardList(jalan, { quick: true, showOwner: false, showRequester: true, noId: true }));
-      view.appendChild(h('h2', { id: 'sec-antri', text: t('st_antri') }));
-      view.appendChild(cardList(by('antri'), { quick: true, showOwner: false, showRequester: true, noId: true }));
-      view.appendChild(h('h2', { id: 'sec-tunggu', text: t('st_tunggu') }));
-      view.appendChild(cardList(by('tunggu'), { quick: true, showOwner: false, showRequester: true, noId: true }));
-      view.appendChild(h('h2', { id: 'sec-bukti', text: t('st_bukti') }));
-      view.appendChild(cardList(by('bukti'), { showOwner: false, showRequester: true, noId: true }));
+      view.appendChild(table(jalan, 'jalan'));
+      ['antri', 'tunggu', 'bukti'].forEach(function (st) {
+        view.appendChild(h('h2', { id: 'sec-' + st, text: t('st_' + st) }));
+        view.appendChild(table(by(st), st));
+      });
       // v1.6.8: the tasks I added myself, waiting for their Pemberi's approval (shown only when there are some)
       var usul = by('usul');
       if (usul.length) {
         view.appendChild(h('h2', { id: 'sec-usul', text: t('st_usul') }));
-        view.appendChild(cardList(usul, { showOwner: false, showRequester: true, noId: true }));
+        view.appendChild(table(usul, 'usul'));
       }
     });
   };
@@ -875,7 +859,7 @@
     var pages = book.length;
     OFFICE.page = Math.min(Math.max(1, OFFICE.page), pages); // a stale page number (the list shrank) is clamped
     var from = tasks([].concat.apply([], book.slice(0, OFFICE.page - 1))).length, part = tasks(book[OFFICE.page - 1]);
-    var wrap = taskTable(part, false); // the page was clamped above, so part is empty only when rows is
+    var wrap = taskTable(part, 'office'); // the page was clamped above, so part is empty only when rows is
     // "Baris per halaman" is always there; "Menampilkan" and the page buttons only once there is a second page
     var sizeSel = h('select', { id: 'f-size' });
     PAGE_SIZES.forEach(function (n) { sizeSel.appendChild(h('option', { value: String(n), text: String(n) })); });
@@ -912,15 +896,17 @@
   }
 
   // v1.7.12: the columns in the owner's order; the phone stacks each row and hides this header (style.css).
-  // v1.7.17: Riwayat Tugas uses it too (closed): Tenggat, then Ditutup, in place of Urgensi and Tenggat.
-  function taskTable(rows, closed) {
-    var tbl = h('div', { cls: 'tlist', role: 'table', 'aria-label': t(closed ? 'history' : 'nav_office') },
-      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from', 'lbl_status'].concat(closed ? ['lbl_due', 'lbl_closed'] : ['lbl_urgency', 'lbl_due']).map(function (k) {
+  // v1.7.17: Riwayat Tugas uses it too (mode 'closed'): Tenggat, then Ditutup, in place of Urgensi and Tenggat.
+  // v1.7.19: so does Papan Saya (mode 'my'): Urgensi, Tenggat, then Aksi (its quick buttons) in place of Status.
+  var TABLE_END = { office: ['lbl_status', 'lbl_urgency', 'lbl_due'], closed: ['lbl_status', 'lbl_due', 'lbl_closed'], my: ['lbl_urgency', 'lbl_due', 'th_act'] };
+  function taskTable(rows, mode, label) {
+    var tbl = h('div', { cls: 'tlist t-' + mode, role: 'table', 'aria-label': label || t(mode === 'closed' ? 'history' : 'nav_office') },
+      h('div', { cls: 'tr th', role: 'row' }, ['th_task', 'th_note', 'f_type', 'lbl_people', 'n_from'].concat(TABLE_END[mode]).map(function (k) {
         return h('div', { role: 'columnheader', text: t(k) });
       })));
     groups(rows).forEach(function (g) {
-      tbl.appendChild(g.head ? rowItem(g.head, closed) : parentLine(g));
-      g.subs.forEach(function (c) { tbl.appendChild(rowItem(c, closed)); });
+      tbl.appendChild(g.head ? rowItem(g.head, mode) : parentLine(g));
+      g.subs.forEach(function (c) { tbl.appendChild(rowItem(c, mode)); });
     });
     var wrap = h('div', { cls: 'tlist-wrap' }, h('div', { cls: 'tlist-scroll' }, tbl));
     if (!rows.length) wrap.appendChild(h('p', { cls: 'muted empty', text: t('no_cards') }));
@@ -943,23 +929,46 @@
   // v1.7.13: a click anywhere on a row opens the task. The title stays a button for the keyboard: its click bubbles up
   // to the row. The title takes the focus first, so closing the panel gives it back to this row.
   function opener(title, id) {
-    return function () {
+    return function (ev) {
       if (String(window.getSelection())) return; // text dragged over to copy it does not open the task
+      if (ev.target.closest('.c-act, .c-extra')) return; // Papan Saya's buttons and their forms do their own thing
       title.focus();
       go('card', String(id));
     };
   }
 
-  // the grey line over sub-tasks whose parent is not in this list (on Riwayat Tugas still open or not received, or
-  // filtered out); no
-  // data-id, it is not a task of the list. A click opens the parent (the list names it only to those who may see it).
+  // the grey line over sub-tasks whose parent is not in this list (on Riwayat Tugas still open or not received, on
+  // Papan Saya in another section, or filtered out); no data-id, it is not a task of the list. A click opens the
+  // parent (the list names it only to those who may see it).
   function parentLine(g) {
     var title = h('button', { type: 'button', cls: 'title' }, h('span', { cls: 'vh', text: t('parent_line') + ': ' }), h('span', { text: g.title }));
     return h('div', { cls: 'tr tr-parent', role: 'row', 'data-parent': g.id, onclick: opener(title, g.id) },
       h('div', { role: 'cell', cls: 'c-task' }, title));
   }
 
-  function rowItem(c, closed) {
+  // v1.7.19: Papan Saya's quick buttons, as its cards had them (they moved here with the table). A form or a message
+  // they open goes in the row's full-width line under it (`extra`, `slot`).
+  function quickActs(c, slot, extra) {
+    if (!ME || !(onTeam(c, ME.id) || ME.role === 'direktur')) return [];
+    var retry = function (action, labelKey) {
+      return function (r) { if (!r.ok && /^limit_active/.test(r.data.error)) overrideRetry(c, action, slot, labelKey); };
+    };
+    if (c.status === 'antri') return [h('button', { type: 'button', cls: 'btn-start', text: t('btn_start'), onclick: function () {
+      act(c.id, 'start', {}, slot).then(retry('start', 'btn_start_override'));
+    } })];
+    if (c.status === 'jalan') return [
+      h('button', { type: 'button', cls: 'btn-block secondary', text: t('btn_block'), onclick: function () { clear(extra); blockForm(c, slot, extra); } }),
+      // proof is sent from the task panel, where the evidence is attached (Kirim bukti lives there)
+      h('button', { type: 'button', cls: 'btn-open', text: t('btn_open'), onclick: function () { go('card', String(c.id)); } })];
+    if (c.status === 'tunggu') return [h('button', { type: 'button', cls: 'btn-unblock secondary', text: t('btn_unblock'), onclick: function () {
+      act(c.id, 'unblock', {}, slot).then(retry('unblock', 'btn_unblock_override'));
+    } })];
+    return [];
+  }
+
+  function rowItem(c, mode) {
+    var closed = mode === 'closed', my = mode === 'my';
+    var slot = my ? h('div', { role: 'cell', cls: 'c-extra msg' }) : null, extra = my ? h('div', { role: 'cell', cls: 'c-extra extra' }) : null;
     // v1.7.15: these notes have their own column, Keterangan, right of Tugas (the owner's list: Sub-tugas dari ...,
     // Pribadi, Rutin). Tenggat hukum, which shared the line under the title with them, moved there too.
     var flags = [c.parent ? tf('lbl_sub_of_title', { t: c.parent_title }) : '', c.private ? t('lbl_private') : '',
@@ -976,13 +985,14 @@
       h('div', { role: 'cell', cls: 'c-type', text: jenis }), // v1.7.14: Jenis before PIC & Tim (the owner's choice)
       h('div', { role: 'cell', cls: 'c-who', text: teamLabel(c) }), // names only, no avatar (the owner's choice)
       h('div', { role: 'cell', cls: 'c-from' }, h('span', { cls: 'wide-only', text: from }), h('span', { cls: 'phone-only', text: tf('from_req', { name: from }) })),
-      h('div', { role: 'cell', cls: 'c-st' }, statusBadge(c.status)),
+      my ? null : h('div', { role: 'cell', cls: 'c-st' }, statusBadge(c.status)),
       closed ? null : h('div', { role: 'cell', cls: 'c-urg' }, ageBadge(c.age), c.macet ? macetBadge() : null,
         c.waitingYou ? h('span', { cls: 'flag you', text: t('exc_waiting') }) : null),
       h('div', { role: 'cell', cls: 'c-due' }, h('span', { cls: 'phone-only', text: t('lbl_due') + ': ' }), h('span', { text: fmtDate(c.due) }),
         h('span', { cls: 'sub', text: dueText(c) })),
       closed ? h('div', { role: 'cell', cls: 'c-closed' }, h('span', { cls: 'phone-only', text: t('lbl_closed') + ': ' }), // the office day
-        h('span', { text: c.closed_at ? fmtTime(c.closed_at).slice(0, 10) : '' })) : null);
+        h('span', { text: c.closed_at ? fmtTime(c.closed_at).slice(0, 10) : '' })) : null,
+      my ? h('div', { role: 'cell', cls: 'c-act' }, quickActs(c, slot, extra)) : null, extra, slot);
   }
 
   function kanbanView(rows) {
@@ -1076,7 +1086,7 @@
     pageGet('/api/cards?view=history').then(function (r) {
       if (!r.ok) return showErr(view, r);
       // v1.7.17: a table like Papan Kantor's, in the server's order (the last closed first), no pages
-      if (!dir) return view.appendChild(taskTable(r.data.cards, true));
+      if (!dir) return view.appendChild(taskTable(r.data.cards, 'closed'));
       // v1.7.16: a director gets everyone's; a name keeps what that person received (PIC or team), as on their own page
       var who = h('select', { id: 'f-hist-who' }, h('option', { value: '', text: t('all_people') }));
       PEOPLE.filter(function (p) { return p.active || r.data.cards.some(function (c) { return onTeam(c, p.id); }); }).forEach(function (p) {
@@ -1087,7 +1097,7 @@
       var box = h('div');
       var paint = function () {
         clear(box);
-        box.appendChild(taskTable(r.data.cards.filter(function (c) { return !HISTORY_WHO || onTeam(c, HISTORY_WHO); }), true));
+        box.appendChild(taskTable(r.data.cards.filter(function (c) { return !HISTORY_WHO || onTeam(c, HISTORY_WHO); }), 'closed'));
       };
       who.addEventListener('change', function () { HISTORY_WHO = who.value; paint(); });
       view.appendChild(h('div', { cls: 'toolbar' }, h('label', { cls: 'fld', for: 'f-hist-who' }, h('span', { cls: 'vh', text: t('lbl_people') }), who)));

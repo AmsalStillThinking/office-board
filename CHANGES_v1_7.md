@@ -495,3 +495,41 @@ sub-task now under its parent; Papan Kantor's layout check 57/57 and row-click c
 signed in.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.19 (27 Nov 2026): Papan Saya with the Papan Kantor table
+
+The app owner asked: "Use the table layout from "Papan Kantor" to "Papan Saya"", and picked (from two layouts each)
+the sections kept with a table each, and the quick buttons kept in an Aksi column. Papan Saya keeps its summary card,
+the "Jalan n/3" heading with its bar, and its sections (Jalan, Antri, Menunggu, Menunggu konfirmasi, Usulan when there
+are some); each section is now the Papan Kantor table: Tugas, Keterangan, Jenis, PIC & Tim, Dari, Urgensi, Tenggat,
+Aksi. Aksi takes the place of Status (the section heading says it) and holds the same buttons as the cards: Mulai on
+Antri, Macet and Buka on Jalan, Lanjutkan on Menunggu, none on Menunggu konfirmasi. The Macet form, and a message such
+as "already 3 running", open on a full-width line under the row; a click on the buttons or in the form does not open
+the task, a click anywhere else on the row does. Sub-tasks sit under their parent as in v1.7.18 (a parent in another
+section gets a grey line). An empty section keeps its one sentence, with no empty table. On a phone each task is a
+stacked box with the buttons last.
+
+- The order inside a section is the server's, as the cards had it.
+- What the cards showed and the table does not: "Menunggu: <person>" on a Menunggu task (who it waits on now shows in
+  the task panel only). The cards' "Menunggu konfirmasi: <Pemberi>" on a proof gone Macet is covered by Dari and the
+  Macet badge. PIC & Tim always shows the names, also when there is no team (the cards named the team only).
+- Between a 900 px and a 1259 px window the table is wider than its box (946 px), so Aksi is off the right edge until
+  the table is scrolled sideways; a click on the row still opens the task panel with the same buttons. From 1259 px up
+  it fits; below 900 px each task is a stacked box with the buttons in it.
+- The card options only Papan Saya used (`quick`, `noId`, `showOwner: false`) were deleted from `cardItem`; the other
+  card lists look as they did.
+- Screen files only: `app.js` (`taskTable(rows, mode, label)` with modes office / closed / my, `quickActs`),
+  `style.css` (the Papan Saya grid, Aksi, the line under the row; Aksi's buttons have 12 px side padding so Macet and
+  Buka fit side by side), `i18n.json` (new `th_act` "Aksi").
+- `app/test/browser_check.py` still taps `.card[data-id] .btn-start` / `.btn-block` on Papan Saya (lines ~537-571)
+  and was neither updated nor run.
+
+**Checks:** a new preview check (an invented staff member, the real app.js in headless Chrome) passes 28/28: the
+sections, headers and column order, the sub-task under a grey line, each button (Mulai refused with the message under
+the row, Mulai by Enter not opening the task, Macet's form sending the person picked, Lanjutkan, Buka), a click on the
+row opening the task and focus coming back, the 1280 px fit, the phone layout and the empty sections. Red controls:
+the v1.7.18 files and seven planted bugs (the row guard removed, the line under the row one column wide, empty tables,
+the badges computed nowhere, Status kept, Lanjutkan gone, the wide buttons) each fail it. Papan Kantor 57/57 and 16/16,
+Riwayat Tugas 39/39 and the sub-task check 20/20 still pass. Not seen on the real board signed in.
+
+Undo: `git revert` the commit (screen files only, no restart).
