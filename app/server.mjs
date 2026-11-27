@@ -785,15 +785,26 @@ export function createApp(opts) {
   // its create event names, so being put on the team later is not one; a routine's tasks have no actor, and a NULL
   // actor never passes `actor <> me`, so they do not ring). Only tasks they can still see, so a
   // private task they were taken off drops out. people.notif_seen_id (never sent) says which are new.
-  // ponytail: reads the whole events log each time (a few thousand rows here); an index on events(actor, id) when it grows.
+  // The detail is matched here, not with ::jsonb in SQL: a "\u0000" in any event's detail (a pasted reason is kept
+  // only there) would make that cast throw, and with it /api/me for everyone. JSON.parse reads it.
+  // ponytail: reads every comment and create event since the mark (a few hundred here); a narrower query when it grows.
   function notifRows(me, sinceId, limit) {
     const v = visibleClause(me);
-    const member = "EXISTS (SELECT 1 FROM card_people r WHERE r.card = c.id AND r.person = ? AND r.kind = 'member')";
-    return q(`SELECT e.id, e.card, e.actor, e.at, e.kind, e.detail, c.title FROM events e JOIN cards c ON c.id = e.card
-      WHERE e.id > ? AND e.actor <> ? AND ${v.sql} AND (
-        (e.kind = 'evidence' AND ((e.detail::jsonb -> 'after') ->> 'kind') = 'comment' AND (c.owner = ? OR c.requester = ? OR ${member}))
-        OR (e.kind = 'create' AND (((e.detail::jsonb -> 'after') ->> 'owner') = ? OR ((e.detail::jsonb -> 'after') -> 'members') @> jsonb_build_array(?::text))))
-      ORDER BY e.id DESC LIMIT ?`).all(sinceId, me.id, ...v.args, me.id, me.id, me.id, me.id, me.id, limit);
+    const rows = q(`SELECT e.id, e.card, e.actor, e.at, e.kind, e.detail, c.title, c.owner, c.requester,
+        EXISTS (SELECT 1 FROM card_people r WHERE r.card = c.id AND r.person = ? AND r.kind = 'member') AS on_team
+      FROM events e JOIN cards c ON c.id = e.card
+      WHERE e.id > ? AND e.actor <> ? AND e.kind IN ('evidence', 'create') AND ${v.sql} ORDER BY e.id DESC`).all(me.id, sinceId, me.id, ...v.args);
+    const out = [];
+    for (const e of rows) {
+      let after;
+      try { after = JSON.parse(e.detail).after || {}; } catch { continue; }
+      const rings = e.kind === 'evidence'
+        ? after.kind === 'comment' && (e.owner === me.id || e.requester === me.id || e.on_team)
+        : after.owner === me.id || (Array.isArray(after.members) && after.members.includes(me.id));
+      if (rings) out.push({ ...e, after });
+      if (out.length >= limit) break;
+    }
+    return out;
   }
   const notifSeen = (me) => q('SELECT notif_seen_id AS s FROM people WHERE id = ?').get(me.id).s;
   function notifNew(me) { return notifRows(me, notifSeen(me), 100).length; } // the screen shows 99+ past 99
@@ -802,11 +813,8 @@ export function createApp(opts) {
   add('GET', '/api/notifications', (ctx) => {
     const me = ctx.me, seen = notifSeen(me), rows = notifRows(me, 0, 30);
     if (rows.length) q('UPDATE people SET notif_seen_id = GREATEST(notif_seen_id, ?) WHERE id = ?').run(rows[0].id, me.id);
-    send(ctx.res, 200, { items: rows.map((e) => {
-      const after = JSON.parse(e.detail).after || {};
-      return { id: e.id, card: e.card, title: e.title, actor: e.actor, at: e.at, kind: e.kind === 'create' ? 'create' : 'comment',
-        text: e.kind === 'create' ? '' : String(after.name || ''), is_new: e.id > seen };
-    }) });
+    send(ctx.res, 200, { items: rows.map((e) => ({ id: e.id, card: e.card, title: e.title, actor: e.actor, at: e.at,
+      kind: e.kind === 'create' ? 'create' : 'comment', text: e.kind === 'create' ? '' : String(e.after.name || ''), is_new: e.id > seen })) });
   });
   add('GET', '/api/announcements', (ctx) => {
     const me = ctx.me, td = today();

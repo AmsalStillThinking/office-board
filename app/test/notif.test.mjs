@@ -89,6 +89,16 @@ test('NT3 a private task someone was taken off drops out of their bell', T, asyn
   assert.deepEqual((await a.rings(FAJAR)).filter((n) => n[1] === p), [], 'nor listed (title and text)');
 });
 
+test('NT5 a NUL pasted into a comment or a title breaks neither /api/me nor the bell', T, async () => {
+  const a = await signedIn();
+  const c = await a.create(DEWI, { owner: EKO, title: 'Judul\u0000aneh' });
+  assert.equal((await a.act(EKO, c, 'comment', { text: 'teks\u0000aneh' })).status, 200);
+  assert.equal(a.db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind IN ('create', 'evidence') AND strpos(detail, 'u0000') > 0").get().n, 2, 'control: both events hold \\u0000');
+  for (const w of EVERYONE) { const m = await a.req(w, 'GET', '/api/me'); assert.equal(m.status, 200, w + ': ' + m.text); }
+  assert.deepEqual((await a.rings(DEWI)).map((n) => n[0]), ['comment'], 'the comment rings its Pemberi');
+  assert.deepEqual((await a.rings(EKO)).map((n) => n[0]), ['create'], 'the task rings its PIC');
+});
+
 test('NT4 the seen mark: added at the newest event, kept by a restart, a person added later starts now', T, async () => {
   const a = await signedIn();
   await a.create(DEWI, { owner: EKO });

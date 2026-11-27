@@ -695,3 +695,10 @@ in the check. Papan Saya's merged page 27/27 and Papan Kantor 57/57 and 16/16 st
 signed in.
 
 Undo: `git revert` the commit, then restart the board (the column stays and is harmless).
+
+**Fix the same day (v1.7.24, board restarted again):** the first cut matched the event's detail with `::jsonb` in SQL.
+A comment or a task title holding a NUL character (a paste) is accepted and its event then holds `\u0000`, which
+PostgreSQL's jsonb refuses, so /api/me answered 500 for every user it reached: nobody could sign in. The detail is now
+read with JSON.parse in the server. New test NT5 (a NUL in a comment and in a title: /api/me 200 for everyone, both
+still ring) fails against the first cut and passes now; the ten planted bugs above, re-aimed at the new code (plus "any
+evidence kind rings"), are each caught. The 27 Nov backup's 107 events hold no such character.
