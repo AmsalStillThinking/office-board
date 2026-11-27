@@ -651,3 +651,47 @@ without its buttons, the answer guard removed) each fail it. Papan Saya 28/28, f
 and Papan Kantor 57/57 still pass. Not seen on the real board signed in.
 
 Undo: `git revert` the commit (screen files only, no restart).
+
+# v1.7.24 (27 Nov 2026): the notification bell
+
+The app owner asked for "a Notification bell beside the Office Board left Corner that will show a notification if
+someone add a new Comment to their task, or create a new task for them". A bell now sits at the right of "Office
+Board" (the top of the sidebar; the top bar on a phone), with the number of new notifications on it. A click opens
+the list, the newest 30, the new ones marked; opening it marks them seen, and a pick opens that task.
+
+- What rings for a person:
+  - a comment someone else writes on a task they are the PIC of, on the team of, or the Pemberi of ("their task" read
+    as all three: my reading). A director's comment on a task counts too;
+  - a task someone else makes naming them as its PIC or on its team (a sub-task made with it counts for its PIC).
+- What does not ring: their own comments and tasks; a file or a link sent as proof; a routine's tasks (no one made
+  them); being a picked viewer of a private task; being moved onto a task in Review Jumat or added to its team later;
+  a director who is not on the task. Only tasks the person can still see are listed, so someone taken off a private
+  task loses its notifications.
+- It is read from the events log already kept; the only new data is one number per person, the newest event they have
+  seen (`people.notif_seen_id`, never sent). It started at the newest event when the column was added, so nobody's bell
+  opened on the old history, and a person added later starts at their own start.
+- The count is read again on every page drawn, when the tab is shown again, and each minute while it is shown, only
+  while the board is open. That check never signs anyone out (a session that ended waits for the next click), and a
+  late answer meant for someone who has signed out never lands on the next person. No bell while signed out or while
+  a first PIN is being changed.
+- Files: `server.mjs` (GET /api/notifications, GET /api/notifications/count, `notif_new` in /api/me, the mark for a new
+  person), `lib/db.mjs`, `public/app.js`, `public/style.css`, `public/i18n.json`, new `test/notif.test.mjs`. Server
+  change: the board was restarted (pid 24988, 11:40:53) before the screen files were saved.
+
+**Checks:** notif.test.mjs passes 4/4: a new task rings its PIC and team but not its maker, a viewer, a director, a
+later team-add or a routine; a comment rings the PIC, the team and the Pemberi but not its writer, and a link or a
+file rings nobody; a director's comment rings the task's three people; taken off a private task, its comment drops
+out; the mark is kept by a restart, added at the newest event on an older database, and starts now for a new person.
+Nine planted bugs (one per rule: the writer rung, no Pemberi, no team, team-add counted as a new task, not-visible
+tasks listed, "new" read after the mark moved, no mark, a new person at zero, a restart moving the mark) each fail it.
+A clause I found had no effect (an actor that is NULL never passes `actor <> me`) was deleted. Also passing: the
+people tests in server.test.mjs and ann.test.mjs (7/7). A preview check (the real app.js in headless Chrome) passes
+17/17: the bell's place and count, the list (comment text, the task made for me, new ones marked), the count cleared,
+Escape and a pick (focus back on the bell), the count read again on a page drawn and when the tab is shown, 99+, a 401
+answer not signing out, a late answer after a sign-out and sign-in dropped, the phone, no bell while changing a first
+PIN. The v1.7.23 screen and five planted bugs each fail it; two focus calls and a removal the planted bugs showed to
+change nothing were deleted (a closed dialog gives the focus back by itself). The one-minute timer itself was not run
+in the check. Papan Saya's merged page 27/27 and Papan Kantor 57/57 and 16/16 still pass. Not seen on the real board
+signed in.
+
+Undo: `git revert` the commit, then restart the board (the column stays and is harmless).

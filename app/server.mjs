@@ -424,6 +424,7 @@ export function createApp(opts) {
       me: mine, settings: settings(), today: today(), types: R.TYPES,
       people: q('SELECT * FROM people ORDER BY name').all().map(pubPerson),
       ann_new: annNew(me).n, // v1.7: the count beside Pengumuman in the menu
+      notif_new: notifNew(me), // v1.7.24: the count on the bell
     });
   }, 'pinchange');
 
@@ -651,7 +652,8 @@ export function createApp(opts) {
     const id = 'P' + crypto.randomBytes(4).toString('hex').toUpperCase();
     const pin = tempPin();
     tx(() => {
-      q('INSERT INTO people(id, name, nick, role, keeper, active, pin_hash, must_change_pin) VALUES (?,?,?,?,?,1,?,1)')
+      // v1.7.24: their bell starts now, not at the beginning of the events log
+      q('INSERT INTO people(id, name, nick, role, keeper, active, pin_hash, must_change_pin, notif_seen_id) VALUES (?,?,?,?,?,1,?,1,(SELECT COALESCE(MAX(id), 0) FROM events))')
         .run(id, name, str(body.nick, 40), body.role, body.keeper ? 1 : 0, hashPin(pin));
       writeEvent(null, me.id, 'person_add', { after: { id, name, role: body.role, keeper: body.keeper ? 1 : 0 } });
     });
@@ -776,6 +778,36 @@ export function createApp(opts) {
     return { n: rows.length, title: rows.length ? rows[0].title : '' };
   }
   add('GET', '/api/announcements/new', (ctx) => send(ctx.res, 200, annNew(ctx.me)));
+
+  // v1.7.24: the bell (the app owner's ask: "a new Comment to their task, or create a new task for them"). What rings
+  // for a person, newest first, read from the events log: a comment someone else wrote on a task they are the PIC of,
+  // on the team of or the Pemberi of; and a task someone else made naming them as its PIC or on its team (the people
+  // its create event names, so being put on the team later is not one; a routine's tasks have no actor, and a NULL
+  // actor never passes `actor <> me`, so they do not ring). Only tasks they can still see, so a
+  // private task they were taken off drops out. people.notif_seen_id (never sent) says which are new.
+  // ponytail: reads the whole events log each time (a few thousand rows here); an index on events(actor, id) when it grows.
+  function notifRows(me, sinceId, limit) {
+    const v = visibleClause(me);
+    const member = "EXISTS (SELECT 1 FROM card_people r WHERE r.card = c.id AND r.person = ? AND r.kind = 'member')";
+    return q(`SELECT e.id, e.card, e.actor, e.at, e.kind, e.detail, c.title FROM events e JOIN cards c ON c.id = e.card
+      WHERE e.id > ? AND e.actor <> ? AND ${v.sql} AND (
+        (e.kind = 'evidence' AND ((e.detail::jsonb -> 'after') ->> 'kind') = 'comment' AND (c.owner = ? OR c.requester = ? OR ${member}))
+        OR (e.kind = 'create' AND (((e.detail::jsonb -> 'after') ->> 'owner') = ? OR ((e.detail::jsonb -> 'after') -> 'members') @> jsonb_build_array(?::text))))
+      ORDER BY e.id DESC LIMIT ?`).all(sinceId, me.id, ...v.args, me.id, me.id, me.id, me.id, me.id, limit);
+  }
+  const notifSeen = (me) => q('SELECT notif_seen_id AS s FROM people WHERE id = ?').get(me.id).s;
+  function notifNew(me) { return notifRows(me, notifSeen(me), 100).length; } // the screen shows 99+ past 99
+  add('GET', '/api/notifications/count', (ctx) => send(ctx.res, 200, { n: notifNew(ctx.me) }));
+  // the newest 30; opening the list marks them seen (what is new is worked out against the mark before it moves)
+  add('GET', '/api/notifications', (ctx) => {
+    const me = ctx.me, seen = notifSeen(me), rows = notifRows(me, 0, 30);
+    if (rows.length) q('UPDATE people SET notif_seen_id = GREATEST(notif_seen_id, ?) WHERE id = ?').run(rows[0].id, me.id);
+    send(ctx.res, 200, { items: rows.map((e) => {
+      const after = JSON.parse(e.detail).after || {};
+      return { id: e.id, card: e.card, title: e.title, actor: e.actor, at: e.at, kind: e.kind === 'create' ? 'create' : 'comment',
+        text: e.kind === 'create' ? '' : String(after.name || ''), is_new: e.id > seen };
+    }) });
+  });
   add('GET', '/api/announcements', (ctx) => {
     const me = ctx.me, td = today();
     const archive = ctx.url.searchParams.get('view') === 'archive';

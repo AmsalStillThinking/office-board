@@ -19,6 +19,7 @@
   var HISTORY_WHO = ''; // v1.7.16: the person a director picked on Riwayat Tugas ('' = everyone), kept like OFFICE
   var AVATAR_BG = ['#112D4E', '#2E5A88', '#3F72AF', '#4D6A92', '#1D4E7A', '#365F91'];
   var ANN_NEW = 0; // v1.7: posts by others since my last visit to Pengumuman (the count beside it in the menu)
+  var NOTIF_NEW = 0; // v1.7.24: the bell's count (comments on my tasks, tasks made for me) since I last opened it
 
   // v1.5: one language only (Indonesian, with the English words the office uses); no switch.
 
@@ -233,6 +234,7 @@
   // ------------------------------------------------------------------ badges: colour + word + icon, never colour alone
   var CIRCLE = 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18';
   var ICONS = {
+    bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0', // v1.7.24
     segar: 'M5 19c0-8 5-14 15-14 0 10-6 15-14 15M5 19c3-4 6-6 10-8',
     layu: CIRCLE + 'M12 7v5l3 2',
     busuk: 'M12 3l9.5 17h-19zM12 10v4.5M12 17.5h.01',
@@ -298,6 +300,15 @@
     clear(more);
     nav.setAttribute('aria-label', t('menu_label'));
     more.setAttribute('aria-label', t('nav_menu'));
+    // v1.7.24: the bell at the right of the app's name; made once, its count changed in place (this runs on every draw).
+    // Signed out or changing a first PIN: no bell, and no count left from the last person.
+    var bell = document.getElementById('notif-btn');
+    if (!bell) {
+      bell = h('button', { type: 'button', id: 'notif-btn', cls: 'notif-btn', onclick: notifDialog }, icon('bell'));
+      document.querySelector('#side .brand').appendChild(bell);
+    }
+    bell.hidden = !ME || !!ME.must_change_pin;
+    notifCount(bell.hidden ? 0 : NOTIF_NEW);
     nav.hidden = more.hidden = !ME || !!ME.must_change_pin;
     document.body.classList.toggle('signed-out', nav.hidden); // sign-in and the first PIN change: a card, no sidebar
     if (!ME) { dropLayer(); return; }
@@ -323,6 +334,62 @@
       var on = cur === it[0];
       more.appendChild(h('button', { type: 'button', id: 'more-' + it[0], cls: on ? 'on' : '', 'aria-current': on ? 'page' : null, onclick: function () { go(it[0]); } },
         icon(it[0]), h('span', { text: t(it[1]) }), it[0] === 'ann' ? annBadge(ANN_NEW) : null));
+    });
+  }
+  // v1.7.24: the bell's count, changed in place, with words for a screen reader
+  function notifCount(n) {
+    NOTIF_NEW = n;
+    var b = document.getElementById('notif-btn');
+    if (!b) return;
+    var old = b.querySelector('.nav-n');
+    if (old) b.removeChild(old);
+    if (n > 0) b.appendChild(h('span', { cls: 'nav-n', 'aria-hidden': 'true', text: n > 99 ? '99+' : String(n) }));
+    b.setAttribute('aria-label', n > 0 ? tf('notif_label_n', { n: n }) : t('notif'));
+    b.title = t('notif');
+  }
+  // The count is read again on every draw, when the tab is shown again and each minute while it is shown. A plain
+  // fetch, not api(): a session that ended must not swap a half-filled form for the sign-in page from the background,
+  // and an answer sent for one person is dropped once another has signed in.
+  function notifPoll() {
+    var me = ME;
+    if (!me || me.must_change_pin || document.hidden) return;
+    fetch('/api/notifications/count', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && ME === me) notifCount(d.n); }, function () { /* offline: the next try */ });
+  }
+  setInterval(notifPoll, 60000);
+  document.addEventListener('visibilitychange', notifPoll);
+  // the list: the newest 30, the new ones marked; opening it marks them seen. A pick closes it and opens the task.
+  function notifDialog() {
+    var me = ME;
+    var list = h('div', { cls: 'notif-list' }, h('p', { cls: 'muted', text: t('loading') }));
+    var dlg = h('dialog', { id: 'notif-dlg', cls: 'dlg notif-dlg', 'aria-labelledby': 'notif-dlg-h', onclose: function () {
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
+    } },
+      h('div', { cls: 'dr-head' }, h('h1', { id: 'notif-dlg-h', cls: 'dr-title', text: t('notif') }),
+        h('button', { type: 'button', id: 'notif-dlg-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
+      h('div', { cls: 'dr-body' }, list));
+    layer.appendChild(dlg);
+    dlg.showModal();
+    api('GET', '/api/notifications').then(function (r) {
+      if (ME !== me || !dlg.isConnected) return;
+      clear(list);
+      if (!r.ok) return showErr(list, r);
+      notifCount(0);
+      if (!r.data.items.length) return list.appendChild(h('p', { cls: 'muted', text: t('notif_none') }));
+      var ul = h('ul', { cls: 'notif-items' });
+      r.data.items.forEach(function (n) {
+        ul.appendChild(h('li', {}, h('button', { type: 'button', cls: 'notif-item' + (n.is_new ? ' is-new' : ''), 'data-card': String(n.card), onclick: function () {
+          dlg.close(); // the bell has the focus again (a closed <dialog> gives it back), so the panel returns it there
+          go('card', String(n.card));
+        } },
+          h('span', { cls: 'notif-what' }, n.is_new ? h('span', { cls: 'notif-dot', 'aria-hidden': 'true' }) : null,
+            h('span', { text: tf(n.kind === 'create' ? 'notif_create' : 'notif_comment', { name: personName(n.actor) }) }),
+            n.is_new ? h('span', { cls: 'vh', text: ', ' + t('notif_is_new') }) : null),
+          h('span', { cls: 'notif-title', text: n.title }),
+          n.text ? h('span', { cls: 'notif-text', text: n.text }) : null,
+          h('span', { cls: 'notif-at', text: fmtTime(n.at) }))));
+      });
+      list.appendChild(ul);
     });
   }
   // v1.7: the count of new posts beside Pengumuman (sidebar, Lainnya page) and on the phone's Lainnya button
@@ -371,6 +438,7 @@
     setChrome();
     if (!ME) return showSignin();
     if (ME.must_change_pin) return showChangePin();
+    notifPoll(); // v1.7.24
     var r = currentRoute();
     var panel = r.name === 'card' || r.name === 'new';
     var base = panel ? (LAST || { name: home(), arg: '' }) : r;
@@ -591,12 +659,12 @@
     return api('GET', '/api/me').then(function (r) {
       if (!r.ok) { ME = null; return showSignin(); }
       ME = r.data.me;
-      if (!ME.must_change_pin) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; ANN_NEW = r.data.ann_new || 0; }
+      if (!ME.must_change_pin) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; ANN_NEW = r.data.ann_new || 0; NOTIF_NEW = r.data.notif_new || 0; }
       render();
     });
   }
   function refreshMe() {
-    return api('GET', '/api/me').then(function (r) { if (r.ok && r.data.people) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; annCount(r.data.ann_new || 0); } });
+    return api('GET', '/api/me').then(function (r) { if (r.ok && r.data.people) { PEOPLE = r.data.people; SETTINGS = r.data.settings; TODAY = r.data.today; TYPES = r.data.types || []; annCount(r.data.ann_new || 0); notifCount(r.data.notif_new || 0); } });
   }
 
   // ------------------------------------------------------------------ card list items

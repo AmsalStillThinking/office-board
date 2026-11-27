@@ -101,6 +101,12 @@ export function openDb(dataDir) {
   db.exec('ALTER TABLE todos ADD COLUMN IF NOT EXISTS monthly INTEGER NOT NULL DEFAULT 0 CHECK(monthly BETWEEN 0 AND 31)');
   // v1.7: when the person last opened Pengumuman (Aktif); a post by someone else after it is new. Never sent to anyone.
   db.exec('ALTER TABLE people ADD COLUMN IF NOT EXISTS ann_seen_at BIGINT NOT NULL DEFAULT 0');
+  // v1.7.24: the newest event a person has seen in their notifications (the bell); a later one that rings for them is
+  // new. The column starts at the newest event when it is added, so nobody's bell opens on the whole history; a
+  // restart changes nobody's. Never sent to anyone.
+  if (!db.prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'people' AND column_name = 'notif_seen_id'").get()) {
+    db.exec('ALTER TABLE people ADD COLUMN notif_seen_id BIGINT NOT NULL DEFAULT 0; UPDATE people SET notif_seen_id = COALESCE((SELECT MAX(id) FROM events), 0)');
+  }
   // v1.5: a comment is evidence too. A database made before v1.5 has the two-kind check: widen it once.
   const kinds = db.prepare("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conrelid = 'evidence'::regclass AND conname = 'evidence_kind_check'").get();
   if (!kinds || !kinds.d.includes("'comment'")) {
