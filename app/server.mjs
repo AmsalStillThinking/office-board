@@ -255,16 +255,19 @@ export function createApp(opts) {
   }
 
   // ------------------------------------------------------------------ sessions and sign-in
-  // v1.8: username as typed (normalised) -> [timestamps]. A username nobody has gets the same refusal and the same
-  // lock after 5 tries as a real one. It is answered without the password check (about 25 ms of scrypt that blocks the
-  // server), so an invented username costs nothing: the answer comes sooner, which can tell someone timing it that the
-  // username does not exist. Default usernames are the ids every signed-in person receives anyway.
+  // v1.8: wrong tries -> [timestamps], keyed 'p:<person id>' when the username finds someone (however it was typed: the
+  // database drops a NUL, for one), else 'u:<the username typed>'. A username nobody has gets the same refusal and the
+  // same lock after 5 tries as a real one. It is answered without the password check (about 25 ms of scrypt that blocks
+  // the server), so an invented username costs nothing: the answer comes sooner, which can tell someone timing it that
+  // the username does not exist. Default usernames are the ids every signed-in person receives anyway.
   const failures = new Map();
   function noteFailure(key) {
     failures.set(key, [...recentFailures(key), realNow()]);
-    // ponytail: typed text is the key, so the map is capped; past 1000 names the oldest goes, its lock with it.
+    // ponytail: invented usernames are capped at about 1000 (the oldest goes); a person's entry, one each, never goes.
     // A per-device limit is the upgrade (HANDOVER, known limits).
-    if (failures.size > 1000) failures.delete(failures.keys().next().value);
+    if (key.startsWith('u:') && failures.size > 1000) {
+      for (const k of failures.keys()) if (k.startsWith('u:') && k !== key) { failures.delete(k); break; }
+    }
   }
   function parseCookies(h) {
     const out = new Map();
@@ -390,15 +393,16 @@ export function createApp(opts) {
     const user = normUsername(body.username);
     const password = typeof body.password === 'string' ? body.password : '';
     if (!user || user.length > 40) refuse(401, 'pin_wrong'); // no username is longer, so it is never a map key
-    if (recentFailures(user).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
     const p = q('SELECT * FROM people WHERE username = ?').get(user);
+    const key = p ? 'p:' + p.id : 'u:' + user;
+    if (recentFailures(key).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
     const live = p && p.active ? p : null;
     if (!live || !verifyPin(password, live.pin_hash)) {
-      noteFailure(user);
-      if (recentFailures(user).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
+      noteFailure(key);
+      if (recentFailures(key).length >= THROTTLE_TRIES) refuse(429, 'pin_throttled');
       refuse(401, 'pin_wrong');
     }
-    failures.delete(user);
+    failures.delete(key);
     // A secret that does not meet today's rule (a PIN from before v1.8) signs in once, then must be replaced. That
     // change asks for no old password, so the person's other sessions end here, as on a reset.
     const mustChange = live.must_change_pin || !passwordOk(password) ? 1 : 0;
@@ -1387,7 +1391,8 @@ export function createApp(opts) {
     if (body.role !== undefined) { if (!['direktur', 'staf'].includes(body.role)) refuse(400, 'bad_input'); next.role = body.role; }
     if (body.keeper !== undefined) next.keeper = body.keeper ? 1 : 0;
     if (body.active !== undefined) next.active = body.active ? 1 : 0;
-    if (body.username !== undefined) next.username = checkUsername(body.username, p.id);
+    // checked only when it changes: one filled from an old id may not meet today's rule, and the dialog always sends it
+    if (body.username !== undefined && normUsername(body.username) !== p.username) next.username = checkUsername(body.username, p.id);
     if (p.id === me.id && (next.active === 0 || next.role !== 'direktur')) refuse(400, 'self_lockout');
     if (p.active === 1 && next.active === 0) { // FX13: a person who leaves must not silently stop routine work
       const n = q('SELECT COUNT(*) AS n FROM routines WHERE active = 1 AND owner = ?').get(p.id).n;
@@ -1412,7 +1417,7 @@ export function createApp(opts) {
       q('DELETE FROM sessions WHERE person = ?').run(p.id);
       writeEvent(null, me.id, 'pin_reset', { person: p.id });
     });
-    failures.delete(p.username); // a reset lifts the lock from wrong tries
+    failures.delete('p:' + p.id); // a reset lifts the lock from wrong tries
     send(ctx.res, 200, { pin });
   }
 

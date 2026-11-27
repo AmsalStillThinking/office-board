@@ -271,8 +271,8 @@ about anything that changes who sees what).
    request in the same click. The server refuses most repeats anyway.
 6. **Plain HTTP**: passwords (PINs before v1.8) and files travel unencrypted on the office network. Options: Tailscale
    HTTPS, or a reverse proxy with a certificate. Required before the board is reachable from the Internet.
-7. **Username lock-out**: five wrong tries lock a username for 5 minutes (a name before v1.8), so anyone who knows a
-   username can lock that person out. A per-device limit would be better.
+7. **Lock-out**: five wrong tries on a person's username lock that person for 5 minutes, so anyone who knows (or
+   guesses) a username can lock that person out. A per-device limit would be better.
 8. **Capture from chat**: the plan was a Telegram bot that turns a message or photo into a card (staff already use
    the leave-request bot); WhatsApp is harder (official API needs its own number and cannot read existing chats).
 9. **When the requester has left** and the only director owns the card, nobody can accept its proof; it can only be

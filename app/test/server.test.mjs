@@ -7,7 +7,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, HERE, PW, readFirstPins } from './helpers.mjs';
+import { startApp, at, PNG, MSG, APP_DIR, FIXTURE, freshDir, dropDir, HERE, PW, readFirstPins, signIn, rawDb, hasColumn } from './helpers.mjs';
 
 const apps = [];
 after(async () => { for (const a of apps) { try { await a.close(); } catch { /* already closed */ } } });
@@ -686,6 +686,8 @@ test('sign-in throttling: 5 failed tries per name per 5 minutes', T, async () =>
   assert.equal((await fifth.json()).error, 'pin_throttled');
   assert.equal((await login(DEWI, a.pins.get(DEWI))).status, 429, 'even the right PIN waits');
   assert.equal((await login(' T03', a.pins.get(DEWI))).status, 429, 'the same username however it is typed');
+  // the database drops a NUL from a text, so "t03<NUL>" finds Dewi: it must count against her lock, not a new one
+  assert.equal((await login('t03' + String.fromCharCode(0), a.pins.get(DEWI))).status, 429, 'a NUL in the username is still her');
   assert.equal((await login(EKO, a.pins.get(EKO))).status, 200, 'per name: another person is not blocked');
   // v1.8: a username nobody has answers exactly as a real one does, so trying names tells nothing
   const seen = [];
@@ -694,6 +696,36 @@ test('sign-in throttling: 5 failed tries per name per 5 minutes', T, async () =>
   a.clock.real += 5 * 60 * 1000 + 1000;
   assert.equal((await login(DEWI, a.pins.get(DEWI))).status, 200, 'after 5 minutes');
   refusal({ status: (await login('constructor', '1')).status, json: { error: 'pin_wrong', message: 'xxxxxxxx' } }, 401, 'pin_wrong');
+});
+
+test('v1.8 invented usernames, however many, never push a real lock out', T, async () => {
+  const a = await app({});
+  for (let i = 0; i < 5; i++) await a.signIn(DEWI, 'salah0000');
+  assert.equal((await a.signIn(DEWI)).status, 429, 'control: locked');
+  for (let i = 0; i < 1100; i++) assert.equal((await a.signIn('ada' + i, 'salah0000')).status, 401);
+  assert.equal((await a.signIn(DEWI)).status, 429, 'still locked after 1100 invented usernames');
+});
+
+test('v1.8 a database from before v1.8 gains the username column, filled from the ids', T, async () => {
+  const dataDir = freshDir('user_old');
+  const { createApp } = await import(pathToFileURL(path.join(APP_DIR, 'server.mjs')).href);
+  const a1 = createApp({ dataDir, seedDir: FIXTURE, quiet: true });
+  await a1.listen(0, '127.0.0.1'); await a1.close();
+  const raw = rawDb(dataDir);
+  try {
+    raw.exec('ALTER TABLE people DROP COLUMN username');
+    assert.ok(!hasColumn(raw, 'people', 'username'), 'control: the v1.7 shape');
+    const a2 = createApp({ dataDir, seedDir: FIXTURE, quiet: true });
+    const port = await a2.listen(0, '127.0.0.1');
+    try {
+      assert.deepEqual(raw.prepare('SELECT id, username FROM people ORDER BY id').all().map((p) => p.username), ['t01', 't02', 't03', 't04', 't05', 't06']);
+      const { pins } = readFirstPins(dataDir);
+      assert.equal((await signIn(`http://127.0.0.1:${port}`, 'T03', pins.get(DEWI))).status, 200, 'and the id signs in as the username');
+    } finally { await a2.close(); }
+  } finally {
+    raw.close();
+    dropDir(dataDir);
+  }
 });
 
 test('v1.8 a director reset lifts the lock from wrong tries', T, async () => {
@@ -721,6 +753,11 @@ test('v1.8 a director sets usernames: required, one per person, letters digits .
   assert.equal(a.db.prepare('SELECT username FROM people WHERE id = ?').get(DEWI).username, 't03', 'a refusal changes nothing');
   assert.equal((await a.req(D1, 'POST', '/api/people/' + DEWI, { username: 'Dewi' })).status, 200);
   assert.equal((await a.req(D1, 'POST', '/api/people/' + DEWI, { username: 'dewi' })).status, 200, 'keeping your own username is no clash');
+  // a username filled from an old id may not meet today's rule: the dialog sends it unchanged, and that must save
+  a.db.prepare("UPDATE people SET username = 'emp 7' WHERE id = ?").run(EKO);
+  assert.equal((await a.req(D1, 'POST', '/api/people/' + EKO, { username: 'EMP 7', nick: 'Eko' })).status, 200, 'an unchanged old username is no refusal');
+  assert.equal(a.db.prepare('SELECT nick FROM people WHERE id = ?').get(EKO).nick, 'Eko');
+  refusal(await a.req(D1, 'POST', '/api/people/' + EKO, { username: 'emp 8' }), 400, 'username_bad');
   assert.equal((await a.signIn('dewi', PW)).status, 200, 'the new username signs in');
   assert.equal((await a.signIn('t03', PW)).status, 401, 'the old one no longer does');
   const list = await a.req(D1, 'GET', '/api/people');
@@ -728,8 +765,10 @@ test('v1.8 a director sets usernames: required, one per person, letters digits .
   assert.equal(list.json.people.find((p) => p.id === hana).username, 'hana.w');
   const me = await a.req(DEWI, 'GET', '/api/me');
   assert.ok(me.json.people.length && me.json.people.every((p) => !('username' in p)), 'everyone else gets no usernames');
-  const ev = a.db.prepare("SELECT detail FROM events WHERE kind = 'person' ORDER BY id DESC LIMIT 1").get();
-  assert.equal(JSON.parse(ev.detail).after.username, 'dewi', 'a username change is in the change log');
+  const ev = a.db.prepare("SELECT detail FROM events WHERE kind = 'person' ORDER BY id DESC").all().map((e) => JSON.parse(e.detail)).find((d) => d.person === DEWI);
+  assert.deepEqual([ev.before.username, ev.after.username], ['dewi', 'dewi'], 'the username is in the change log');
+  const change = a.db.prepare("SELECT detail FROM events WHERE kind = 'person' ORDER BY id").all().map((e) => JSON.parse(e.detail)).find((d) => d.person === DEWI && d.before.username !== d.after.username);
+  assert.deepEqual([change.before.username, change.after.username], ['t03', 'dewi'], 'a username change shows before and after');
 });
 
 test('v1.8 a seed may give usernames; a bad or repeated one stops the first start', T, async () => {
