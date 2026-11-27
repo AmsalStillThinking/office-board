@@ -103,7 +103,7 @@ pack and research notes, which hold readings of colleagues' contracts. Ask the d
   with the same keys), `style.css`.
 - `app\tutorial\` (NOT in git, about 50 MB): the tutorial videos, their card pictures and their list `videos.json`,
   shown as cards on Cara pakai.
-  They are made in `F:\Office Board Tutorial` (its README says how to re-record).
+  They are made in `tutorial\` (`F:\Office Board\tutorial`, NOT in git; its README says how to re-record).
 - `app\tools\reset-pin.mjs`: offline PIN reset when no director can sign in.
 - `app\seed\`: the 13 office people and 14 routine templates. Used ONLY on the first start of an empty data folder;
   the live app already used it, so editing it now changes nothing live. People are managed in the app (Lainnya ->

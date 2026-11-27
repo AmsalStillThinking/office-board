@@ -114,7 +114,7 @@ The placeholders `BOARD-PC`, `BOARD-PC-LAN-IP` and `BOARD-PC-TAILSCALE-IP` in th
 and addresses; give `make_sop_sheet.py --address` the real one when building the staff sheet.
 
 `tutorial\` (also not in git, about 50 MB) holds the tutorial videos, their card pictures (`.jpg`) and `videos.json`,
-copied from the `videos` folder of `F:\Office Board Tutorial`. Cara pakai shows one card per video and plays it in a
+copied from the `videos` folder of `F:\Office Board\tutorial`. Cara pakai shows one card per video and plays it in a
 pop-up; without the folder the page says the videos are not installed. The three work rules are no longer on that
 page, only on the printed sheet (`make_sop_sheet.py`). The server reads the file names when it starts: a file
 replaced under the same name needs no restart, a new name does.
