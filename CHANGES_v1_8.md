@@ -108,5 +108,11 @@ for the shop, empty (no data from the office board), with the office board on th
   (`https_cookie_not_secure`, `https_logout_not_secure`, `https_no_redirect`, `https_static_before_redirect`,
   `https_flag_not_wired`), run by name: 5 of 5 caught. `tunnel` ran 17 of 17 cases against stand-ins for cloudflared
   and systemctl in Git Bash (both a planted unescaped-dot match and a planted "no restore on refusal" were caught).
-  NOT run: the whole `server.test.mjs`, and the script on a real Linux server (`check`, `install` and `update` have
-  only been syntax-checked).
+  `install` and `update` ran 21 of 21 cases against stand-ins (psql, systemctl, git, sudo, useradd, curl, ss) with
+  `OB_ROOT` at a scratch folder: a fresh install, a re-run after a half-done database step and after a first start
+  that did not answer (each finishes without asking again), the refusals (bad username, a database with tables but no
+  `database.url`, a busy port, Node 22), and update's four ways (nothing new, nothing new but down, a new commit, a new
+  commit that does not answer). Four planted faults were caught (always asking again, always redoing the database
+  step, update not checking a board that is down, the password printed). The whole `server.test.mjs` after these
+  changes (the first whole run since v1.8.1): 55 of 55. NOT run: the script on a real Linux server (`check` has only
+  been syntax-checked).

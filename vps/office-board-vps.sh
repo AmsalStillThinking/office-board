@@ -9,12 +9,13 @@ set -euo pipefail
 
 REPO_URL=https://github.com/AmsalStillThinking/office-board.git
 APP_USER=officeboard
-HOME_DIR=/home/$APP_USER
+ROOT=${OB_ROOT:-} # tests only: a scratch folder standing in for /
+HOME_DIR=$ROOT/home/$APP_USER
 CODE=$HOME_DIR/office-board
 DATA=$HOME_DIR/data
 SEED=$HOME_DIR/seed
 PORT=3006
-UNIT=/etc/systemd/system/office-board.service
+UNIT=$ROOT/etc/systemd/system/office-board.service
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'STOPPED: %s\n' "$*" >&2; exit 1; }
@@ -72,40 +73,61 @@ cmd_check() {
 
 cmd_install() {
   local host=${1:-}; [ -n "$host" ] || die "usage: install <hostname>"
+  [[ $host =~ ^[a-z0-9.-]+$ ]] || die "not a hostname: $host"
   need_root
+  if [ -f "$UNIT" ] && [ -f "$DATA/database.url" ] && [ ! -f "$DATA/first-pins.txt" ] && [ "$(answers)" = 200 ]; then
+    say "The board is installed and answers already. New code: bash $0 update"; return 0
+  fi
+  # Every step below is skipped when an earlier, interrupted run already did it, so running install again goes on.
   [ "$(node_major)" -ge 24 ] || die "Node 24 or newer is needed, found $(node -v 2>/dev/null || echo none). Not upgrading it here: other programs on this server use the same Node."
   local c; for c in git curl openssl psql; do command -v "$c" >/dev/null || die "$c is not installed"; done
   systemctl is-active --quiet postgresql || die "the postgresql service is not running"
-  [ -z "$(port_owner)" ] || die "port $PORT is in use: $(port_owner)"
-  [ ! -e "$DATA/database.url" ] || die "$DATA/database.url exists: the board is installed already (use update)"
   pgsql -At -c 'SELECT 1' >/dev/null || die "cannot reach PostgreSQL as the user postgres"
-  [ "$(pgsql -At -c "SELECT count(*) FROM pg_roles WHERE rolname = 'office_board'")" = 0 ] || die "PostgreSQL already has a role office_board; not touching it"
-  [ "$(pgsql -At -c "SELECT count(*) FROM pg_database WHERE datname = 'office_board'")" = 0 ] || die "PostgreSQL already has a database office_board; not touching it"
+  local o; o=$(port_owner)
+  if [ -n "$o" ] && ! systemctl is-active --quiet office-board; then die "port $PORT is in use: $o"; fi
+  local pw=''
+  if [ ! -f "$DATA/database.url" ]; then
+    if [ "$(pgsql -At -c "SELECT count(*) FROM pg_database WHERE datname = 'office_board'")" != 0 ] &&
+       [ "$(pgsql -At -d office_board -c "SELECT count(*) FROM pg_tables WHERE schemaname = 'public'")" != 0 ]; then
+      die "PostgreSQL has a database office_board with tables in it but $DATA/database.url is missing: not touching it"
+    fi
+    pw=$(openssl rand -hex 24)
+  fi
 
   # The first director. Everyone else is added in the board itself (Lainnya -> Orang & Pengaturan).
-  local name user
-  read -rp "First director's full name: " name
-  name=$(printf '%s' "$name" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
-  [ -n "$name" ] || die "a name is needed"
-  read -rp "Their username (1-40 of a-z 0-9 . _ -): " user
-  user=$(printf '%s' "$user" | tr '[:upper:]' '[:lower:]' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
-  [[ $user =~ ^[a-z0-9._-]{1,40}$ ]] || die "the username must be 1-40 of a-z 0-9 . _ -"
+  local name='' user=''
+  if [ ! -f "$SEED/people.json" ]; then
+    read -rp "First director's full name: " name
+    name=$(printf '%s' "$name" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+    [ -n "$name" ] || die "a name is needed"
+    read -rp "Their username (1-40 of a-z 0-9 . _ -): " user
+    user=$(printf '%s' "$user" | tr '[:upper:]' '[:lower:]' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+    [[ $user =~ ^[a-z0-9._-]{1,40}$ ]] || die "the username must be 1-40 of a-z 0-9 . _ -"
+  fi
 
   id "$APP_USER" &>/dev/null || useradd --system --create-home --home-dir "$HOME_DIR" --shell /usr/sbin/nologin "$APP_USER"
   chmod 750 "$HOME_DIR"
   [ -d "$CODE/.git" ] || sudo -u "$APP_USER" git clone --quiet --branch master "$REPO_URL" "$CODE"
   install -d -m 700 -o "$APP_USER" -g "$APP_USER" "$DATA" "$SEED"
-  sudo -u "$APP_USER" node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ people: [{ id: "D01", name: process.argv[2], nick: "", role: "direktur", keeper: 0, username: process.argv[3] }] }, null, 1) + "\n")' \
-    "$SEED/people.json" "$name" "$user"
+  if [ -n "$name" ]; then
+    sudo -u "$APP_USER" node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ people: [{ id: "D01", name: process.argv[2], nick: "", role: "direktur", keeper: 0, username: process.argv[3] }] }, null, 1) + "\n")' \
+      "$SEED/people.json" "$name" "$user"
+  fi
 
-  # Database with a random password that is never printed or put on a command line.
-  local pw; pw=$(openssl rand -hex 24)
-  pgsql <<SQL
-CREATE ROLE office_board LOGIN PASSWORD '$pw';
-CREATE DATABASE office_board OWNER office_board TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER libc LC_COLLATE 'C' LC_CTYPE 'C';
+  # Database with a random password that is never printed or put on a command line. A role left by an
+  # interrupted run gets the new password; the database is made only if it is not there yet.
+  if [ -n "$pw" ]; then
+    pgsql <<SQL
+DO \$\$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'office_board') THEN ALTER ROLE office_board LOGIN PASSWORD '$pw';
+  ELSE CREATE ROLE office_board LOGIN PASSWORD '$pw'; END IF;
+END \$\$;
+SELECT 'CREATE DATABASE office_board OWNER office_board TEMPLATE template0 ENCODING ''UTF8'' LOCALE_PROVIDER libc LC_COLLATE ''C'' LC_CTYPE ''C'''
+  WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'office_board') \gexec
 SQL
-  (umask 077; printf 'postgresql://office_board:%s@127.0.0.1:5432/office_board\n' "$pw" > "$DATA/database.url")
-  chown "$APP_USER:$APP_USER" "$DATA/database.url"
+    (umask 077; printf 'postgresql://office_board:%s@127.0.0.1:5432/office_board\n' "$pw" > "$DATA/database.url")
+    chown "$APP_USER:$APP_USER" "$DATA/database.url"
+  fi
 
   cat > "$UNIT" <<UNIT
 [Unit]
@@ -125,7 +147,8 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 UNIT
   systemctl daemon-reload
-  systemctl enable --now --quiet office-board
+  systemctl enable --quiet office-board
+  systemctl restart office-board
   wait_answer || die "the board does not answer on 127.0.0.1:$PORT: journalctl -u office-board -n 50, and $DATA/server.log"
   say "The board answers on 127.0.0.1:$PORT ($(g log -1 --format='%h %s'))."
   if [ -f "$DATA/first-pins.txt" ]; then
@@ -178,7 +201,13 @@ cmd_update() {
   old=$(g rev-parse HEAD)
   g fetch --quiet origin master
   new=$(g rev-parse FETCH_HEAD)
-  if [ "$old" = "$new" ]; then say "Nothing new: $(g log -1 --format='%h %s')"; return 0; fi
+  if [ "$old" = "$new" ]; then
+    [ "$(answers)" = 200 ] && { say "Nothing new: $(g log -1 --format='%h %s') answers"; return 0; }
+    say "Nothing new, but the board does not answer: restarting it"
+    systemctl restart office-board
+    wait_answer || die "it still does not answer: journalctl -u office-board -n 50, and $DATA/server.log"
+    say "Done: $(g log -1 --format='%h %s') is live"; return 0
+  fi
   g merge --ff-only --quiet FETCH_HEAD || die "the code folder has changes of its own; nothing was changed"
   say "Landing:"; g log --oneline "$old..$new"
   systemctl restart office-board
