@@ -275,7 +275,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
   box-shadow: 0 12px 32px rgba(17, 45, 78, .18); }
 .dlg::backdrop { background: rgba(17, 45, 78, .38); }
 .dlg .row { margin-top: 16px; }
-.dlg .dlg-out { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); } /* Keluar, apart from the PIN form */
+.dlg .dlg-out { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); } /* Keluar, apart from the forms above it */
 .dr-body h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 22px 0 8px; }
 .dr-body .meta { margin-bottom: 12px; gap: 6px; }
 .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; list-style: none; margin: 0 0 14px; padding: 0; }

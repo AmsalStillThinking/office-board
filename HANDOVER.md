@@ -39,6 +39,8 @@
 > v1.8.4 (28 Nov 2026): any 6 to 128 characters, no letter-and-digit combination needed (`123456` is accepted). So an
 > old PIN (6 to 12 digits) meets the rule: people moving from an older board keep their PIN as their password and
 > are no longer asked to choose one.
+> v1.8.7 (28 Nov 2026): everyone changes their own full name in Pengaturan (the gear beside their name). The nickname,
+> role and username stay the director's. A self-rename shows in the directors' change log as "Data orang diubah".
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."

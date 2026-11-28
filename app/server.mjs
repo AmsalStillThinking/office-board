@@ -440,6 +440,21 @@ export function createApp(opts) {
     send(ctx.res, 200, { ok: true });
   }, 'pinchange');
 
+  // v1.8.7: a person changes their own full name in Settings (owner, 28 Nov 2026). Only the name, only their own row:
+  // the nickname, role, username and active stay the director's (POST /api/people/:id). Logged as a director's change
+  // is, so the directors see it in the change log; the name is not checked against anyone else's.
+  add('POST', '/api/me/name', async (ctx) => {
+    const body = await readJson(ctx);
+    const me = ctx.me;
+    const name = str(body.name, 100);
+    if (!name) refuse(400, 'bad_input');
+    if (name !== me.name) tx(() => {
+      q('UPDATE people SET name = ? WHERE id = ?').run(name, me.id);
+      writeEvent(null, me.id, 'person', { person: me.id, before: { ...pubPerson(me), username: me.username }, after: { ...pubPerson({ ...me, name }), username: me.username } });
+    });
+    send(ctx.res, 200, { name });
+  });
+
   add('GET', '/api/me', (ctx) => {
     const me = ctx.me;
     const mine = { id: me.id, name: me.name, nick: me.nick, role: me.role, keeper: me.keeper, must_change_pin: me.must_change_pin };

@@ -47,6 +47,7 @@ const V18_LOGIN = 'v1.8 sign-in by typed username and password; no name or id is
 const V18_OLDPIN = 'v1.8 a secret below today\'s rule signs in once, and must then be replaced; an old PIN meets it (v1.8.4)';
 const V18_USERS = 'v1.8 a director sets usernames: required, one per person, letters digits . _ -';
 const V182 = 'v1.8.2 --https: Secure cookies, HSTS, and plain http sent to https before any page';
+const V187 = 'v1.8.7 a person changes their own full name in Settings, and nothing else';
 const V15_TESTS = path.join(HERE, 'v15.test.mjs');
 const V1 = 'V1 a comment is proof: Kirim bukti needs no file, and after a correction a new comment counts';
 const V2 = 'V2 a to-do has a title and an optional description';
@@ -120,6 +121,17 @@ const MUTANTS = [
     edits: [["s.length >= 6 &&", "s.length >= 5 &&"]] },
   { name: 'password_min_8', file: path.join('lib', 'db.mjs'), test: SERVER_TESTS, check: 'sign-in forces a PIN change; PIN rules',
     edits: [["s.length >= 6 &&", "s.length >= 8 &&"]] },
+  // v1.8.7: a person's own full name, from Settings
+  { name: 'self_name_takes_nick', file: 'server.mjs', test: SERVER_TESTS, check: V187,
+    edits: [["q('UPDATE people SET name = ? WHERE id = ?').run(name, me.id);", "q('UPDATE people SET name = ?, nick = ? WHERE id = ?').run(name, str(body.nick, 40), me.id);"]] },
+  { name: 'self_name_other_row', file: 'server.mjs', test: SERVER_TESTS, check: V187,
+    edits: [["q('UPDATE people SET name = ? WHERE id = ?').run(name, me.id);", "q('UPDATE people SET name = ? WHERE id = ?').run(name, body.id || me.id);"]] },
+  { name: 'self_name_blank', file: 'server.mjs', test: SERVER_TESTS, check: V187,
+    edits: [["if (!name) refuse(400, 'bad_input');", '/* planted: a blank name is taken */']] },
+  { name: 'self_name_unlogged', file: 'server.mjs', test: SERVER_TESTS, check: V187,
+    edits: [["writeEvent(null, me.id, 'person', { person: me.id, before:", "if (false) writeEvent(null, me.id, 'person', { person: me.id, before:"]] },
+  { name: 'self_name_before_password', file: 'server.mjs', test: SERVER_TESTS, check: V187,
+    edits: [['send(ctx.res, 200, { name });' + NL + '  });', 'send(ctx.res, 200, { name });' + NL + "  }, 'pinchange');"]] },
   { name: 'load_no_usernames', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG1,
     edits: [['  db.exec(FILL_USERNAMES); // v1.8', '  // planted: no usernames filled']] },
   { name: 'https_cookie_not_secure', file: 'server.mjs', test: SERVER_TESTS, check: V182,

@@ -302,7 +302,7 @@
     clear(av);
     if (ME) av.appendChild(avatar(ME.id));
     document.getElementById('today-line').textContent = ME && TODAY && !ME.must_change_pin ? tf('today_is', { d: fmtDate(TODAY) }) : '';
-    var sb = document.getElementById('settings-btn'); // v1.3: Ganti PIN opens from here, beside the name
+    var sb = document.getElementById('settings-btn'); // v1.3: Ganti PIN opens from here, beside the name (v1.8.7: the name too)
     sb.setAttribute('aria-label', t('my_settings')); sb.title = t('my_settings');
     // v1.7.25: under the name, ID | EN and dark mode
     document.getElementById('me-prefs').hidden = !ME;
@@ -591,15 +591,41 @@
   }
   // v1.3: Settings beside the name opens this dialog over the page (no route of its own). It lives in #layer, so
   // dropLayer() (sign-out, a 401) takes it away, and it removes itself on close, so render() never takes it for a task panel.
+  // v1.8.7: the password form, then the person's own full name, then Keluar. The focus still lands on the old password,
+  // so a password typed out of habit never goes into the name, which everyone sees.
   function openSettings() {
-    var dlg = h('dialog', { id: 'settings-dlg', cls: 'dlg', 'aria-labelledby': 'settings-h', onclose: function () { if (dlg.parentNode) dlg.parentNode.removeChild(dlg); } },
+    var renamed = false;
+    var dlg = h('dialog', { id: 'settings-dlg', cls: 'dlg', 'aria-labelledby': 'settings-h', onclose: function () {
+      if (dlg.parentNode) dlg.parentNode.removeChild(dlg);
+      if (renamed && ME) render(); // the page under it shows the new name (render() would have taken the dialog away)
+    } },
       h('div', { cls: 'dr-head' }, h('h1', { id: 'settings-h', cls: 'dr-title', text: t('my_settings') }),
         h('button', { type: 'button', id: 'settings-close', cls: 'icon-btn secondary', 'aria-label': t('close'), onclick: function () { dlg.close(); } }, icon('close'))),
-      h('div', { cls: 'dr-body' }, pinForm(false),
+      h('div', { cls: 'dr-body' }, pinForm(false), nameForm(function () { renamed = true; }),
         h('div', { cls: 'row dlg-out' }, h('button', { type: 'button', id: 'settings-logout', cls: 'secondary', text: t('logout'), onclick: signOut }))));
     layer.appendChild(dlg);
     dlg.showModal();
     document.getElementById('old-pin').focus();
+  }
+  // v1.8.7: the person's own full name (the nickname, role and username stay the director's, in Orang & Pengaturan)
+  function nameForm(onSaved) {
+    var msg = h('div', { cls: 'msg' });
+    var inp = h('input', { id: 'my-name', type: 'text', maxlength: '100', autocomplete: 'name', required: true, value: ME.name });
+    return h('form', { id: 'name-form', onsubmit: function (ev) {
+      ev.preventDefault();
+      api('POST', '/api/me/name', { name: inp.value }).then(function (r) {
+        if (!r.ok) return showErr(msg, r);
+        ME.name = inp.value = r.data.name; // in place: api() drops answers once ME is another object
+        PEOPLE.forEach(function (p) { if (p.id === ME.id) p.name = r.data.name; });
+        setChrome();
+        onSaved();
+        showOk(msg, t('saved'));
+      });
+    } },
+      h('h2', { text: t('my_name') }),
+      h('label', { for: 'my-name', text: t('full_name') }), inp,
+      h('div', { cls: 'row' }, h('button', { type: 'submit', id: 'name-save', text: t('save_name') })),
+      msg);
   }
   function pinForm(forced) {
     var msg = h('div', { cls: 'msg' });

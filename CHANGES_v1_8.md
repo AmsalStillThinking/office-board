@@ -179,3 +179,32 @@ Asked by the app owner on 28 Nov 2026: "Change the icon too, give me your recomm
   not "task board"); the three were drawn at 64, 32 and 16 px and as the sidebar logo, light and dark.
 - Checked: the shipped `favicon.svg` and the logo taken from `index.html`, drawn by headless Chrome with the real
   stylesheet, light and dark.
+
+## v1.8.7 (28 Nov 2026): everyone changes their own full name
+
+Asked by the app owner on 28 Nov 2026: "make an update, so they can change their Full Name by themself at Setting
+Button on the Corner".
+
+- Pengaturan (the gear beside the name, bottom left) has a second part under the password: "Ganti nama saya" with the
+  box "Nama lengkap" holding the current name, and "Simpan nama". It answers "Tersimpan." and the dialog stays open;
+  the name beside the gear changes at once, and the page under the dialog is drawn again when it is closed.
+- The server call is `POST /api/me/name` with `{ name }`: the signed-in person's own row only, the name only (trimmed,
+  at most 100 characters, as in the director's form; an empty name is refused with `bad_input`). The nickname, role,
+  username and active stay the director's, in Lainnya -> Orang & Pengaturan. Someone who must still replace a
+  temporary password is refused (`must_change_pin`), as for every other change.
+- The change is written to the change log as a director's edit is (`person`, with the name before and after), so a
+  director sees "Data orang diubah" with the person as both the one who did it and the one it was done to. Saving the
+  same name again logs nothing.
+- The dialog still puts the cursor in "Kata sandi lama": a password typed out of habit on opening Pengaturan must never
+  land in the name box, which everyone sees.
+- The board shows a person's nickname where they have one (sidebar, task lists). Someone with a nickname sees their
+  new full name in the name lists and pickers, not beside the gear; the nickname is changed by a director.
+- Nothing checks the new name against the others: a person could take a colleague's name. The change log is the brake.
+- Checks: a new test (`v1.8.7 a person changes their own full name in Settings, and nothing else`) sends every field
+  of the director's form plus another person's id and checks that only her own name moved; it and the dictionary test,
+  run by name: 2 of 2. Mutants, run by name: 5 of 5 caught (`self_name_takes_nick`, `self_name_other_row`,
+  `self_name_blank`, `self_name_unlogged`, `self_name_before_password`), the control passed. The dialog was driven
+  in headless Chrome against the real `app.js`, `style.css` and `i18n.json` with the server answered in the page: one
+  request per save, the sidebar name changes, the focus is on the old password, an empty name is not sent, and closing
+  redraws the page (that headless mode never fires the dialog's `close` event, so the check fires it). Drawn at 1280
+  and 500 px wide. The whole `server.test.mjs` and `browser_check.py` were not run.

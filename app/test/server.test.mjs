@@ -781,6 +781,35 @@ test('v1.8 a director sets usernames: required, one per person, letters digits .
   assert.deepEqual([change.before.username, change.after.username], ['t03', 'dewi'], 'a username change shows before and after');
 });
 
+test('v1.8.7 a person changes their own full name in Settings, and nothing else', T, async () => {
+  const a = await signedIn({}, [D1, DEWI]);
+  const row = (id) => a.db.prepare('SELECT * FROM people WHERE id = ?').get(id);
+  const dewi = row(DEWI), eko = row(EKO);
+  const n = a.eventCount();
+  for (const bad of ['', '   ', 12, null]) refusal(await a.req(DEWI, 'POST', '/api/me/name', { name: bad }), 400, 'bad_input');
+  refusal(await a.req(DEWI, 'POST', '/api/me/name', {}), 400, 'bad_input');
+  assert.deepEqual(row(DEWI), dewi, 'a refusal changes nothing');
+  assert.equal(a.eventCount(), n, 'and logs nothing');
+  // every other field a director's form takes is sent too, and an id: only her own name may move
+  const r = await a.req(DEWI, 'POST', '/api/me/name', { name: '  Dewi Kartika Sari  ', id: EKO, person: EKO, nick: 'Bos', role: 'direktur', keeper: 1, active: 0, username: 'bos' });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.name, 'Dewi Kartika Sari', 'trimmed');
+  assert.deepEqual(row(DEWI), { ...dewi, name: 'Dewi Kartika Sari' }, 'only her name moved');
+  assert.deepEqual(row(EKO), eko, 'nobody else changed');
+  assert.equal((await a.req(D1, 'GET', '/api/me')).json.people.find((p) => p.id === DEWI).name, 'Dewi Kartika Sari', 'the others see the new name');
+  const ev = (await a.req(D1, 'GET', '/api/admin-events')).json.events[0];
+  assert.deepEqual([ev.kind, ev.actor, ev.subject], ['person', DEWI, DEWI], 'in the directors\' change log, made by her');
+  assert.equal(a.eventCount(), n + 1);
+  assert.equal((await a.req(DEWI, 'POST', '/api/me/name', { name: 'Dewi Kartika Sari' })).status, 200, 'saving it unchanged is no refusal');
+  assert.equal(a.eventCount(), n + 1, 'and logs nothing');
+  assert.equal((await a.req(DEWI, 'POST', '/api/me/name', { name: 'x'.repeat(150) })).json.name.length, 100, 'cut at 100, as the director\'s form is');
+  // a temporary password must be replaced first, as for every other write
+  const g = await a.signIn(GITA);
+  a.sessions.set(GITA, g.headers.get('set-cookie').split(';')[0]);
+  refusal(await a.req(GITA, 'POST', '/api/me/name', { name: 'Gita M' }), 403, 'must_change_pin');
+  assert.equal(row(GITA).name, 'Gita Maharani');
+});
+
 test('v1.8 a seed may give usernames; a bad or repeated one stops the first start', T, async () => {
   const { createApp } = await import(pathToFileURL(path.join(APP_DIR, 'server.mjs')).href);
   const seed = freshDir('seed_u', { db: false });

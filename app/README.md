@@ -136,7 +136,8 @@ and every person gets a username and a temporary password written to `data\first
 password). Hand each one out in person, then DELETE that file. Everyone must choose their own password (any 6 to 128
 characters) at first sign-in. Since v1.8 people sign in by typing their
 username; a seed person may carry `"username"`, otherwise it is their id in lower case. A director sees and changes
-usernames in Lainnya -> Orang & Pengaturan (CHANGES_v1_8.md).
+usernames in Lainnya -> Orang & Pengaturan (CHANGES_v1_8.md). Since v1.8.7 each person changes their own full name in
+Pengaturan (the gear beside their name); the nickname stays the director's.
 
 `seed\people.json` holds the real staff names, so it is NOT in git (the repository is public): it exists only on the
 board PC. For a new installation, write it yourself in the shape of `test\fixture\people.json` (fictional people).
