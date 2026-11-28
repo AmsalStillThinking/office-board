@@ -167,3 +167,15 @@ Asked by the app owner on 28 Nov 2026: "Change the icon to Green".
   in a browser's tabs.
 - A browser keeps a tab icon for a while: a hard refresh (Ctrl+F5) shows the new one at once.
 - Checked: both icons drawn by headless Chrome with the real stylesheet, light and dark theme. No test pins them.
+
+## v1.8.6 (28 Nov 2026): a checklist icon
+
+Asked by the app owner on 28 Nov 2026: "Change the icon too, give me your recommendation".
+
+- One drawing everywhere: two ticks, each beside a line (a list being ticked off), white on the green square. It
+  replaces the board with three coloured cards in the tab (`favicon.svg`) and the three bars in the sidebar and on the
+  sign-in card (`index.html`), which were two different drawings.
+- Chosen over a clipboard with a tick (at 64 px it read as a battery) and a single tick (clear, but it says "done",
+  not "task board"); the three were drawn at 64, 32 and 16 px and as the sidebar logo, light and dark.
+- Checked: the shipped `favicon.svg` and the logo taken from `index.html`, drawn by headless Chrome with the real
+  stylesheet, light and dark.
