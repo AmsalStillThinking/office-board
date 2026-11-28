@@ -16,7 +16,7 @@ export const R = await import(pathToFileURL(path.join(APP_DIR, 'lib', 'rules.mjs
 export const MSG = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'lib', 'messages.json'), 'utf8'));
 
 export const at = (iso) => Date.parse(iso);
-// the password a test person chooses at first sign-in (v1.8: letters and digits, 8 or more)
+// the password a test person chooses at first sign-in (v1.8.4: any 6 to 128 characters)
 export const PW = 'sandi135790';
 export const signIn = (base, username, password) => fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username, password }) });
 /** first-pins.txt: id -> temporary password, id -> username */

@@ -22,7 +22,7 @@
  "too_large": {"id":"Terlalu besar. Batas file 15 MB.","en":"Too large. The file limit is 15 MB."},
  "pin_wrong": {"id":"Nama pengguna atau kata sandi salah.","en":"Wrong username or password."},
  "pin_throttled": {"id":"Terlalu banyak percobaan. Tunggu 5 menit, lalu coba lagi.","en":"Too many tries. Wait 5 minutes, then try again."},
- "pin_weak": {"id":"Kata sandi harus 6 sampai 128 karakter, dengan sedikitnya satu huruf dan satu angka.","en":"The password must be 6 to 128 characters, with at least one letter and one digit."},
+ "pin_weak": {"id":"Kata sandi harus 6 sampai 128 karakter.","en":"The password must be 6 to 128 characters."},
  "pin_same": {"id":"Kata sandi baru harus berbeda dari kata sandi yang sekarang.","en":"The new password must differ from the current one."},
  "username_bad": {"id":"Nama pengguna: 1 sampai 40 huruf, angka, titik (.), garis bawah (_) atau tanda hubung (-), tanpa spasi.","en":"Username: 1 to 40 letters, digits, dots (.), underscores (_) or hyphens (-), no spaces."},
  "username_taken": {"id":"Nama pengguna itu sudah dipakai orang lain.","en":"That username is already taken by someone else."},

@@ -638,13 +638,15 @@ test('sign-in forces a PIN change; PIN rules', T, async () => {
   assert.equal((await r.json()).must_change_pin, 1);
   refusal(await a.req(DEWI, 'GET', '/api/cards'), 403, 'must_change_pin');
   refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 'x', owner: DEWI, due: '2026-11-25', source: 'Lisan' }), 403, 'must_change_pin');
-  for (const weak of ['ab12', 'ab123', '12345678', 'abcdefgh', 'ab1' + 'x'.repeat(126), 12345678]) refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: weak }), 400, 'pin_weak');
+  for (const weak of ['ab12', 'ab123', '12345', 'ab1' + 'x'.repeat(126), 12345678]) refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: weak }), 400, 'pin_weak');
   refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: a.pins.get(DEWI) }), 400, 'pin_same');
   assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'kata sandi 2468' })).status, 200, 'any characters, spaces too');
   assert.equal((await a.req(DEWI, 'GET', '/api/cards')).status, 200);
   refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: 'sandi99999', old: 'salah0000' }), 403, 'pin_wrong');
   assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'ab1' + 'x'.repeat(125), old: 'kata sandi 2468' })).status, 200, '128 characters is the most');
   assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'abc123', old: 'ab1' + 'x'.repeat(125) })).status, 200, '6 characters is the least (v1.8.3)');
+  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: '123456', old: 'abc123' })).status, 200, 'digits only (v1.8.4)');
+  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'abcdef', old: '123456' })).status, 200, 'letters only (v1.8.4)');
   const h = a.db.prepare('SELECT pin_hash FROM people WHERE id = ?').get(DEWI).pin_hash;
   assert.match(h, /^scrypt\$/);
 });
@@ -663,14 +665,15 @@ test('v1.8 sign-in by typed username and password; no name or id is accepted in 
   assert.equal(old.status, 401, 'the v1.7 request (person id and PIN) no longer signs in');
 });
 
-test('v1.8 an old PIN still signs in once, and must then be replaced by a password', T, async () => {
+test('v1.8 a secret below today\'s rule signs in once, and must then be replaced; an old PIN meets it (v1.8.4)', T, async () => {
   const a = await signedIn({}, [DEWI]);
   const older = a.sessions.get(DEWI); // a session she already had (another PC), from before the upgrade
   assert.equal((await a.req(DEWI, 'GET', '/api/me')).status, 200, 'control: that session works');
   const { hashPin } = await import(pathToFileURL(path.join(APP_DIR, 'lib', 'db.mjs')).href);
-  a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('135790'), DEWI); // a PIN chosen in v1.7
-  a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('sandi24680'), EKO); // a password
-  const r = await a.signIn(DEWI, '135790');
+  // no board ever stored a secret this short (PINs were 6 to 12 digits): it stands for one set under a looser rule
+  a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('13579'), DEWI);
+  a.db.prepare('UPDATE people SET pin_hash = ?, must_change_pin = 0 WHERE id = ?').run(hashPin('135790'), EKO); // a PIN chosen in v1.7
+  const r = await a.signIn(DEWI, '13579');
   assert.equal(r.status, 200);
   assert.equal((await r.json()).must_change_pin, 1, 'asked for a password at once');
   // the change needs no old password, so no other session of hers may stay to make it
@@ -680,8 +683,8 @@ test('v1.8 an old PIN still signs in once, and must then be replaced by a passwo
   assert.equal(a.db.prepare('SELECT must_change_pin FROM people WHERE id = ?').get(DEWI).must_change_pin, 1, 'stored, so a second sign-in asks too');
   assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: PW })).status, 200);
   assert.equal((await a.req(DEWI, 'GET', '/api/cards')).status, 200);
-  const e = await a.signIn(EKO, 'sandi24680');
-  assert.equal((await e.json()).must_change_pin, 0, 'a password that meets the rule is not asked again (control)');
+  const e = await a.signIn(EKO, '135790');
+  assert.equal((await e.json()).must_change_pin, 0, 'an old 6-digit PIN meets the rule and is kept as the password (control)');
 });
 
 test('sign-in throttling: 5 failed tries per name per 5 minutes', T, async () => {

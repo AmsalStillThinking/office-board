@@ -136,3 +136,23 @@ Asked by the app owner on 28 Nov 2026: "Change the password rule to minimal 6".
 - Checks: the PIN-rules test now refuses `ab123` (5) and accepts `abc123` (6), run by name: 1 of 1. Two new mutants,
   `password_min_5` and `password_min_8`, run by name: 2 of 2 caught. The printed sheet equals a fresh build of
   `make_sop_sheet.py`. The whole `server.test.mjs` was not run.
+
+## v1.8.4 (28 Nov 2026): no letter-and-digit combination
+
+Asked by the app owner on 28 Nov 2026: "update again, for the password, change the rule "no combination"".
+
+- `passwordOk`: any 6 to 128 characters. Digits only (`123456`) and letters only (`abcdef`) are accepted. The
+  refusal, the password form's help, the README and the printed sheet no longer mention letters and digits; the help
+  no longer mentions an old PIN.
+- **An old PIN now meets the rule.** PINs were always 6 to 12 digits (every version of the office board), so a person
+  moving from an older board signs in with their PIN and keeps it as their password; they are no longer asked to
+  choose one (the v1.8 section above described the old behaviour). The VPS board was started empty and holds no PINs.
+  The sign-in check stays: a secret below today's rule must still be replaced at the next sign-in, which is what will
+  make a stricter rule bite if one comes later. No stored secret is below the rule today.
+- A short password is easier to guess. The brake is the lock of 5 wrong tries per person per 5 minutes; a Cloudflare
+  rate limit on the sign-in (deferred since v1.8.2) would add a second one for the board on the Internet.
+- Checks: the PIN-rules test refuses `12345` and `ab123` and accepts `123456` and `abcdef`; the old-PIN test now uses a
+  5-character secret for the forced change and checks that a 6-digit PIN signs in without one. Both run by name: 2 of 2.
+  Mutants, run by name: 6 of 6 caught (`password_needs_digit` and `password_needs_letter`, new, replace
+  `password_without_digit`; `password_min_5`, `password_min_8`, `old_pin_kept`, `old_pin_keeps_sessions`), both
+  controls passed. The printed sheet equals a fresh build. The whole `server.test.mjs` was not run.

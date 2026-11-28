@@ -85,8 +85,9 @@ export function tempPin() {
   return pick(L, 4) + pick(D, 4) + pick(L, 2);
 }
 
-/** v1.8: a password is 6 to 128 characters (8 until v1.8.3) with at least one letter and one digit (so never a PIN). */
-export const passwordOk = (s) => typeof s === 'string' && s.length >= 6 && s.length <= 128 && /\p{L}/u.test(s) && /\d/.test(s);
+/** v1.8.4: a password is any 6 to 128 characters, digits only or letters only included (until v1.8.3 it needed a letter
+ *  and a digit, and until v1.8.2 8 characters). An old PIN (6 to 12 digits) therefore meets the rule too. */
+export const passwordOk = (s) => typeof s === 'string' && s.length >= 6 && s.length <= 128;
 /** v1.8: usernames are compared trimmed and in lower case; a stored one is 1 to 40 of a-z 0-9 . _ - */
 export const normUsername = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
 export const USERNAME_RE = /^[a-z0-9._-]{1,40}$/;

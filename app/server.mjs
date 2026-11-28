@@ -405,8 +405,9 @@ export function createApp(opts) {
       refuse(401, 'pin_wrong');
     }
     failures.delete(key);
-    // A secret that does not meet today's rule (a PIN from before v1.8) signs in once, then must be replaced. That
-    // change asks for no old password, so the person's other sessions end here, as on a reset.
+    // A secret that does not meet today's rule signs in once, then must be replaced. That change asks for no old
+    // password, so the person's other sessions end here, as on a reset. Since v1.8.4 no stored secret is below the rule
+    // (old PINs are 6 to 12 digits); this line is what makes a later, stricter rule bite at the next sign-in.
     const mustChange = live.must_change_pin || !passwordOk(password) ? 1 : 0;
     if (mustChange && !live.must_change_pin) tx(() => {
       q('UPDATE people SET must_change_pin = 1 WHERE id = ?').run(live.id);

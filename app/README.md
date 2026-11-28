@@ -133,8 +133,8 @@ The daily `data/backups/*.json` and `data/files/` stay on the server: copy them 
 
 On an empty data folder, people and routine templates are loaded from `seed\people.json` and `seed\routines.json`,
 and every person gets a username and a temporary password written to `data\first-pins.txt` (id, name, username,
-password). Hand each one out in person, then DELETE that file. Everyone must choose their own password (6 to 128
-characters, with at least one letter and one digit) at first sign-in. Since v1.8 people sign in by typing their
+password). Hand each one out in person, then DELETE that file. Everyone must choose their own password (any 6 to 128
+characters) at first sign-in. Since v1.8 people sign in by typing their
 username; a seed person may carry `"username"`, otherwise it is their id in lower case. A director sees and changes
 usernames in Lainnya -> Orang & Pengaturan (CHANGES_v1_8.md).
 
@@ -167,7 +167,7 @@ who owns a running routine cannot be switched off until the routine has another 
 ## The data folder is as sensitive as the PINs
 
 Anyone holding a copy of `data\` can read `database.url` and with it the whole database, or read the daily backups
-directly: try passwords (or the 6-digit PINs of people who have not signed in since v1.8) against the stored hashes
+directly: try passwords (a short one, such as 6 digits, falls fast) against the stored hashes
 offline, read every card including the private ones, read every
 person's own To-Do Saya list (which no page shows to anyone else, a director included), and open every uploaded
 file. The same goes for anyone who can sign in to PostgreSQL as `postgres` or `office_board`. Keep the folder and its

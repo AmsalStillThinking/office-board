@@ -100,8 +100,8 @@ test('PG1 the move from office.db keeps every row, id, session and PIN', T, asyn
     assert.ok(!fs.existsSync(path.join(data, 'first-pins.txt')), 'nobody is given a new PIN');
     const dewi = await login(base, DEWI, 'sandi246801');
     assert.equal(dewi.status, 200, 'DEWI signs in with the PIN she chose');
-    // the source board is built by today's code, so she holds a v1.8 password; a real v1.3 numeric PIN would be asked
-    // to change (server.test.mjs, "v1.8 an old PIN still signs in once...")
+    // the source board is built by today's code, so she holds a v1.8 password; since v1.8.4 a real v1.3 numeric PIN
+    // (6 to 12 digits) meets the rule too and is not asked to change (server.test.mjs, "v1.8 a secret below today's rule...")
     assert.equal(dewi.json.must_change_pin, 0, 'and is not asked to choose one again');
     const eko = await login(base, EKO, firstEko);
     assert.equal(eko.status, 200);

@@ -44,7 +44,7 @@ const TD10 = 'TD10 a monthly to-do comes back on the 1st, unticked, dated this m
 const TD11 = "TD11 a day-31 to-do falls on a short month's last day and keeps its day; an old page keeps the repeat";
 const TD12 = 'TD12 "Hapus yang selesai" leaves a monthly to-do waiting to come back';
 const V18_LOGIN = 'v1.8 sign-in by typed username and password; no name or id is accepted in its place';
-const V18_OLDPIN = 'v1.8 an old PIN still signs in once, and must then be replaced by a password';
+const V18_OLDPIN = 'v1.8 a secret below today\'s rule signs in once, and must then be replaced; an old PIN meets it (v1.8.4)';
 const V18_USERS = 'v1.8 a director sets usernames: required, one per person, letters digits . _ -';
 const V182 = 'v1.8.2 --https: Secure cookies, HSTS, and plain http sent to https before any page';
 const V15_TESTS = path.join(HERE, 'v15.test.mjs');
@@ -112,8 +112,10 @@ const MUTANTS = [
     edits: [["if (other && other.id !== self) refuse(409, 'username_taken');", '/* planted: no clash check */']] },
   { name: 'username_to_everyone', file: 'server.mjs', test: SERVER_TESTS, check: V18_USERS,
     edits: [['const pubPerson = (p) => ({ id: p.id, name: p.name,', 'const pubPerson = (p) => ({ id: p.id, name: p.name, username: p.username,']] },
-  { name: 'password_without_digit', file: path.join('lib', 'db.mjs'), test: SERVER_TESTS, check: 'sign-in forces a PIN change; PIN rules',
-    edits: [['&& /\\p{L}/u.test(s) && /\\d/.test(s);', '&& /\\p{L}/u.test(s);']] },
+  { name: 'password_needs_digit', file: path.join('lib', 'db.mjs'), test: SERVER_TESTS, check: 'sign-in forces a PIN change; PIN rules',
+    edits: [['s.length <= 128;', 's.length <= 128 && /\\d/.test(s);']] },
+  { name: 'password_needs_letter', file: path.join('lib', 'db.mjs'), test: SERVER_TESTS, check: 'sign-in forces a PIN change; PIN rules',
+    edits: [['s.length <= 128;', 's.length <= 128 && /\\p{L}/u.test(s);']] },
   { name: 'password_min_5', file: path.join('lib', 'db.mjs'), test: SERVER_TESTS, check: 'sign-in forces a PIN change; PIN rules',
     edits: [["s.length >= 6 &&", "s.length >= 5 &&"]] },
   { name: 'password_min_8', file: path.join('lib', 'db.mjs'), test: SERVER_TESTS, check: 'sign-in forces a PIN change; PIN rules',
