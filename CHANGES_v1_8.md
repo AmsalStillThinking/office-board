@@ -104,15 +104,23 @@ for the shop, empty (no data from the office board), with the office board on th
 - **`vps/office-board-vps.sh`**: `check` (read-only), `install <hostname>`, `tunnel <hostname>`, `update`. README,
   "On a Linux VPS". The board runs as its own system user, on 127.0.0.1:3006 only, with a database password made on
   the server and never printed. It starts with one director, typed at install; everyone else is added in the board.
+- **`videos <folder>`** (asked the same day: "Add the tutorial Videos too"): copies a folder sent from the PC
+  (`app\tutorial`: `videos.json`, 11 `.mp4`, 11 `.jpg`, 49.7 MB) into `app/tutorial`, only the files the list names,
+  refusing a missing file or a name that leaves the folder, then restarts the board. The videos were recorded on
+  25 Nov 2026 from v1.7.4 with fictional people: they show the old sign-in (a name list and a PIN), and video 2 says
+  "Macet" where the board now says "Tunda". They are served to anyone who asks for them, signed in or not, as on the
+  LAN.
 - Checks: the new `--https` test and the CLI test (the flag reaches the app), run by name: 2 of 2. Five new mutants
   (`https_cookie_not_secure`, `https_logout_not_secure`, `https_no_redirect`, `https_static_before_redirect`,
   `https_flag_not_wired`), run by name: 5 of 5 caught. `tunnel` ran 17 of 17 cases against stand-ins for cloudflared
   and systemctl in Git Bash (both a planted unescaped-dot match and a planted "no restore on refusal" were caught).
-  `install` and `update` ran 21 of 21 cases against stand-ins (psql, systemctl, git, sudo, useradd, curl, ss) with
+  `install`, `update` and `videos` ran 25 of 25 cases against stand-ins (psql, systemctl, git, sudo, useradd, curl, ss) with
   `OB_ROOT` at a scratch folder: a fresh install, a re-run after a half-done database step and after a first start
   that did not answer (each finishes without asking again), the refusals (bad username, a database with tables but no
   `database.url`, a busy port, Node 22), and update's four ways (nothing new, nothing new but down, a new commit, a new
-  commit that does not answer). Four planted faults were caught (always asking again, always redoing the database
-  step, update not checking a board that is down, the password printed). The whole `server.test.mjs` after these
+  commit that does not answer), and four for `videos` (the listed files only, a missing file, a list that does not
+  parse, a name leaving the folder). Six planted faults were caught (always asking again, always redoing the database
+  step, update not checking a board that is down, the password printed, no check on video names, every file in the
+  folder copied). The whole `server.test.mjs` after these
   changes (the first whole run since v1.8.1): 55 of 55. NOT run: the script on a real Linux server (`check` has only
   been syntax-checked).

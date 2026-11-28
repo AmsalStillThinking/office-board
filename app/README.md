@@ -120,10 +120,14 @@ tunnel, so the board is reached at `https://<hostname>`. Run it as root in an `s
    name is made with `cloudflared tunnel route dns <tunnel> <hostname>` wherever the account certificate is.
 4. `bash office-board-vps.sh update`: fetches master, fast-forwards, restarts, and goes back to the old commit if the
    new one does not answer within 80 seconds (columns are only ever added, so old code runs on the newer database).
+5. `bash office-board-vps.sh videos <folder>`: puts the tutorial videos in `app/tutorial` (git-ignored, so `update`
+   leaves them alone). The folder is a copy of `app\tutorial` from the PC (`videos.json`, `*.mp4`, `*.jpg`), sent with
+   `scp -r`. Every file the list names must be there, and only those are copied; the board restarts, because it reads
+   the file names when it starts.
 
 `--https`: cookies get `Secure`, every answer carries `Strict-Transport-Security`, and a request the proxy marks as
 plain http (`X-Forwarded-Proto: http`) gets a 301 to https (a POST a 403) before any page or answer. Not for the LAN.
-The daily `data/backups/*.json` and `data/files/` stay on the server: copy them off it. No tutorial videos there.
+The daily `data/backups/*.json` and `data/files/` stay on the server: copy them off it.
 
 ## First start
 

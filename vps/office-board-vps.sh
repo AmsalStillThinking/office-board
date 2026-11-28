@@ -4,6 +4,7 @@
 #   bash office-board-vps.sh install <hostname>   first install: user, database, service (asks for the first director)
 #   bash office-board-vps.sh tunnel <hostname>    send <hostname> to the board (asks before restarting cloudflared)
 #   bash office-board-vps.sh update               newest master, restart; goes back if the new version does not answer
+#   bash office-board-vps.sh videos <folder>      put the tutorial videos (videos.json, *.mp4, *.jpg) in place, restart
 # Needs Node 24, PostgreSQL on 127.0.0.1:5432, git, curl, openssl. Never upgrades or restarts anything else unasked.
 set -euo pipefail
 
@@ -219,10 +220,43 @@ cmd_update() {
   die "the old version does not answer either: journalctl -u office-board -n 50"
 }
 
+cmd_videos() {
+  local src=${1:-}; [ -n "$src" ] && [ -d "$src" ] || die "usage: videos <folder holding videos.json and its .mp4 and .jpg files>"
+  need_root
+  [ -d "$CODE/app" ] || die "the board is not installed"
+  # Every file videos.json names must be there; only those (and the list) are copied.
+  local names
+  if ! names=$(node -e '
+    const fs = require("fs"), path = require("path"), dir = process.argv[1];
+    let list;
+    try { list = JSON.parse(fs.readFileSync(path.join(dir, "videos.json"), "utf8")); } catch { console.log("videos.json is missing or does not parse"); process.exit(1); }
+    if (!Array.isArray(list) || !list.length) { console.log("videos.json lists no videos"); process.exit(1); }
+    const files = list.flatMap((v) => [v.file, ...(v.poster ? [v.poster] : [])]);
+    const bad = files.filter((f) => typeof f !== "string" || !/^[A-Za-z0-9._-]+\.(mp4|jpg)$/.test(f) || !fs.existsSync(path.join(dir, f)));
+    if (bad.length) { console.log("missing or badly named: " + bad.join(" ")); process.exit(1); }
+    console.log(files.join("\n"));' "$src"); then
+    die "$names"
+  fi
+  local dest=$CODE/app/tutorial f
+  rm -rf "$dest.new"
+  install -d -m 755 -o "$APP_USER" -g "$APP_USER" "$dest.new"
+  cp "$src/videos.json" "$dest.new/"
+  while IFS= read -r f; do cp "$src/$f" "$dest.new/"; done <<< "$names"
+  chown -R "$APP_USER:$APP_USER" "$dest.new"
+  rm -rf "$dest"
+  mv "$dest.new" "$dest"
+  systemctl restart office-board # the board reads the file names when it starts
+  wait_answer || die "the board does not answer after the restart: journalctl -u office-board -n 50"
+  [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$PORT/tutorial/videos.json")" = 200 ] ||
+    die "the board does not serve /tutorial/videos.json"
+  say "Tutorial videos in place: $(grep -c '\.mp4$' <<< "$names") videos, in $dest"
+}
+
 case "${1:-}" in
   check) cmd_check ;;
   install) shift; cmd_install "$@" ;;
   tunnel) shift; cmd_tunnel "$@" ;;
   update) cmd_update ;;
-  *) sed -n '2,7p' "$0"; exit 2 ;;
+  videos) shift; cmd_videos "$@" ;;
+  *) sed -n '2,8p' "$0"; exit 2 ;;
 esac
