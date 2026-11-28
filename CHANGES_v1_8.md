@@ -199,12 +199,18 @@ Button on the Corner".
   land in the name box, which everyone sees.
 - The board shows a person's nickname where they have one (sidebar, task lists). Someone with a nickname sees their
   new full name in the name lists and pickers, not beside the gear; the nickname is changed by a director.
-- Nothing checks the new name against the others: a person could take a colleague's name. The change log is the brake.
+- Nothing checks the new name against the others: a person could take a colleague's name, and the change log would
+  not show it plainly. Its line names people by their names of today and carries no before and after, so it reads as
+  that colleague changing their own data; the old name is only in the log's database row. In Orang & Pengaturan the
+  username column still tells two people of the same name apart. Showing "old -> new" in the log, or refusing a name
+  an active colleague already has, is the owner's call.
 - Checks: a new test (`v1.8.7 a person changes their own full name in Settings, and nothing else`) sends every field
   of the director's form plus another person's id and checks that only her own name moved; it and the dictionary test,
   run by name: 2 of 2. Mutants, run by name: 5 of 5 caught (`self_name_takes_nick`, `self_name_other_row`,
   `self_name_blank`, `self_name_unlogged`, `self_name_before_password`), the control passed. The dialog was driven
   in headless Chrome against the real `app.js`, `style.css` and `i18n.json` with the server answered in the page: one
   request per save, the sidebar name changes, the focus is on the old password, an empty name is not sent, and closing
-  redraws the page (that headless mode never fires the dialog's `close` event, so the check fires it). Drawn at 1280
-  and 500 px wide. The whole `server.test.mjs` and `browser_check.py` were not run.
+  redraws the page while closing without a save does not (that headless mode never fires the dialog's `close` event,
+  so the check fires it). Drawn at 1280 and 500 px wide; at 1366x768, 1280x600 and 500x560 the taller dialog stays
+  inside the window and scrolls, and Keluar is reached by scrolling. The whole `server.test.mjs` and
+  `browser_check.py` were not run.
