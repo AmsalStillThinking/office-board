@@ -133,7 +133,7 @@ The daily `data/backups/*.json` and `data/files/` stay on the server: copy them 
 
 On an empty data folder, people and routine templates are loaded from `seed\people.json` and `seed\routines.json`,
 and every person gets a username and a temporary password written to `data\first-pins.txt` (id, name, username,
-password). Hand each one out in person, then DELETE that file. Everyone must choose their own password (8 to 128
+password). Hand each one out in person, then DELETE that file. Everyone must choose their own password (6 to 128
 characters, with at least one letter and one digit) at first sign-in. Since v1.8 people sign in by typing their
 username; a seed person may carry `"username"`, otherwise it is their id in lower case. A director sees and changes
 usernames in Lainnya -> Orang & Pengaturan (CHANGES_v1_8.md).

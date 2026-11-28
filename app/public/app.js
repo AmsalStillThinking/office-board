@@ -603,7 +603,7 @@
   }
   function pinForm(forced) {
     var msg = h('div', { cls: 'msg' });
-    // v1.8: a password (8 to 128 characters, checked by the server), no longer a numeric PIN
+    // v1.8: a password (6 to 128 characters, checked by the server), no longer a numeric PIN
     var old = forced ? null : h('input', { id: 'old-pin', type: 'password', maxlength: '128', autocomplete: 'current-password' });
     var p1 = h('input', { id: 'new-pin', type: 'password', maxlength: '128', autocomplete: 'new-password' });
     var p2 = h('input', { id: 'new-pin2', type: 'password', maxlength: '128', autocomplete: 'new-password' });

@@ -638,12 +638,13 @@ test('sign-in forces a PIN change; PIN rules', T, async () => {
   assert.equal((await r.json()).must_change_pin, 1);
   refusal(await a.req(DEWI, 'GET', '/api/cards'), 403, 'must_change_pin');
   refusal(await a.req(DEWI, 'POST', '/api/cards', { title: 'x', owner: DEWI, due: '2026-11-25', source: 'Lisan' }), 403, 'must_change_pin');
-  for (const weak of ['ab12', '12345678', 'abcdefgh', 'ab1' + 'x'.repeat(126), 12345678]) refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: weak }), 400, 'pin_weak');
+  for (const weak of ['ab12', 'ab123', '12345678', 'abcdefgh', 'ab1' + 'x'.repeat(126), 12345678]) refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: weak }), 400, 'pin_weak');
   refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: a.pins.get(DEWI) }), 400, 'pin_same');
   assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'kata sandi 2468' })).status, 200, 'any characters, spaces too');
   assert.equal((await a.req(DEWI, 'GET', '/api/cards')).status, 200);
   refusal(await a.req(DEWI, 'POST', '/api/pin', { pin: 'sandi99999', old: 'salah0000' }), 403, 'pin_wrong');
   assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'ab1' + 'x'.repeat(125), old: 'kata sandi 2468' })).status, 200, '128 characters is the most');
+  assert.equal((await a.req(DEWI, 'POST', '/api/pin', { pin: 'abc123', old: 'ab1' + 'x'.repeat(125) })).status, 200, '6 characters is the least (v1.8.3)');
   const h = a.db.prepare('SELECT pin_hash FROM people WHERE id = ?').get(DEWI).pin_hash;
   assert.match(h, /^scrypt\$/);
 });

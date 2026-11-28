@@ -35,6 +35,7 @@
 > before sign-in. Existing people get their id in lower case as username and are asked for a password after their
 > next sign-in with the old PIN. Read CHANGES_v1_8.md; tell the director, and hand out the usernames, before it goes
 > live. `browser_check.py` and `seat_checks\` still sign in the old way.
+> v1.8.3 (28 Nov 2026): the shortest password is 6 characters, not 8 (still a letter and a digit).
 
 Prepared 19 Nov 2026 for Amsal, at the director's request: "I want Amsal to improvise this. Please package everything up
 so I can handover to him."

@@ -124,3 +124,15 @@ for the shop, empty (no data from the office board), with the office board on th
   folder copied). The whole `server.test.mjs` after these
   changes (the first whole run since v1.8.1): 55 of 55. NOT run: the script on a real Linux server (`check` has only
   been syntax-checked).
+
+## v1.8.3 (28 Nov 2026): the shortest password is 6 characters
+
+Asked by the app owner on 28 Nov 2026: "Change the password rule to minimal 6".
+
+- `passwordOk` (`lib/db.mjs`): 6 to 128 characters, was 8 to 128; still at least one letter and one digit. The
+  refusal (`pin_weak`), the help on the password form, the README and the printed sheet say 6.
+- Nobody has to do anything: every password set until now is 8 or longer, so it still passes. A temporary password is
+  still 10 characters.
+- Checks: the PIN-rules test now refuses `ab123` (5) and accepts `abc123` (6), run by name: 1 of 1. Two new mutants,
+  `password_min_5` and `password_min_8`, run by name: 2 of 2 caught. The printed sheet equals a fresh build of
+  `make_sop_sheet.py`. The whole `server.test.mjs` was not run.
