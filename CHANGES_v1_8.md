@@ -88,3 +88,25 @@ Asked by the app owner on 28 Nov 2026: "Do the same Update on Office Board Hosti
 - Files: `server.mjs`, `lib/messages.json`, `public/i18n.json`, `public/app.js`, `public/style.css` (two comments),
   `test/server.test.mjs`, `test/mutants.mjs`, `seat_checks/seat_probe.mjs`, `make_sop_sheet.py`,
   `SOP_Papan_Tugas_Kantor.html`, `HANDOVER.md`, `CHANGES_v1_8.md`.
+
+## v1.8.2 (28 Nov 2026): on a Linux VPS, behind the Cloudflare tunnel
+
+Asked by the app owner on 28 Nov 2026: put this copy on the VPS that already runs the shop's ERP, as a new live site
+for the shop, empty (no data from the office board), with the office board on the PC left as it is.
+
+- **`--https`** (`server.mjs`): for a board behind an HTTPS proxy. Cookies get `Secure`; every answer carries
+  `Strict-Transport-Security: max-age=31536000`; a request the proxy marks as plain http (`X-Forwarded-Proto: http`,
+  which Cloudflare sends) gets a 301 to the same address on https, a POST a 403, before any page, file or answer.
+  Measured on 28 Nov 2026: the shop's domain does not force https at Cloudflare (`http://` answered 200), so without
+  this a password typed at an `http://` address would cross the Internet in the clear. Not yet measured: that
+  cloudflared hands `X-Forwarded-Proto` to the board (check after the first start: `http://<hostname>/` must answer
+  301). Without the flag (the office LAN) nothing changes.
+- **`vps/office-board-vps.sh`**: `check` (read-only), `install <hostname>`, `tunnel <hostname>`, `update`. README,
+  "On a Linux VPS". The board runs as its own system user, on 127.0.0.1:3006 only, with a database password made on
+  the server and never printed. It starts with one director, typed at install; everyone else is added in the board.
+- Checks: the new `--https` test and the CLI test (the flag reaches the app), run by name: 2 of 2. Five new mutants
+  (`https_cookie_not_secure`, `https_logout_not_secure`, `https_no_redirect`, `https_static_before_redirect`,
+  `https_flag_not_wired`), run by name: 5 of 5 caught. `tunnel` ran 17 of 17 cases against stand-ins for cloudflared
+  and systemctl in Git Bash (both a planted unescaped-dot match and a planted "no restore on refusal" were caught).
+  NOT run: the whole `server.test.mjs`, and the script on a real Linux server (`check`, `install` and `update` have
+  only been syntax-checked).

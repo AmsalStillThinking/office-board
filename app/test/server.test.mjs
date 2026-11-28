@@ -962,7 +962,7 @@ test('hygiene: uncaught errors are logged and do not exit', T, async () => {
 
 test('CLI: --now prints a loud line, random port, own data folder', T, async () => {
   const dir = freshDir('cli');
-  const child = spawn(process.execPath, [path.join(APP_DIR, 'server.mjs'), '--port', '0', '--host', '127.0.0.1', '--data', dir, '--seed', FIXTURE, '--now', '2026-11-18T10:00:00+08:00'], { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv() });
+  const child = spawn(process.execPath, [path.join(APP_DIR, 'server.mjs'), '--port', '0', '--host', '127.0.0.1', '--data', dir, '--seed', FIXTURE, '--now', '2026-11-18T10:00:00+08:00', '--https'], { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv() });
   let out = '';
   child.stdout.on('data', (d) => { out += d; });
   try {
@@ -977,11 +977,37 @@ test('CLI: --now prints a loud line, random port, own data folder', T, async () 
     assert.ok(pins.size && [...pins.values()].every((pw) => !out.includes(pw)), 'temporary passwords are not printed');
     const r = await fetch(`http://127.0.0.1:${port}/api/session`);
     assert.equal(r.status, 200);
+    assert.equal(r.headers.get('strict-transport-security'), 'max-age=31536000', '--https on the command line reaches the app');
   } finally {
     child.kill();
     await new Promise((r) => child.once('exit', r));
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('v1.8.2 --https: Secure cookies, HSTS, and plain http sent to https before any page', T, async () => {
+  const a = await app({ tag: 'https', https: true });
+  const r = await a.signIn(D1);
+  assert.equal(r.status, 200, r.text);
+  assert.match(r.headers.get('set-cookie'), /; Secure$/);
+  assert.equal(r.headers.get('strict-transport-security'), 'max-age=31536000');
+  const out = await fetch(a.base + '/api/logout', { method: 'POST', headers: { cookie: r.headers.get('set-cookie').split(';')[0] } });
+  assert.equal(out.status, 200);
+  assert.match(out.headers.get('set-cookie'), /Max-Age=0; Secure$/);
+  for (const url of ['/', '/app.js', '/api/session?x=1']) {
+    const g = await fetch(a.base + url, { headers: { 'x-forwarded-proto': 'http' }, redirect: 'manual' });
+    assert.equal(g.status, 301, url);
+    assert.equal(g.headers.get('location'), `https://127.0.0.1:${a.port}${url}`);
+  }
+  refusal(await a.req(null, 'POST', '/api/login', { username: 'nobody', password: 'sandi135790' }, { 'x-forwarded-proto': 'http' }), 403, 'forbidden');
+  assert.equal((await fetch(a.base + '/', { headers: { 'x-forwarded-proto': 'https' }, redirect: 'manual' })).status, 200);
+  // without --https (the office LAN): no Secure, no HSTS, the header changes nothing
+  const lan = await app({ tag: 'lan' });
+  const l = await lan.signIn(D1);
+  assert.equal(l.status, 200, l.text);
+  assert.doesNotMatch(l.headers.get('set-cookie'), /Secure/);
+  assert.equal(l.headers.get('strict-transport-security'), null);
+  assert.equal((await fetch(lan.base + '/', { headers: { 'x-forwarded-proto': 'http' }, redirect: 'manual' })).status, 200);
 });
 
 // ------------------------------------------------------------------ tiny raw-socket helpers

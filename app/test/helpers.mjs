@@ -49,7 +49,7 @@ export const hasColumn = (db, table, column) => !!db.prepare(
 export async function startApp(opts = {}) {
   const clock = { t: opts.now ?? at('2026-11-18T10:00:00+08:00'), real: opts.real ?? Date.now() };
   const dataDir = freshDir(opts.tag || 'app');
-  const app = mod.createApp({ dataDir, seedDir: FIXTURE, now: () => clock.t, realNow: () => clock.real, quiet: true, hooks: opts.hooks || {} });
+  const app = mod.createApp({ dataDir, seedDir: FIXTURE, now: () => clock.t, realNow: () => clock.real, quiet: true, hooks: opts.hooks || {}, https: opts.https });
   const port = await app.listen(0, '127.0.0.1');
   if (port === 3006) throw new Error('port 3006 is reserved');
   // v1.8: first-pins.txt is id, name, username, temporary password ("pin" stays the internal name of the password)

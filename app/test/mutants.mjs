@@ -46,6 +46,7 @@ const TD12 = 'TD12 "Hapus yang selesai" leaves a monthly to-do waiting to come b
 const V18_LOGIN = 'v1.8 sign-in by typed username and password; no name or id is accepted in its place';
 const V18_OLDPIN = 'v1.8 an old PIN still signs in once, and must then be replaced by a password';
 const V18_USERS = 'v1.8 a director sets usernames: required, one per person, letters digits . _ -';
+const V182 = 'v1.8.2 --https: Secure cookies, HSTS, and plain http sent to https before any page';
 const V15_TESTS = path.join(HERE, 'v15.test.mjs');
 const V1 = 'V1 a comment is proof: Kirim bukti needs no file, and after a correction a new comment counts';
 const V2 = 'V2 a to-do has a title and an optional description';
@@ -115,6 +116,16 @@ const MUTANTS = [
     edits: [['&& /\\p{L}/u.test(s) && /\\d/.test(s);', '&& /\\p{L}/u.test(s);']] },
   { name: 'load_no_usernames', file: path.join('tools', 'load-db.mjs'), test: PG_TESTS, check: PG1,
     edits: [['  db.exec(FILL_USERNAMES); // v1.8', '  // planted: no usernames filled']] },
+  { name: 'https_cookie_not_secure', file: 'server.mjs', test: SERVER_TESTS, check: V182,
+    edits: [['Max-Age=${SESSION_MS / 1000}${SECURE}`', 'Max-Age=${SESSION_MS / 1000}`']] },
+  { name: 'https_logout_not_secure', file: 'server.mjs', test: SERVER_TESTS, check: V182,
+    edits: [['Max-Age=0${SECURE}`', 'Max-Age=0`']] },
+  { name: 'https_no_redirect', file: 'server.mjs', test: SERVER_TESTS, check: V182,
+    edits: [["if (req.headers['x-forwarded-proto'] === 'http') {", 'if (false) {']] },
+  { name: 'https_static_before_redirect', file: 'server.mjs', test: SERVER_TESTS, check: V182,
+    edits: [['if (SECURE) {', "ctx.url = new URL(req.url, 'http://local'); if (req.method === 'GET' && staticFiles.has(ctx.url.pathname)) return serveStatic(ctx, staticFiles.get(ctx.url.pathname)); if (SECURE) {"]] },
+  { name: 'https_flag_not_wired', file: 'server.mjs', test: SERVER_TESTS, check: 'CLI: --now prints a loud line, random port, own data folder',
+    edits: [["https: args.has('https') });", 'https: false });']] },
   { name: 'action_lookup_on_object', file: 'server.mjs', test: SERVER_TESTS, check: 'hygiene: prototype keys give 404 and the server stays up',
     edits: [['const fn = ACTIONS.get(name);', "const fn = ({ start: ACTIONS.get('start') })[name];"]] },
   // ---- v1.1 fix round

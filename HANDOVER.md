@@ -272,6 +272,8 @@ about anything that changes who sees what).
    request in the same click. The server refuses most repeats anyway.
 6. **Plain HTTP**: passwords (PINs before v1.8) and files travel unencrypted on the office network. Options: Tailscale
    HTTPS, or a reverse proxy with a certificate. Required before the board is reachable from the Internet.
+   v1.8.2: a board on a VPS behind the Cloudflare tunnel runs with `--https` (README, "On a Linux VPS"); the LAN
+   board is still plain HTTP.
 7. **Lock-out**: five wrong tries on a person's username lock that person for 5 minutes, so anyone who knows (or
    guesses) a username can lock that person out. A per-device limit would be better.
 8. **Capture from chat**: the plan was a Telegram bot that turns a message or photo into a card (staff already use

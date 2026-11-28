@@ -47,6 +47,8 @@ export function createApp(opts) {
   const now = opts.now || (() => Date.now());
   const realNow = opts.realNow || (() => Date.now());
   const hooks = opts.hooks || {};
+  // v1.8.2: --https = the board sits behind an HTTPS proxy (the Cloudflare tunnel on the VPS); cookies go over HTTPS only
+  const SECURE = opts.https ? '; Secure' : '';
   const logFile = path.join(dataDir, 'server.log');
   fs.mkdirSync(dataDir, { recursive: true });
   const log = (...a) => {
@@ -414,12 +416,12 @@ export function createApp(opts) {
     q('DELETE FROM sessions WHERE expires_at <= ?').run(realNow());
     q('INSERT INTO sessions(token, person, created_at, expires_at) VALUES (?,?,?,?)').run(token, live.id, realNow(), realNow() + SESSION_MS);
     send(ctx.res, 200, { ok: true, must_change_pin: mustChange },
-      { 'Set-Cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}` });
+      { 'Set-Cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}${SECURE}` });
   }, 'none');
 
   add('POST', '/api/logout', (ctx) => {
     q('DELETE FROM sessions WHERE token = ?').run(ctx.me.token);
-    send(ctx.res, 200, { ok: true }, { 'Set-Cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0` });
+    send(ctx.res, 200, { ok: true }, { 'Set-Cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${SECURE}` });
   }, 'pinchange');
 
   add('POST', '/api/pin', async (ctx) => {
@@ -1450,6 +1452,15 @@ export function createApp(opts) {
       res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('Referrer-Policy', 'no-referrer');
       res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
+      if (SECURE) {
+        // Cloudflare names the scheme the visitor used: plain http goes to https before any page or answer
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+        if (req.headers['x-forwarded-proto'] === 'http') {
+          if (req.method !== 'GET' && req.method !== 'HEAD') refuse(403, 'forbidden');
+          res.writeHead(301, { Location: `https://${req.headers.host}${req.url}` });
+          return res.end();
+        }
+      }
       ctx.url = new URL(req.url, 'http://local');
       const p = ctx.url.pathname;
       if (req.method === 'GET' && staticFiles.has(p)) return serveStatic(ctx, staticFiles.get(p));
@@ -1574,7 +1585,7 @@ async function main() {
   }
   let app;
   try {
-    app = createApp({ dataDir, seedDir: args.get('seed'), now });
+    app = createApp({ dataDir, seedDir: args.get('seed'), now, https: args.has('https') });
   } catch (e) {
     // v1.4: no database (PostgreSQL still down after a minute, no database.url, an office.db not moved yet) is as loud
     // as a busy port: logged, on stderr, exit code 1.

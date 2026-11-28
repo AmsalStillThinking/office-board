@@ -102,6 +102,29 @@ The deploy script below is for any other installation (a program folder without 
   and in `data\server.log` and exits with code 1. Stop it with Ctrl+C (closes the database connection).
 - `--now <ISO time>` / env `OFFICE_NOW` freezes the clock: tests only, with a loud warning.
 
+## On a Linux VPS (v1.8.2)
+
+`..\vps\office-board-vps.sh` installs and updates the board on an Ubuntu server that already runs a cloudflared
+tunnel, so the board is reached at `https://<hostname>`. Run it as root in an `ssh -t` session (it asks questions):
+
+1. `bash office-board-vps.sh check`: a read-only report (Node, PostgreSQL, port 3006, the tunnel's routes).
+2. `bash office-board-vps.sh install <hostname>`: asks for the first director's name and username, then makes a
+   system user `officeboard`, clones this repository to `/home/officeboard/office-board`, makes the data folder
+   `/home/officeboard/data` (mode 700), a PostgreSQL role and database `office_board` with a random password (only in
+   `database.url`, mode 600, never printed) and the service `office-board` (`--host 127.0.0.1 --port 3006 --https`).
+   It shows the director's temporary password once and deletes `first-pins.txt`; everyone else is added in the board
+   (Lainnya -> Orang & Pengaturan). It refuses Node below 24 rather than upgrade a Node other programs use.
+3. `bash office-board-vps.sh tunnel <hostname>`: adds `<hostname>` -> `http://127.0.0.1:3006` above the catch-all of
+   the config the running cloudflared service reads (the old file stays as `.bak-<time>`; a file cloudflared refuses
+   is put back), then asks before restarting cloudflared: every site on that tunnel is down for a few seconds. The DNS
+   name is made with `cloudflared tunnel route dns <tunnel> <hostname>` wherever the account certificate is.
+4. `bash office-board-vps.sh update`: fetches master, fast-forwards, restarts, and goes back to the old commit if the
+   new one does not answer within 80 seconds (columns are only ever added, so old code runs on the newer database).
+
+`--https`: cookies get `Secure`, every answer carries `Strict-Transport-Security`, and a request the proxy marks as
+plain http (`X-Forwarded-Proto: http`) gets a 301 to https (a POST a 403) before any page or answer. Not for the LAN.
+The daily `data/backups/*.json` and `data/files/` stay on the server: copy them off it. No tutorial videos there.
+
 ## First start
 
 On an empty data folder, people and routine templates are loaded from `seed\people.json` and `seed\routines.json`,
