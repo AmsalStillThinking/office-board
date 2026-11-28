@@ -40,7 +40,7 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 #side { flex: 0 0 248px; background: var(--nav); color: #f9f7f7; display: flex; flex-direction: column; gap: 16px;
   padding: 18px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; min-width: 0; }
-.brand-mark { width: 34px; height: 34px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; flex: 0 0 auto; }
+.brand-mark { width: 34px; height: 34px; border-radius: 9px; background: #1d7a3a; /* v1.8.5 green, both themes (white 5.4:1) */ display: grid; place-items: center; flex: 0 0 auto; }
 .brand-mark svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linejoin: round; }
 #app-name { font-weight: 700; font-size: 16px; line-height: 1.2; }
 /* v1.7.24: the bell at the right of the app's name (the sidebar's top; the phone's top bar), its count a red dot-badge */

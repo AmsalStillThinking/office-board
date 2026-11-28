@@ -156,3 +156,14 @@ Asked by the app owner on 28 Nov 2026: "update again, for the password, change t
   Mutants, run by name: 6 of 6 caught (`password_needs_digit` and `password_needs_letter`, new, replace
   `password_without_digit`; `password_min_5`, `password_min_8`, `old_pin_kept`, `old_pin_keeps_sessions`), both
   controls passed. The printed sheet equals a fresh build. The whole `server.test.mjs` was not run.
+
+## v1.8.5 (28 Nov 2026): a green icon
+
+Asked by the app owner on 28 Nov 2026: "Change the icon to Green".
+
+- The browser-tab icon (`public/favicon.svg`) and the logo square in the sidebar and on the sign-in card
+  (`.brand-mark` in `style.css`) are green `#1d7a3a` (the board's own "segar" green), in both themes; white on it is
+  5.4:1. Buttons and links keep the blue accent. The office board on the PC keeps its blue icon, so the two tell apart
+  in a browser's tabs.
+- A browser keeps a tab icon for a while: a hard refresh (Ctrl+F5) shows the new one at once.
+- Checked: both icons drawn by headless Chrome with the real stylesheet, light and dark theme. No test pins them.
