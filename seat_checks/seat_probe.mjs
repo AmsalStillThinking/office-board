@@ -132,8 +132,8 @@ check('R2: director with a reason starts it, logged as override', r.status === 2
 // blocked cards free a slot, and coming back needs a free slot
 r = await act(A, ids[0], 'block', { waiting_on: B, note: 'menunggu data' });
 check('R6: block names a person', r.status === 200 && r.json.card.status === 'tunggu', r.status);
-r = await act(A, ids[1], 'block', { note: 'tanpa nama' });
-check('R6: block without a person -> need_waiting_on', r.status === 400 && r.json.error === 'need_waiting_on', [r.status, r.json && r.json.error]);
+r = await act(A, ids[1], 'block', {}); // v1.7.29: a person OR a reason is enough, so only neither is refused
+check('R6: block with neither a person nor a reason -> need_waiting_on', r.status === 400 && r.json.error === 'need_waiting_on', [r.status, r.json && r.json.error]);
 
 // ---------------------------------------------------------------- 5. R3 proof to close
 const P = ids[1]; // jalan, owner A, requester B

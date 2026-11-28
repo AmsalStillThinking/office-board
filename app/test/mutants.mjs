@@ -65,7 +65,7 @@ const MUTANTS = [
     edits: [["if (late >= settings.rotLate) return 'busuk';", "if (late > settings.rotLate) return 'busuk';"]] },
   { name: 'hard_lead_shifted', file: path.join('lib', 'rules.mjs'), test: RULE_TESTS, check: 'R5 hard boundaries',
     edits: [["if (workdaysBetween(today, due) <= settings.hardLead) return 'layu';", "if (workdaysBetween(today, due) < settings.hardLead) return 'layu';"]] },
-  { name: 'tunggu_counted_active', file: 'server.mjs', test: SERVER_TESTS, check: 'R6 tunggu needs a person and a note and is not active',
+  { name: 'tunggu_counted_active', file: 'server.mjs', test: SERVER_TESTS, check: 'R6 tunggu needs a person or a reason and is not active',
     edits: [["WHERE c.status = 'jalan' AND (c.owner = ?", "WHERE c.status IN ('jalan','tunggu') AND (c.owner = ?"]] },
   { name: 'macet_one_day_early', file: path.join('lib', 'rules.mjs'), test: SERVER_TESTS, check: 'R6 macet after more than 2 working days',
     edits: [['return workdaysBetween(localDate(since), today) > 2;', 'return workdaysBetween(localDate(since), today) >= 2;']] },

@@ -9,7 +9,7 @@
  "limit_active": {"id":"Sudah ada {n} tugas berjalan. Selesaikan dulu sebelum mulai yang baru.","en":"There are already {n} tasks in progress. Finish one before starting a new one."},
  "need_proof": {"id":"Tanpa bukti, belum selesai. Tulis komentar dulu, atau lampirkan file.","en":"No proof, not done. Write a comment first, or attach a file."},
  "need_reason": {"id":"Tulis alasannya.","en":"Write the reason."},
- "need_waiting_on": {"id":"Pilih orang yang ditunggu dan tulis catatannya.","en":"Choose who you are waiting for and write a note."},
+ "need_waiting_on": {"id":"Pilih orang yang ditunggu, atau tulis alasannya.","en":"Choose who you are waiting for, or write the reason."},
  "need_link": {"id":"Tautan harus diawali http:// atau https://.","en":"A link must start with http:// or https://."},
  "need_file": {"id":"File kosong atau tanpa nama.","en":"The file is empty or has no name."},
  "bad_state": {"id":"Dengan statusnya sekarang, tugas ini tidak bisa diubah seperti itu.","en":"This task cannot be changed that way in its current status."},

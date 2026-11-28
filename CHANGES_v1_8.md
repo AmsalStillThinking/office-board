@@ -68,3 +68,23 @@ start (`lib/db.mjs`, nothing dropped). `tools/load-db.mjs` fills the usernames o
 - NOT updated or run: `test/browser_check.py` (it still drives the old name list; it was already out of date, HANDOVER
   top note) and the reviewer-side `seat_checks\` (they sign in with `{ id, pin }` and expect 8-digit PINs). Update
   both before trusting them.
+
+# v1.8.1 (28 Nov 2026): Tunda and Alasan, a person or a reason (Office Board v1.7.29)
+
+Asked by the app owner on 28 Nov 2026: "Do the same Update on Office Board Hosting", after Office Board v1.7.29
+("Change the name for "Macet" to "Tunda" and "Catatan Singkat" to "Alasan", so instead of require the "Menunggu Siapa"
+*And* "Alasan" make it require the "Menunggu Siapa" *Or* "Alasan"").
+
+- The same change as Office Board v1.7.29 (its commits 3423561 and 8c98c7f, applied here over v1.8 with no
+  conflicts; the lines added and removed are identical, 145 of 145). What it does is written there, in
+  `CHANGES_v1_7.md` of `F:\Office Board`. In short: on screen "Macet" is "Tunda" (en On hold) and "Catatan singkat"
+  is "Alasan" (en Reason); putting a task on hold needs a person waited on OR a reason, and a person given must still
+  be active and not on the task's team. The code comments name it v1.7.29, as in Office Board.
+- The printed sheet (`SOP_Papan_Tugas_Kantor.html`) equals a fresh build of this copy's `make_sop_sheet.py`.
+- Checks here: the files parse (`node --check`), and the dictionary has the same 395 keys in id and en with no
+  "Macet" / "Catatan singkat" / "stuck" left. NOT run here, on the owner's choice: `server.test.mjs` (its R6 test is
+  rewritten for the new rule; it passed in Office Board, but this copy's sign-in helpers differ since v1.8).
+- This copy is not running (no `data\`), so nothing was restarted.
+- Files: `server.mjs`, `lib/messages.json`, `public/i18n.json`, `public/app.js`, `public/style.css` (two comments),
+  `test/server.test.mjs`, `test/mutants.mjs`, `seat_checks/seat_probe.mjs`, `make_sop_sheet.py`,
+  `SOP_Papan_Tugas_Kantor.html`, `HANDOVER.md`, `CHANGES_v1_8.md`.

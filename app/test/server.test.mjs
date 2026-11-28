@@ -246,20 +246,26 @@ test('R5 ageing over HTTP at each boundary day', T, async () => {
 });
 
 // ------------------------------------------------------------------ R6
-test('R6 tunggu needs a person and a note and is not active', T, async () => {
+test('R6 tunggu needs a person or a reason and is not active', T, async () => {
   const a = await signedIn({}, [DEWI]);
   const ids = [];
   for (let i = 0; i < 4; i++) ids.push(await a.create(DEWI, { title: 'k' + i }));
   for (let i = 0; i < 3; i++) await a.act(DEWI, ids[i], 'start');
-  const row = a.rowJson(ids[0]);
-  refusal(await a.act(DEWI, ids[0], 'block', { note: 'x' }), 400, 'need_waiting_on');
-  refusal(await a.act(DEWI, ids[0], 'block', { waiting_on: EKO }), 400, 'need_waiting_on');
-  refusal(await a.act(DEWI, ids[0], 'block', { waiting_on: DEWI, note: 'saya sendiri' }), 400, 'need_waiting_on');
-  assert.equal(a.rowJson(ids[0]), row);
-  assert.equal((await a.act(DEWI, ids[0], 'block', { waiting_on: EKO, note: 'tunggu data stok' })).status, 200);
+  const row = a.rowJson(ids[2]);
+  refusal(await a.act(DEWI, ids[2], 'block', {}), 400, 'need_waiting_on');
+  refusal(await a.act(DEWI, ids[2], 'block', { waiting_on: '', note: '   ' }), 400, 'need_waiting_on');
+  // a person given must be a valid one, even with a reason beside it
+  refusal(await a.act(DEWI, ids[2], 'block', { waiting_on: DEWI, note: 'saya sendiri' }), 400, 'need_waiting_on');
+  refusal(await a.act(DEWI, ids[2], 'block', { waiting_on: 'nobody', note: 'tunggu data' }), 400, 'need_waiting_on');
+  assert.equal(a.rowJson(ids[2]), row);
+  // v1.7.29 (the owner, 28 Nov 2026): a person OR a reason is enough
+  assert.equal((await a.act(DEWI, ids[0], 'block', { waiting_on: EKO })).status, 200);
+  assert.equal((await a.act(DEWI, ids[1], 'block', { waiting_on: '', note: 'tunggu data stok' })).status, 200);
+  assert.deepEqual([a.card(ids[0]).status, a.card(ids[0]).waiting_on, a.card(ids[0]).waiting_note], ['tunggu', EKO, null]);
+  assert.deepEqual([a.card(ids[1]).status, a.card(ids[1]).waiting_on, a.card(ids[1]).waiting_note], ['tunggu', null, 'tunggu data stok']);
   assert.equal((await a.act(DEWI, ids[3], 'start')).status, 200, 'a card in tunggu does not count toward the limit');
   const nums = await a.req(DEWI, 'GET', '/api/numbers');
-  assert.equal(nums.json.rows.find((r) => r.person === DEWI).active_now, 3);
+  assert.equal(nums.json.rows.find((r) => r.person === DEWI).active_now, 2);
 });
 
 test('R6 macet after more than 2 working days', T, async () => {

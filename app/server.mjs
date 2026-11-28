@@ -1020,10 +1020,12 @@ export function createApp(opts) {
   ACTIONS.set('block', (me, c, body) => {
     if (!(onTeam(me, c) || isDir(me))) refuse(403, 'forbidden');
     if (c.status !== 'jalan') refuse(409, 'bad_state');
-    const who = getPerson(str(body.waiting_on, 40));
+    // v1.7.29 (the owner, 28 Nov 2026): a person waited on OR a reason; a person given must still be a valid one
+    const id = str(body.waiting_on, 40);
+    const who = id ? getPerson(id) : null;
     const note = str(body.note, 500);
-    if (!who || !who.active || teamOf(c).includes(who.id) || !note) refuse(400, 'need_waiting_on');
-    changeCard(c, { status: 'tunggu', waiting_on: who.id, waiting_note: note, waiting_since: now() }, me.id, 'block');
+    if (id ? (!who || !who.active || teamOf(c).includes(who.id)) : !note) refuse(400, 'need_waiting_on');
+    changeCard(c, { status: 'tunggu', waiting_on: who ? who.id : null, waiting_note: note || null, waiting_since: now() }, me.id, 'block');
   });
   ACTIONS.set('unblock', (me, c, body) => {
     if (!(onTeam(me, c) || isDir(me))) refuse(403, 'forbidden');

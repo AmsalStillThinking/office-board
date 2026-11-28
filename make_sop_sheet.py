@@ -31,7 +31,7 @@ if (max_active, wilt, rot, hard_lead) != (3, 0, 3, 3):
 
 # every UI word this sheet names must exist in the app's Indonesian dictionary, exactly
 values = set(D.values())
-CITED = ["Papan Saya", "Tugas baru", "Mulai", "Macet", "Kirim bukti", "Terima", "Minta koreksi", "Tambah komentar", "Buka", "Unggah file", "On track", "Due", "Overdue"]
+CITED = ["Papan Saya", "Tugas baru", "Mulai", "Tunda", "Kirim bukti", "Terima", "Minta koreksi", "Tambah komentar", "Buka", "Unggah file", "On track", "Due", "Overdue"]
 missing = [w for w in CITED if w not in values]
 if missing:
     sys.exit("words not in the app dictionary: %s" % missing)
@@ -43,15 +43,15 @@ e = html.escape
 steps = [
     ("Catat", "Setiap permintaan jadi tugas, termasuk yang datang lewat WhatsApp atau lisan. Tombol: Tugas baru."),
     ("Sanggupi", "Satu pemilik, satu tenggat. Paling banyak %d tugas berjalan per orang. Tombol: Mulai." % max_active),
-    ("Kerjakan", "Tertahan orang lain? Tekan Macet dan tulis menunggu siapa."),
+    ("Kerjakan", "Tertahan? Tekan Tunda, lalu pilih menunggu siapa atau tulis alasannya."),
     ("Buktikan", "Buka tugasnya, tulis komentar (Tambah komentar) atau lampirkan file atau foto (Unggah file), lalu tekan Kirim bukti. Pemberi tugas menekan Terima atau Minta koreksi. Diminta koreksi? Tambahkan bukti baru."),
-    ("Tinjau", "Jumat, 20 menit. Hanya tugas due, overdue, dan macet."),
+    ("Tinjau", "Jumat, 20 menit. Hanya tugas due, overdue, dan tunda."),
 ]
 colours = [
     ("segar", "On track", "Belum sampai tenggat."),
     ("layu", "Due", "Sudah hari tenggat, sampai 2 hari kerja lewat."),
     ("busuk", "Overdue", "Lewat tenggat %d hari kerja atau lebih." % rot),
-    ("macet", "Macet", "Menunggu orang lain, atau bukti belum diperiksa, lebih dari 2 hari kerja."),
+    ("macet", "Tunda", "Ditunda (menunggu orang lain atau ada alasan), atau bukti belum diperiksa, lebih dari 2 hari kerja."),
 ]
 sops = [(D["sop1_t"], D["sop1_b"]), (D["sop2_t"], D["sop2_b"]), (D["sop3_t"], D["sop3_b"])]
 
@@ -109,7 +109,7 @@ parts.append('<!DOCTYPE html>\n<html lang="id">\n<head>\n<meta charset="utf-8">\
              '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
              '<title>Office Board: cara pakai</title>\n<style>' + css + '</style>\n</head>\n<body>\n<div class="sheet">\n')
 parts.append('<header><div><h1>%s</h1><p class="motto">%s</p></div>'
-             '<p class="why">Tujuannya melihat apa yang macet dan siapa yang perlu dibantu.</p></header>\n' % (e(D["app_name"]), e(D["motto"])))
+             '<p class="why">Tujuannya melihat apa yang tertunda dan siapa yang perlu dibantu.</p></header>\n' % (e(D["app_name"]), e(D["motto"])))
 parts.append('<h2>Lima langkah</h2>\n<div class="steps">\n')
 for i, (name, text) in enumerate(steps, 1):
     parts.append('<div class="step"><b><span class="n">%d</span>%s</b><p>%s</p></div>\n' % (i, e(name), e(text)))

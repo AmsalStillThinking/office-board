@@ -737,7 +737,7 @@
     var meta = h('div', { cls: 'meta' },
       ageBadge(c.age), c.macet ? macetBadge() : null, statusBadge(c.status),
       h('span', { cls: 'due', text: t('lbl_due') + ': ' + fmtDate(c.due) + (due ? ' · ' + due : '') }),
-      c.status === 'tunggu' && c.waiting_on ? h('span', { text: t('lbl_waiting_on') + ': ' + personName(c.waiting_on) }) : null,
+      c.status === 'tunggu' && (c.waiting_on || c.waiting_note) ? h('span', { text: c.waiting_on ? t('lbl_waiting_on') + ': ' + personName(c.waiting_on) : t('f_note') + ': ' + c.waiting_note }) : null, // v1.7.29: a person or a reason
       c.status === 'bukti' && c.macet ? h('span', { cls: 'waiting-confirm', text: t('waiting_confirm') + ': ' + personName(c.requester) }) : null);
     el.appendChild(meta);
     el.appendChild(h('div', { cls: 'card-foot' }, h('span', { cls: 'who' }, avatar(c.owner, 'sm'), h('span', { text: teamLabel(c) })),
@@ -1350,7 +1350,7 @@
     // v1.6.8: a task a Penerima added for a Pemberi reads "Diusulkan, menunggu persetujuan <Pemberi>"
     var kind = e.kind === 'create' && after.status === 'usul' ? 'propose' : e.kind;
     var bits = [fmtTime(e.at), (e.actor ? personName(e.actor) : t('by_system')), kind === 'propose' ? tf('ev_propose', { name: personName(after.requester) }) : t('ev_' + kind)];
-    if (e.kind === 'block' && after.waiting_on) bits.push(personName(after.waiting_on) + ': ' + (after.waiting_note || ''));
+    if (e.kind === 'block') bits.push([after.waiting_on ? personName(after.waiting_on) : '', after.waiting_note || ''].filter(Boolean).join(': ')); // v1.7.29: either may be missing
     if (e.kind === 'due') bits.push(fmtDate(d.before && d.before.due) + ' -> ' + fmtDate(after.due));
     if (e.kind === 'owner') bits.push(personName(d.before && d.before.owner) + ' -> ' + personName(after.owner));
     if (e.kind === 'evidence' && after.name) bits.push(after.name);
@@ -1397,7 +1397,8 @@
       row('lbl_due', fmtDate(c.due) + (c.hard ? ' · ' + t('lbl_hard') : ''));
       row('f_type', t('type_' + c.type));
       row('f_source', t('src_' + c.source));
-      if (c.status === 'tunggu') row('lbl_waiting_on', personName(c.waiting_on) + ': ' + (c.waiting_note || ''));
+      if (c.status === 'tunggu' && c.waiting_on) row('lbl_waiting_on', personName(c.waiting_on)); // v1.7.29: a person, a reason, or both
+      if (c.status === 'tunggu' && c.waiting_note) row('f_note', c.waiting_note);
       row('lbl_koreksi', String(c.koreksi));
       row('lbl_moved', String(c.moved));
       row('lbl_viewers', c['private'] ? t('lbl_private') + ': ' + t('f_viewers_help') + (c.parent ? ' ' + t('f_viewers_help_sub') : '') +

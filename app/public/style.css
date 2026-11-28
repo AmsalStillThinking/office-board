@@ -200,8 +200,8 @@ label.check { display: flex; gap: 10px; align-items: center; font-weight: 400; m
 .phone-only { display: none; }
 .tr > div { padding: 8px; min-width: 0; }
 .tr > .c-act { display: flex; flex-wrap: wrap; gap: 6px; cursor: auto; }
-.c-act button { padding-left: 12px; padding-right: 12px; } /* Macet and Buka side by side in the 165 px column */
-.tr > .c-extra { grid-column: 1 / -1; cursor: auto; } /* the Macet form or a message, under the row */
+.c-act button { padding-left: 12px; padding-right: 12px; } /* Tunda and Buka side by side in the 165 px column */
+.tr > .c-extra { grid-column: 1 / -1; cursor: auto; } /* the Tunda form or a message, under the row */
 .tr > .c-extra:empty { display: none; }
 .tr.th { background: var(--bg); border-bottom-color: var(--line); font-size: 13px; font-weight: 700; color: var(--muted);
   position: sticky; top: 0; z-index: 2; }

@@ -50,7 +50,7 @@ Selain itu, silakan diperbaiki dan dikembangkan, dengan cara kerja di bagian 6: 
 ## 1. What it is, in one paragraph
 
 Office staff turn every request into a card: Catat (capture) -> Sanggupi (commit: one owner, one due date, at most 3
-active cards per person) -> Kerjakan (do: cards age Segar / Layu / Busuk; "Macet" when waiting on someone) ->
+active cards per person) -> Kerjakan (do: cards age Segar / Layu / Busuk; "Tunda" when waiting on someone or held for a reason) ->
 Buktikan (prove: a card closes only with a file, photo or link; the person who asked accepts it or sends it back for
 correction) -> Tinjau (Friday 20-minute review of the red cards only). The directors' first screen shows exceptions
 only. The framing the director set for it: "what is stuck and who needs help", not surveillance. Motto in the app:
@@ -155,7 +155,8 @@ changing what they say:
    deadline (tax, BPJS) are Due 3 working days before. Working days Monday to Saturday, time zone Asia/Makassar.
    The limits are director settings in the app. (Until 22 Nov 2026 the screen called the three states Segar, Layu
    and Busuk; the owner renamed them to On track, Due and Overdue. The rule is unchanged.)
-6. Macet: waiting on someone, or proof not yet confirmed, for more than 2 working days.
+6. Tunda (code `macet`; called Macet before v1.7.29): on hold, waiting on someone or for a written reason, or proof
+   not yet confirmed, for more than 2 working days. Putting a task on hold needs a person waited on OR a reason.
 7. A director's first screen is Pengecualian: "Menunggu Anda" first, then Layu and Busuk, then Macet.
 8. Per-person numbers are visible to directors only; everyone else sees the office total and their own row.
 9. Private cards are seen only by their owner, their requester and the directors. Since v1.6 also by the card's team
